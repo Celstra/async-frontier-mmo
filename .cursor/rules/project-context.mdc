@@ -1,0 +1,39 @@
+---
+description: Product direction, MVP loop, and design-doc sources of truth
+alwaysApply: true
+---
+
+# Async Frontier MMO — project context
+
+**Not a Godot project.** The client is a web/PWA built with SvelteKit. Godot is out of scope unless Ryan explicitly asks.
+
+## North star
+
+Menu/text-first async frontier MMO: Farm RPG growth path + Firefall thumper fantasy + SWG-style named resources and crafting.
+
+## Core toy (build this first)
+
+```text
+Survey → thump → craft → equip/use → decay → survey better
+```
+
+Stay in **pre-production** until a tiny vertical slice proves the loop is fun. Do not add chat, marketplace, realtime, planets, or combat boards until the personal thumper loop works.
+
+## Design docs (read before major decisions)
+
+| Doc | Use for |
+|-----|---------|
+| `design-docs/DESIGN_BIBLE.md` | Game systems, economy, thumpers, decay |
+| `design-docs/MVP_VERTICAL_SLICE_PRODUCTION_POINT_PLAN.md` | MVP scope, production-point gate |
+| `design-docs/TECH_STACK_AND_INFRA_COST_PLAN.md` | Stack, hosting, cost guardrails |
+
+## MVP content ceiling
+
+One zone (Red Mesa), three frames, three resource families, survey + deploy + claim thumper, a few recipes, durability, inventory ledger. Defer everything else.
+
+## Cost-aware design
+
+- Server-authoritative actions; ledger every economy mutation.
+- Resolve thumper progress from timestamps, not per-second ticks.
+- HTTP + light polling first; no WebSockets/SSE until proven necessary.
+- Postgres-backed jobs before Redis or external queues.

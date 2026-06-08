@@ -1,0 +1,36 @@
+---
+description: TypeScript, SvelteKit, Drizzle, and Docker conventions
+globs: "**/*.{ts,svelte,sql}"
+alwaysApply: false
+---
+
+# Stack conventions
+
+- **Language:** TypeScript everywhere (client, server, domain, shared types).
+- **Frontend:** SvelteKit pages, forms, and server actions/API routes.
+- **Database:** PostgreSQL via Drizzle ORM; SQL-shaped schemas and migrations.
+- **Validation:** Zod or Valibot on all server inputs.
+- **Local dev:** Docker Compose for Postgres (and app when scaffolded).
+- **Package manager:** pnpm workspace when the monorepo is scaffolded.
+
+## Patterns to follow
+
+```typescript
+// ✅ Domain: pure function, testable
+export function resolveThumperClaim(event: ThumperEvent, now: Date): ClaimResult { ... }
+
+// ✅ Server action: validate → domain → persist
+const input = deploySchema.parse(formData);
+const result = deployThumper(input, playerContext);
+await db.transaction(async (tx) => { ... });
+
+// ❌ Avoid: game math inside a .svelte component or +page.server.ts inline
+```
+
+## Economy writes
+
+Write only on meaningful player actions (survey, deploy, claim, craft, repair). Use `inventory_transactions` for audit; keep current-state tables for fast reads. Make claims and crafts idempotent.
+
+## Dependencies
+
+Match existing project choices before adding libraries. Prefer boring, production-shaped tools over prototype shortcuts that require rewrite.

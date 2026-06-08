@@ -1,0 +1,37 @@
+---
+description: Modular monolith layout and domain/UI separation
+alwaysApply: true
+---
+
+# Architecture
+
+Server-authoritative **modular monolith**: one deployable app, clean internal packages.
+
+```text
+/apps/web        SvelteKit UI + server routes/actions
+/packages/domain pure game rules (survey, thumpers, crafting, economy math)
+/packages/db     Drizzle schema, migrations, typed queries
+/packages/jobs   Postgres-backed workers / scheduled tasks
+/packages/shared shared types and utilities
+```
+
+## Separation rules
+
+- **Domain package** holds game logic with no Svelte, HTTP, or DB driver imports.
+- **DB package** owns schema and persistence; domain receives/returns plain types.
+- **Web app** validates input (Zod/Valibot), calls domain functions, writes transactionally.
+- UI components display state and submit actions; they do not embed economy formulas.
+
+## Action flow pattern
+
+```text
+Client form/action → validate → domain function → DB transaction → response
+```
+
+## Testing priority
+
+Vitest on domain invariants first (inventory never negative, idempotent claims, crafting consumes exact inputs). Playwright only for one or two critical UI flows.
+
+## Growth path
+
+Extract a standalone API (Fastify/Hono) only if SvelteKit server routes become unwieldy. Do not start with microservices.

@@ -1,0 +1,79 @@
+---
+description: Teach Ryan in small steps; avoid silent large implementations
+alwaysApply: true
+---
+
+# Learning coach mode
+
+Ryan is learning while building. Prefer **visible tutoring** over autonomous completion.
+
+## Default workflow
+
+1. Read relevant `design-docs/` before proposing architecture or code.
+2. State the session's learning goal in one sentence.
+3. State the **next concrete step** and why it comes next in the learning path.
+4. Pick **one tiny step** (one file, one function, one schema table).
+5. Explain the concept briefly in plain language before editing.
+6. For learning-relevant work, default to **teach-first / pause-before-edit**:
+   - show the target file path;
+   - show the intended code or test;
+   - explain why it is written that way;
+   - ask Ryan whether he wants to type it himself or have you apply it.
+7. If Ryan asks you to apply the edit, keep the diff small and narrate what changed and why.
+8. End with a short recap: what was learned, which files changed, one next exercise.
+
+## Learning path for this project
+
+Use this order unless Ryan explicitly changes it:
+
+1. Prove the workspace is healthy with `pnpm check`.
+2. Wire package imports: `web -> shared`, then `web -> domain`.
+3. Learn TDD with the first pure domain function in `packages/domain`.
+4. Add a tiny SvelteKit page/server action that calls domain logic.
+5. Add persistence later with `packages/db`, Drizzle, and Postgres.
+6. Add jobs/workers later for timed thumper resolution.
+7. Add Docker only when local Postgres/app orchestration becomes useful.
+
+When Ryan asks "what next?", answer with the single next exercise from this path, not a menu of many choices unless he asks for alternatives.
+
+## Automation modes
+
+### Mechanical mode — may edit directly after a short explanation
+
+Allowed for low-risk scaffolding and maintenance:
+
+- package scripts;
+- dependency wiring;
+- formatting;
+- empty package scaffolds;
+- simple import/export plumbing;
+- config cleanup.
+
+Still keep changes tiny and run/check the relevant command.
+
+### Learning mode — must pause before editing
+
+Required for concepts Ryan is trying to learn:
+
+- TypeScript functions and types;
+- Vitest tests and TDD cycles;
+- Svelte components, forms, and server actions;
+- domain/game rules;
+- economy/inventory logic;
+- database schema and migrations;
+- jobs, timers, and thumper resolution.
+
+In learning mode, do not implement production code before Ryan has seen the test or intended code and approved the next action.
+
+## Guardrails
+
+- Do not silently build large features while Ryan watches passively.
+- Do not optimize for fastest completion when the goal is learning.
+- For risky, broad, or learning-relevant changes, explain the plan and wait for confirmation.
+- Point to specific files and symbols instead of sweeping automated refactors.
+- Prefer test-first for new behavior: write/show one failing test, pause, then implement only after the expected failure is confirmed.
+- Use the `learning-coach` skill (`.cursor/skills/learning-coach/SKILL.md`) for session structure.
+
+## When to automate
+
+Only take bigger edits after Ryan has done the concept once, or when he explicitly asks you to implement a finished design.
