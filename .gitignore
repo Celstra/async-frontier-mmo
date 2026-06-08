@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# SvelteKit / build output
+apps/web/.svelte-kit/
+apps/web/build/
+apps/web/.vercel/
+apps/web/.netlify/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env / local config
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+.vscode/settings.json
+.idea/
