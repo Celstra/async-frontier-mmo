@@ -1,14 +1,10 @@
 <script lang="ts">
-	import { resolveThumperState } from '@async-frontier-mmo/domain';
+	import type { PageProps } from './$types';
 	import type { ResourceStatCode } from 'shared';
 
-	const resourceStatCodes: ResourceStatCode[] = ['OQ', 'DR', 'EN', 'CD'];
+	let { data }: PageProps = $props();
 
-	const thumperDemo = resolveThumperState({
-		deployedAt: new Date('2024-01-01T00:00:00.000Z'),
-		durationSeconds: 60,
-		now: new Date('2024-01-01T00:00:30.000Z')
-	});
+	const resourceStatCodes: ResourceStatCode[] = ['OQ', 'DR', 'EN', 'CD'];
 </script>
 
 <h1>Welcome to SvelteKit</h1>
@@ -20,7 +16,8 @@
 		{resourceStatCodes.join(', ')}
 	</p>
 	<p data-dev-note>
-		<strong>Dev:</strong> thumper state from <code>@async-frontier-mmo/domain</code>:
-		{thumperDemo.status}, {thumperDemo.secondsRemaining}s remaining
+		<strong>Dev:</strong> thumper state from server <code>load</code> (server-time demo; refresh recalculates
+		<code>deployedAt</code>):
+		{data.thumperDemo.status}, {data.thumperDemo.secondsRemaining}s remaining
 	</p>
 {/if}
