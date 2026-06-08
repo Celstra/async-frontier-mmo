@@ -43,4 +43,23 @@ describe('resolveThumperState', () => {
 			secondsRemaining: 0
 		});
 	});
+
+	describe('from persisted event fields (no database)', () => {
+		it('resolves state using deployedAt and durationSeconds shaped like thumper_events columns', () => {
+			// Mirrors thumper_events.deployed_at + thumper_events.duration_seconds
+			const persistedDeployedAt = new Date('2024-06-01T12:00:00.000Z');
+			const persistedDurationSeconds = 120;
+
+			const result = resolveThumperState({
+				deployedAt: persistedDeployedAt,
+				durationSeconds: persistedDurationSeconds,
+				now: new Date('2024-06-01T12:01:30.000Z')
+			});
+
+			expect(result).toEqual({
+				status: 'active',
+				secondsRemaining: 30
+			});
+		});
+	});
 });
