@@ -5,7 +5,13 @@
 
 	let { data, form }: PageProps = $props();
 
-	const resourceStatCodes: ResourceStatCode[] = ['OQ', 'DR', 'EN', 'CD'];
+	const resourceStatCodes: ResourceStatCode[] = [
+		'OQ',
+		'conductivity',
+		'hardness',
+		'heat_resistance',
+		'malleability'
+	];
 	// Prefer load data over stale form data (deploy action result freezes at click time).
 	const thumperDemo = $derived(
 		form?.claimed ? null : (data.thumperDemo ?? form?.thumperDemo)

@@ -1,2 +1,7 @@
-/** Resource quality stat codes used across the monorepo (MVP subset). */
-export type ResourceStatCode = 'OQ' | 'DR' | 'EN' | 'CD';
+/** Resource property stat codes — locked MVP set (see MVP_SCOPE_REFERENCE.md). */
+export type ResourceStatCode =
+	| 'OQ'
+	| 'conductivity'
+	| 'hardness'
+	| 'heat_resistance'
+	| 'malleability';
