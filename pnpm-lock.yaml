@@ -57,6 +57,9 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@async-frontier-mmo/domain':
+        specifier: workspace:*
+        version: link:../domain
       drizzle-kit:
         specifier: ^0.31.4
         version: 0.31.10

@@ -27,6 +27,16 @@ export {
 } from './thumper/complicationActions';
 export { generateFirstSessionEventWindows } from './thumper/generateFirstSessionEventWindows';
 export {
+	FIRST_SESSION_PROJECTED_RECOVERY,
+	FIRST_SESSION_SCANNER_MINIMUM,
+	resolveFirstSessionThumperRunResult
+} from './thumper/resolveFirstSessionThumperRunResult';
+export type {
+	ThumperEventWindowResponse,
+	ThumperRunResult,
+	ThumperWindowChosenResponse
+} from './thumper/resolveFirstSessionThumperRunResult';
+export {
 	resolveThumperState,
 	type ResolveThumperStateInput,
 	type ResolveThumperStateResult

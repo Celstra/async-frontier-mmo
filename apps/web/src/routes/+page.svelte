@@ -12,15 +12,19 @@
 		'heat_resistance',
 		'malleability'
 	];
-	// Prefer load data over stale form data (deploy action result freezes at click time).
 	const thumperDemo = $derived(
 		form?.claimed ? null : (data.thumperDemo ?? form?.thumperDemo)
 	);
 	const openRun = $derived(
 		form?.claimed ? null : (data.openRun ?? form?.openRun ?? null)
 	);
+	const eventWindows = $derived(form?.eventWindows ?? data.eventWindows ?? []);
+	const claimResult = $derived(form?.claimResult ?? null);
 	const thumperSource = $derived(
 		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
+	);
+	const allWindowsResponded = $derived(
+		eventWindows.length > 0 && eventWindows.every((window) => window.responded)
 	);
 
 	let displaySeconds = $state<number | null>(null);
@@ -84,12 +88,43 @@
 	</form>
 {:else if thumperDemo}
 	<p>Thumper running on <strong>{openRun?.targetDisplayName ?? 'unknown signal'}</strong>.</p>
+
+	{#if eventWindows.length > 0}
+		<h2>Event windows</h2>
+		<ul>
+			{#each eventWindows as window}
+				<li>
+					<strong>Window {window.windowIndex}:</strong> {window.complication}
+					{#if window.responded}
+						— responded: {window.chosenResponse}
+					{:else}
+						<form method="POST" action="?/respond" style="display: inline">
+							<input type="hidden" name="windowIndex" value={window.windowIndex} />
+							<button type="submit" name="chosenResponse" value={window.matchingAction}>
+								{window.matchingAction}
+							</button>
+							<button type="submit" name="chosenResponse" value="hold">Hold</button>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {/if}
 
-{#if thumperDemo?.status === 'claimable'}
+{#if thumperDemo?.status === 'claimable' && (eventWindows.length === 0 || allWindowsResponded)}
 	<form method="POST" action="?/claim">
 		<button type="submit">Claim thumper</button>
 	</form>
+{:else if thumperDemo?.status === 'claimable' && eventWindows.length > 0}
+	<p>Resolve all event windows before claiming.</p>
+{/if}
+
+{#if form?.claimed && claimResult}
+	<p>
+		<strong>Claim result:</strong> {claimResult.recoveredQuantity} {claimResult.targetResourceId}
+		(waste {claimResult.wasteQuantity}) — {claimResult.explanation}
+	</p>
 {/if}
 
 {#if import.meta.env.DEV}
