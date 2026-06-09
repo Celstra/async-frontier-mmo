@@ -282,7 +282,7 @@ Only split what is actually hot:
 
 ## 7. Current public pricing signals checked
 
-Final review note, 2026-06-09: these numbers are directional only and must be rechecked on the provider pages before spending money. The MVP architecture should not depend on any free tier or promotional allowance.
+These numbers change, so treat them as directional, not permanent commitments.
 
 ### Cloudflare Workers
 
@@ -312,7 +312,7 @@ Source: https://fly.io/docs/about/pricing/
 
 ### Hetzner
 
-Hetzner Cloud remains a strong candidate for a low-cost VPS-style deployment. Its public pages emphasize hourly billing with a monthly price cap, GDPR-compliant German/EU hosting options, and shared cost-optimized cloud instances. The exact instance price should be evaluated manually when choosing the first deployment target because the pricing page is dynamic.
+Hetzner Cloud is usually attractive for low-cost VPS hosting, but the dynamic pricing page is harder to scrape reliably. It should be evaluated manually when choosing the first deployment target.
 
 Source: https://www.hetzner.com/cloud/
 
@@ -389,18 +389,13 @@ Avoid writes for:
 Every resource/item change should be traceable.
 
 ```text
-economy_ledger
+inventory_transactions
 - id
-- pilot_id
-- event_type
-- source_type
-- source_id
-- resource_stack_id
-- item_id
-- quantity_delta
-- condition_delta
-- integrity_delta
-- metadata_json
+- player_id
+- item/resource id
+- quantity delta
+- reason
+- related_entity_id
 - created_at
 ```
 
@@ -443,8 +438,6 @@ Add communication tools after the game loop is proven.
 ---
 
 ## 9. Suggested initial schema domains
-
-These are broad implementation domains. Decision 012 below is the locked MVP record list.
 
 ### Accounts / players
 
@@ -491,127 +484,6 @@ These are broad implementation domains. Decision 012 below is the locked MVP rec
 - content_versions
 - balance_configs
 - admin_audit_log
-
----
-
-
-## 9A. Decision 012 — Locked MVP Data Model / Economy Ledger
-
-Decision 012 supersedes the looser schema-domain sketch above for the MVP. The physical table names can vary, but the first vertical slice must preserve these authoritative records and audit guarantees.
-
-Locked MVP records:
-
-- **Pilot** — player identity and selected frame.
-- **Resource Instance** — named resource in a bloom with immutable OQ, Conductivity, Hardness, Heat Resistance, and Malleability.
-- **Resource Stack** — pilot-owned quantity of a resource instance; same pilot + same resource instance combines.
-- **Item** — crafted/equipped object with Condition, Integrity, property scores, and provenance.
-- **Schematic Definition** — versioned game data for recipe slots, property lines, weights, and tuning lines.
-- **Crafting Attempt** — selected resources, consumed quantities, tuning, craft mode, base/tuned/final scores, flaw result, and output item.
-- **Thumper Run** — target resource, equipped Drill/Pump/Hull, run mode, visible state, status, and timing.
-- **Thumper Event Window** — complication, response, result, and before/after state.
-- **Thumper Run Result** — recovered quantity, waste/scrap, salvage, component wear, hull damage, Integrity delta, and explanation.
-- **Repair Action** — target item, repair kit, before/after Condition and Integrity, repair properties, and explanation.
-- **Economy Ledger** — append-style record of every resource, item, condition, and integrity mutation.
-
-Implementation guardrails:
-
-- Use Postgres transactions for claim, craft, repair, and item-equip flows.
-- Use idempotency keys or unique constraints around claim/craft/repair resolution.
-- Keep current-state tables for fast UI, but keep the ledger for audit.
-- Keep flexible JSONB for event snapshots, provenance, salvage details, and result explanations, but keep ownership, quantities, and deltas relational.
-- Do not add marketplace, trade, group contribution accounting, factories, refiner/separator tables, guilds, chat, settlement, or monetization tables for MVP.
-
-## 9B. Decision 013 — MVP Telemetry and Playtest Instrumentation
-
-Decision 013 locks what the first vertical slice must measure. This is not a growth-analytics system and not monetization tracking. It is prototype evidence for whether the core toy is understandable, repeatable, and trustworthy.
-
-### Required MVP event stream
-
-Track first-session funnel events:
-
-```text
-frame_chosen
-first_survey_started
-first_survey_completed
-signal_compared
-veyrith_copper_recommended
-target_signal_selected
-thumper_deployed
-event_window_1_resolved
-event_window_2_resolved
-thumper_claimed
-resource_claimed
-schematic_opened
-resource_slots_filled
-tuning_points_spent
-craft_mode_chosen
-item_crafted
-item_equipped
-second_survey_completed
-```
-
-### Required playtest annotations
-
-Support lightweight notes for:
-
-- confusion points;
-- moments where the player pauses or backtracks;
-- terms the player asks about;
-- whether the player can explain resource stats → schematic weights → property preview → tuning expression;
-- whether the player voluntarily starts or wants another survey/thumper/craft loop;
-- whether wear/repair feels fair.
-
-### Implementation guardrails
-
-- Keep telemetry server-side and privacy-light.
-- Do not use third-party ad/marketing analytics in the MVP.
-- Record event names, timestamps, pilot/session identifiers, and compact metadata only.
-- Keep economy state authoritative in the Decision 012 ledger; telemetry explains player comprehension and behavior, not ownership truth.
-- Use the same event vocabulary in code, playtest notes, and the Design Bible so funnels can be audited without translation.
-
-
-## 9C. Decision 014 — MVP Prototype Ladder and Build Order
-
-Decision 014 locks the build order so implementation stays production-shaped without becoming broad MMO infrastructure too early.
-
-Locked build ladder:
-
-1. Paper / spreadsheet economy prototype.
-2. Text-only loop prototype.
-3. Clickable single-player vertical slice.
-4. Instrumented playtest build.
-5. Presentation pass.
-6. Production-point review.
-
-Implementation implications:
-
-- Stage 1 can be a spreadsheet or script, but it should mirror the domain formulas that will later live in `/packages/domain`.
-- Stage 2 can be CLI, rough local web page, or simple form flow; it should prove the sequence before polishing UI.
-- Stage 3 becomes the first real SvelteKit vertical slice with the six locked MVP screens.
-- Stage 4 adds Decision 013 telemetry and ledger audit checks.
-- Stage 5 adds only lightweight pixel/menu/audio feedback needed to test fantasy.
-- Stage 6 decides whether the toy has earned expansion.
-
-Do not build marketplace services, chat infrastructure, guild systems, group-thumper accounting, mobile wrappers, distributed job systems, or broader MMO infrastructure before the production-point review.
-
-
-
-## 9D. Decision 015 — MVP Definition of Done and Scope Freeze
-
-Decision 015 freezes MVP scope and prevents implementation drift.
-
-Implementation implications:
-
-- Build only the records, screens, domain functions, telemetry, and light presentation required by the MVP content in Decisions 001–014 and the scope freeze in Decision 015.
-- New implementation requests enter MVP only if they fix a contradiction, unblock the prototype ladder, improve comprehension of the locked toy, protect resource/crafting/economy trust, or are required for Decision 013 evidence.
-- Otherwise, park them in the Layered Feature Backlog.
-- Treat marketplace, trade, chat, guilds, group thumpers, public helper boards, refining/separators, factories, mobile wrapper, monetization, and broad MMO infrastructure as explicitly out of scope until after the production-point review.
-
-The technical Definition of Done is not a broad MMO shell. It is an auditable, server-authoritative vertical slice that proves:
-
-```text
-survey → thump → claim → think-craft → equip/use → wear/repair → survey better
-```
 
 ---
 
