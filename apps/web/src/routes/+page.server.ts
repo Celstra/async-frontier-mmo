@@ -69,7 +69,12 @@ export const actions: Actions = {
 			return fail(400, { message: 'Thumper is not claimable yet', thumperDemo });
 		}
 
-		await claimThumperEvent(db, event.id);
+		const claimed = await claimThumperEvent(db, event.id);
+
+		// Idempotent: race or replay — already claimed, no second write
+		if (!claimed) {
+			return { thumperDemo: null, claimed: true };
+		}
 
 		return { thumperDemo: null, claimed: true };
 	}

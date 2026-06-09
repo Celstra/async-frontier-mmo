@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../client.js';
 import { thumperEvents } from '../schema/thumperEvents.js';
 
@@ -31,8 +31,8 @@ export async function claimThumperEvent(db: Db, id: string) {
 	const [row] = await db
 		.update(thumperEvents)
 		.set({ claimedAt: new Date() })
-		.where(eq(thumperEvents.id, id))
+		.where(and(eq(thumperEvents.id, id), isNull(thumperEvents.claimedAt)))
 		.returning();
 
-	return row;
+	return row ?? null;
 }
