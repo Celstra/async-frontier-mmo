@@ -379,13 +379,24 @@ pnpm --filter web build
 
 ### Commit pattern
 
-Use small commits:
+Use small commits, but always commit the whole lesson artifact set: code, tests, migrations/generated Drizzle metadata, lockfile changes, and the matching `docs/lessons/*.md` file.
 
 ```bash
 cd ~/development/async-frontier-mmo
-git add <exact files>
+git status --short
+git add <exact files, including the lesson doc>
+git diff --cached --name-status
 git commit -m "type: short description"
+git status --short
 ```
+
+Rules:
+
+- Never commit from a dirty state you have not inspected.
+- Never rely on a passing local build if `git status --short` still shows modified or untracked files; that means `HEAD`/GitHub may be broken even though your working tree passes.
+- Include `docs/lessons/<lesson>.md` in the same commit as the lesson unless the lesson is intentionally docs-only.
+- Include generated Drizzle migration metadata and `pnpm-lock.yaml` when they changed.
+- After a commit, `git status --short` should be empty unless you intentionally have unrelated work parked.
 
 Examples:
 
@@ -398,31 +409,50 @@ git commit -m "feat: add Red Mesa resource definitions"
 
 ### Push pattern
 
-First check whether a remote exists:
+This repo should use `main` as the GitHub/default branch. Avoid pushing lesson work to a separate `master` branch.
+
+Before pushing, always confirm the branch and upstream:
 
 ```bash
+cd ~/development/async-frontier-mmo
+git status -sb
+git branch -vv
 git remote -v
 ```
 
-If `origin` already exists:
+Expected healthy state:
+
+```text
+## main...origin/main
+```
+
+If the local branch is still named `master`, rename it once:
 
 ```bash
-git push origin master
+git branch -m master main
+git branch --set-upstream-to=origin/main main 2>/dev/null || true
 ```
 
 If no remote exists yet, create a GitHub repo first, then:
 
 ```bash
 git remote add origin git@github.com:<your-github-user>/async-frontier-mmo.git
-git push -u origin master
-```
-
-If the default branch is renamed to `main` later:
-
-```bash
-git branch -M main
 git push -u origin main
 ```
+
+For normal lesson commits, push the current branch to its upstream:
+
+```bash
+git push
+```
+
+If upstream is missing, set it explicitly:
+
+```bash
+git push -u origin main
+```
+
+Do not use `git push origin master` in this project unless a GPT-5.5 review explicitly asks for a temporary recovery push. It can create a second GitHub branch and leave the default `main` stale.
 
 ### GPT 5.5 Review checkpoint prompt
 
@@ -594,9 +624,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/shared/src/index.ts apps/web/src/routes/+page.svelte
+git add packages/shared/src/index.ts apps/web/src/routes/+page.svelte docs/lessons/02-align-resource-stat-codes.md
 git commit -m "fix: align resource stat codes with MVP scope"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review:
@@ -659,9 +689,9 @@ pnpm --filter @async-frontier-mmo/db db:smoke
 Commit:
 
 ```bash
-git add packages/domain packages/db/src/queries/thumperEvents.ts apps/web/src/routes/+page.server.ts
+git add packages/domain packages/db/src/queries/thumperEvents.ts apps/web/src/routes/+page.server.ts docs/lessons/03-idempotent-thumper-claim.md
 git commit -m "fix: make thumper claim idempotent"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -725,9 +755,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/db apps/web/src/routes/+page.server.ts apps/web/src/routes/+page.svelte pnpm-lock.yaml
+git add packages/shared packages/db apps/web/src/routes/+page.server.ts apps/web/src/routes/+page.svelte pnpm-lock.yaml docs/lessons/04-demo-pilot-open-thumper.md
 git commit -m "feat: scope thumper state to demo pilot"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -804,9 +834,9 @@ pnpm check
 Commit:
 
 ```bash
-git add packages/domain packages/shared
+git add packages/domain packages/shared docs/lessons/05-red-mesa-resource-definitions.md
 git commit -m "feat: add Red Mesa resource definitions"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review:
@@ -873,9 +903,9 @@ pnpm check
 Commit:
 
 ```bash
-git add packages/domain
+git add packages/domain docs/lessons/06-red-mesa-survey-domain.md
 git commit -m "feat: add Red Mesa survey domain result"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -934,9 +964,9 @@ No code verification if planning-only.
 Commit:
 
 ```bash
-git add docs/lessons/07-thumper-run-data-shape.md
+git add  docs/lessons/07-thumper-run-data-shape.mddocs/lessons/07-thumper-run-data-shape.md
 git commit -m "docs: plan thumper run data shape"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1000,9 +1030,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/08-deploy-on-survey-signal.md
 git commit -m "feat: deploy thumper from survey signal"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review:
@@ -1069,9 +1099,9 @@ pnpm check
 Commit:
 
 ```bash
-git add packages/domain
+git add packages/domain docs/lessons/09-thumper-event-windows.md
 git commit -m "feat: add tutorial thumper event windows"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1128,9 +1158,9 @@ pnpm --filter @async-frontier-mmo/db db:smoke
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/10-thumper-event-choice-resolution.md
 git commit -m "feat: record thumper event choices"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1195,9 +1225,9 @@ pnpm --filter @async-frontier-mmo/db db:smoke
 Commit:
 
 ```bash
-git add packages/db pnpm-lock.yaml
+git add packages/db pnpm-lock.yaml docs/lessons/11-resource-stack-ledger.md
 git commit -m "feat: add resource stack and ledger tables"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1278,9 +1308,9 @@ verify no duplicate reward
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/12-transactional-claim-reward.md
 git commit -m "feat: grant Veyrith Copper on thumper claim"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1343,9 +1373,9 @@ pnpm check
 Commit:
 
 ```bash
-git add packages/domain
+git add packages/domain docs/lessons/13-survey-scanner-schematic.md
 git commit -m "feat: add survey scanner crafting schematic"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1409,9 +1439,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/14-craft-survey-scanner.md
 git commit -m "feat: craft survey scanner from claimed resource"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1475,9 +1505,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/15-equip-scanner-survey-better.md
 git commit -m "feat: equip scanner to improve survey clarity"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1537,9 +1567,9 @@ pnpm check
 Commit:
 
 ```bash
-git add packages/domain
+git add packages/domain docs/lessons/16-condition-integrity-domain.md
 git commit -m "feat: add condition and integrity rules"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review:
@@ -1595,9 +1625,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/17-field-repair-kit.md
 git commit -m "feat: add field repair kit loop"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1648,9 +1678,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add apps/web
+git add apps/web docs/lessons/18-pilot-home-screen.md
 git commit -m "feat: add pilot home screen"
-git push origin master
+git push
 ```
 
 ---
@@ -1695,9 +1725,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add apps/web packages/domain
+git add apps/web packages/domain docs/lessons/19-red-mesa-survey-screen.md
 git commit -m "feat: add Red Mesa survey screen"
-git push origin master
+git push
 ```
 
 ---
@@ -1742,9 +1772,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add apps/web packages/domain packages/db
+git add apps/web packages/domain packages/db docs/lessons/20-signal-detail-deploy-screen.md
 git commit -m "feat: add signal detail deploy screen"
-git push origin master
+git push
 ```
 
 ---
@@ -1791,9 +1821,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add apps/web packages/domain packages/db
+git add apps/web packages/domain packages/db docs/lessons/21-thumper-run-event-screen.md
 git commit -m "feat: add thumper event window screen"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1843,9 +1873,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add apps/web packages/domain packages/db
+git add apps/web packages/domain packages/db docs/lessons/22-claim-results-screen.md
 git commit -m "feat: add thumper claim results screen"
-git push origin master
+git push
 ```
 
 ---
@@ -1894,9 +1924,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add apps/web packages/domain packages/db
+git add apps/web packages/domain packages/db docs/lessons/23-crafting-gear-repair-screen.md
 git commit -m "feat: add crafting gear repair screen"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
@@ -1956,9 +1986,9 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/db apps/web
+git add packages/db apps/web docs/lessons/24-minimal-playtest-telemetry.md
 git commit -m "feat: add minimal MVP playtest telemetry"
-git push origin master
+git push
 ```
 
 ---
@@ -2007,7 +2037,7 @@ Commit:
 ```bash
 git add docs/production-point
 git commit -m "docs: prepare production point review"
-git push origin master
+git push
 ```
 
 GPT 5.5 Review gate:
