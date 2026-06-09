@@ -15,6 +15,13 @@
       "when": 1780947548012,
       "tag": "0001_add_claimed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781012693377,
+      "tag": "0002_add_pilot_id",
+      "breakpoints": true
     }
   ]
 }

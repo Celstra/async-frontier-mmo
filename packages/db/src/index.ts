@@ -2,7 +2,8 @@
 export { createDb, type Db } from './client.js';
 export {
 	claimThumperEvent,
-	getLatestThumperEvent,
+	getLatestThumperForPilot,
+	getOpenThumperForPilot,
 	insertThumperEvent
 } from './queries/thumperEvents.js';
 export { thumperEvents } from './schema/thumperEvents.js';

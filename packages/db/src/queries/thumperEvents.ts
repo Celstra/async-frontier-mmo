@@ -4,11 +4,12 @@ import { thumperEvents } from '../schema/thumperEvents.js';
 
 export async function insertThumperEvent(
 	db: Db,
-	input: { deployedAt: Date; durationSeconds: number }
+	input: { pilotId: string; deployedAt: Date; durationSeconds: number }
 ) {
 	const [row] = await db
 		.insert(thumperEvents)
 		.values({
+			pilotId: input.pilotId,
 			deployedAt: input.deployedAt,
 			durationSeconds: input.durationSeconds
 		})
@@ -17,11 +18,22 @@ export async function insertThumperEvent(
 	return row;
 }
 
-export async function getLatestThumperEvent(db: Db) {
+export async function getLatestThumperForPilot(db: Db, pilotId: string) {
 	const [row] = await db
 		.select()
 		.from(thumperEvents)
+		.where(eq(thumperEvents.pilotId, pilotId))
 		.orderBy(desc(thumperEvents.deployedAt))
+		.limit(1);
+
+	return row ?? null;
+}
+
+export async function getOpenThumperForPilot(db: Db, pilotId: string) {
+	const [row] = await db
+		.select()
+		.from(thumperEvents)
+		.where(and(eq(thumperEvents.pilotId, pilotId), isNull(thumperEvents.claimedAt)))
 		.limit(1);
 
 	return row ?? null;

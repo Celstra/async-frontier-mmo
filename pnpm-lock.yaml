@@ -53,6 +53,9 @@ importers:
       postgres:
         specifier: ^3.4.5
         version: 3.4.9
+      shared:
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       drizzle-kit:
         specifier: ^0.31.4

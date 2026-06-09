@@ -1,10 +1,12 @@
 import {
 	claimThumperEvent,
 	createDb,
-	getLatestThumperEvent,
+	getLatestThumperForPilot,
+	getOpenThumperForPilot,
 	insertThumperEvent
 } from '@async-frontier-mmo/db';
 import { resolveThumperState } from '@async-frontier-mmo/domain';
+import { DEMO_PILOT_ID } from 'shared';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { Actions, PageServerLoad } from './$types';
@@ -18,9 +20,9 @@ function getDb() {
 }
 
 export const load: PageServerLoad = async () => {
-	const event = await getLatestThumperEvent(getDb());
+	const event = await getOpenThumperForPilot(getDb(), DEMO_PILOT_ID);
 
-	if (!event || event.claimedAt) {
+	if (!event) {
 		return { thumperDemo: null, loadedAt: null };
 	}
 
@@ -36,11 +38,22 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
 	deploy: async () => {
+		const db = getDb();
+		const open = await getOpenThumperForPilot(db, DEMO_PILOT_ID);
+
+		if (open) {
+			return fail(400, { message: 'Demo pilot already has an open thumper' });
+		}
+
 		const deployedAt = new Date();
 		const durationSeconds = 60;
 		const now = new Date();
 
-		await insertThumperEvent(getDb(), { deployedAt, durationSeconds });
+		await insertThumperEvent(db, {
+			pilotId: DEMO_PILOT_ID,
+			deployedAt,
+			durationSeconds
+		});
 
 		const thumperDemo = resolveThumperState({
 			deployedAt,
@@ -53,14 +66,14 @@ export const actions: Actions = {
 
 	claim: async () => {
 		const db = getDb();
-		const event = await getLatestThumperEvent(db);
+		const event = await getOpenThumperForPilot(db, DEMO_PILOT_ID);
 
 		if (!event) {
+			const latest = await getLatestThumperForPilot(db, DEMO_PILOT_ID);
+			if (latest?.claimedAt) {
+				return { thumperDemo: null, claimed: true };
+			}
 			return fail(400, { message: 'No thumper to claim' });
-		}
-
-		if (event.claimedAt) {
-			return { thumperDemo: null, claimed: true };
 		}
 
 		const thumperDemo = resolveThumperState({
