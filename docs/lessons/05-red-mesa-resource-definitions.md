@@ -280,4 +280,4 @@ After your immutability answer and file prediction:
 - [ ] `pnpm --filter @async-frontier-mmo/domain test` passes
 - [ ] `pnpm check` passes
 
-**Next exercise:** Add a pure domain function that maps an internal stat value to a survey **band** label (`Poor` … `Exceptional`) using Decision 010’s table — still no DB.
+**Next exercise:** [Lesson 06 — Red Mesa survey domain](06-red-mesa-survey-domain.md) — deterministic first-session survey signals in `packages/domain` (includes band hints; optional `getStatBand` helper).

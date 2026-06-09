@@ -217,4 +217,4 @@ After your prediction:
 - [ ] Deploy blocked while open run exists
 - [ ] `pnpm check` + smoke pass
 
-**Next exercise:** Add a `ResourceStatMap` fixture in domain tests for one named resource (e.g. Veyrith Copper) — still no DB tables for resources.
+**Next exercise:** [Lesson 05 — Red Mesa resource definitions](05-red-mesa-resource-definitions.md) — six locked resources in `packages/domain`, TDD documentation tests, no DB yet.
