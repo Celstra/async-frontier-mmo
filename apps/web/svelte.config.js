@@ -9,6 +9,7 @@ const config = {
 	kit: {
 		adapter: adapter(),
 		alias: {
+			'@async-frontier-mmo/db': '../../packages/db/src/index.ts',
 			'@async-frontier-mmo/domain': '../../packages/domain/src/index.ts',
 			shared: '../../packages/shared/src/index.ts'
 		}
