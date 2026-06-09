@@ -1,2 +1,8 @@
 /** Persistence layer — Drizzle schema and queries. */
-export { thumperEvents } from './schema/thumperEvents';
+export { createDb, type Db } from './client.js';
+export {
+	claimThumperEvent,
+	getLatestThumperEvent,
+	insertThumperEvent
+} from './queries/thumperEvents.js';
+export { thumperEvents } from './schema/thumperEvents.js';
