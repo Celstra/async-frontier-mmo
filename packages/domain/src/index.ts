@@ -9,6 +9,10 @@ export {
 	MVP_RESOURCE_STAT_CODES,
 	RED_MESA_BLOOM_RESOURCES
 } from './resources/redMesaBloom';
+export { surveyRedMesaFirstSession } from './survey/redMesaSurvey';
+export { getStatBand } from './survey/statBand';
+export type { RedMesaSurveyResult, SurveySignal, SurveyStatHint } from './survey/types';
+export type { StatBand } from './survey/statBand';
 export type {
 	CompleteResourceStatMap,
 	NamedResourceDefinition,
