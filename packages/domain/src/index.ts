@@ -1,8 +1,20 @@
 import type { ResourceStatCode } from 'shared';
 
-/** Map of stat code → value (1–1000 later). Placeholder shape for domain types. */
+/** Map of stat code → value (1–1000). Partial for open-ended inputs; bloom resources use CompleteResourceStatMap. */
 export type ResourceStatMap = Partial<Record<ResourceStatCode, number>>;
 
+export {
+	getRedMesaResource,
+	listRedMesaResources,
+	MVP_RESOURCE_STAT_CODES,
+	RED_MESA_BLOOM_RESOURCES
+} from './resources/redMesaBloom';
+export type {
+	CompleteResourceStatMap,
+	NamedResourceDefinition,
+	NamedResourceId,
+	ResourceFamily
+} from './resources/types';
 export {
 	resolveThumperState,
 	type ResolveThumperStateInput,
