@@ -45,8 +45,8 @@ describe('resolveThumperState', () => {
 	});
 
 	describe('from persisted event fields (no database)', () => {
-		it('resolves state using deployedAt and durationSeconds shaped like thumper_events columns', () => {
-			// Mirrors thumper_events.deployed_at + thumper_events.duration_seconds
+		it('resolves state using deployedAt and durationSeconds shaped like thumper_runs columns', () => {
+			// Mirrors thumper_runs.deployed_at + thumper_runs.duration_seconds
 			const persistedDeployedAt = new Date('2024-06-01T12:00:00.000Z');
 			const persistedDurationSeconds = 120;
 

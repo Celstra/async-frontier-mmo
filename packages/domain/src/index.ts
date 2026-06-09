@@ -20,7 +20,21 @@ export type {
 	ResourceFamily
 } from './resources/types';
 export {
+	COMPLICATION_MATCHING_ACTION,
+	getMatchingAction,
+	THUMPER_EVENT_ACTIONS,
+	THUMPER_SAFETY_CHOICES
+} from './thumper/complicationActions';
+export { generateFirstSessionEventWindows } from './thumper/generateFirstSessionEventWindows';
+export {
 	resolveThumperState,
 	type ResolveThumperStateInput,
 	type ResolveThumperStateResult
 } from './thumper/resolveThumperState';
+export type {
+	ThumperComplicationId,
+	ThumperEventActionId,
+	ThumperEventWindow,
+	ThumperEventWindowPlan,
+	ThumperSafetyChoiceId
+} from './thumper/types';
