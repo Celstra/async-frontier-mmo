@@ -16,6 +16,9 @@
 	const thumperDemo = $derived(
 		form?.claimed ? null : (data.thumperDemo ?? form?.thumperDemo)
 	);
+	const openRun = $derived(
+		form?.claimed ? null : (data.openRun ?? form?.openRun ?? null)
+	);
 	const thumperSource = $derived(
 		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
 	);
@@ -50,9 +53,38 @@
 <h1>Welcome to SvelteKit</h1>
 <p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
 
-<form method="POST" action="?/deploy">
-	<button type="submit">Deploy test thumper</button>
-</form>
+{#if data.survey && !thumperDemo}
+	<h2>Red Mesa survey (first session)</h2>
+	<ul>
+		{#each data.survey.signals as signal}
+			<li>
+				<strong>{signal.displayName}</strong>
+				{#if signal.recommended}(recommended){/if}
+				— {signal.teachingNote}
+			</li>
+		{/each}
+	</ul>
+
+	<form method="POST" action="?/deploy">
+		<fieldset>
+			<legend>Deploy thumper on signal</legend>
+			{#each data.survey.signals as signal}
+				<label>
+					<input
+						type="radio"
+						name="targetResourceId"
+						value={signal.resourceId}
+						checked={signal.recommended}
+					/>
+					{signal.displayName}
+				</label>
+			{/each}
+		</fieldset>
+		<button type="submit">Deploy thumper</button>
+	</form>
+{:else if thumperDemo}
+	<p>Thumper running on <strong>{openRun?.targetDisplayName ?? 'unknown signal'}</strong>.</p>
+{/if}
 
 {#if thumperDemo?.status === 'claimable'}
 	<form method="POST" action="?/claim">
@@ -75,6 +107,9 @@
 				{displaySeconds}s remaining (client display)
 			{:else}
 				{thumperDemo.secondsRemaining}s remaining
+			{/if}
+			{#if openRun}
+				— target: {openRun.targetDisplayName} ({openRun.targetResourceId})
 			{/if}
 		{:else}
 			no thumper deployed

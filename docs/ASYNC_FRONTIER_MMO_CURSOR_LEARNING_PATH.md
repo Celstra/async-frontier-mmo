@@ -10,7 +10,7 @@ Use it like this:
 
 1. Start at the current lesson.
 2. Copy the Cursor prompt for that lesson.
-3. Let Cursor teach, quiz, and then implement only after you say `go`.
+3. Let Cursor explain the lesson, include likely questions with answers, then implement the scoped change without stopping for answers.
 4. Run the verification commands.
 5. Commit.
 6. At every `GPT 5.5 Review` gate, come back to Hermes/GPT-5.5 xHigh for a deeper code/design review before continuing.
@@ -319,15 +319,15 @@ Ryan is learning. Do not silently implement large changes.
 
 Teaching rules:
 1. Keep chat short.
-2. Write the main explanation, quiz, recap, and commands into a markdown file under docs/lessons/ or docs/learning-path-progress/.
+2. Write the main explanation, likely questions with answers, recap, and commands into a markdown file under docs/lessons/ or docs/learning-path-progress/.
 3. Explain current flow and new flow before editing.
-4. Ask me prediction questions before code changes.
-5. Wait for my answers.
-6. Review my answers.
-7. Ask whether I want to type it myself or have you apply it.
+4. Before code changes, state the expected files, data flow, and likely mistakes so Ryan can ask follow-up questions if needed.
+5. Continue without waiting for answers.
+6. Include a short self-check explaining why the chosen approach is correct.
+7. Apply the scoped change directly unless Ryan explicitly asks to type it manually.
 8. Use TDD for domain rules and behavior changes.
 9. Run the relevant checks after edits.
-10. Do not add post-MVP systems without asking.
+10. Do not add post-MVP systems; if the scoped lesson appears to require one, stop and explain the blocker instead of asking to expand scope.
 
 Scope guard:
 Locked MVP is Red Mesa only, one basic personal thumper, three thumper slots, four event actions, five recipes, five resource stats, and the core loop: survey → thump → claim → think-craft → equip/use → wear/repair → survey better.
@@ -467,7 +467,7 @@ Please review the current git diff and project state for:
 3. TDD/test coverage and missing tests.
 4. Economy safety: no duplicate rewards, no unaudited mutations, no client-authoritative decisions.
 5. YAGNI/scope creep: reject jobs, WebSockets, marketplace, guilds, group thumpers, multiple regions, etc. unless clearly required.
-6. Learning quality: small steps, durable lesson docs, quiz-before-edit workflow.
+6. Learning quality: small steps, durable lesson docs, explain-before-edit workflow with likely questions answered.
 7. Exact next step recommendation.
 
 Use GPT-5.5 xHigh depth. Be strict. If it is not ready to commit/push, say why.
@@ -486,7 +486,7 @@ The path is divided into phases. Each lesson has:
 - Commit checkpoint
 - GPT 5.5 Review gate when needed
 
-Do not rush. The goal is not just to produce code; the goal is for you to understand and maintain it.
+Do not rush. The goal is not just to produce code; the lesson doc should explain what changed, why it changed, and answer the questions Ryan is likely to have while reading it.
 
 ---
 
@@ -509,7 +509,7 @@ Use the learning-coach skill.
 
 Lesson: help me prepare a clean commit for the current learning scaffold.
 
-Do not change files yet.
+Do not change source files until after writing the commit plan.
 
 First inspect git status and group the current changes into logical commits:
 1. design-doc final review/reorganization
@@ -521,7 +521,7 @@ Write the suggested commit plan into docs/lessons/00-current-state-commit-plan.m
 
 For each commit, list exact files to git add and the commit message.
 
-Do not commit automatically. Stop after writing the plan.
+Do not commit automatically. Write the plan, explain why the grouping is safe, and stop after the plan.
 ```
 
 Verification commands:
@@ -607,8 +607,8 @@ Goal:
 Teaching mode:
 1. Explain why shared stat vocabulary matters.
 2. Show current code and target code.
-3. Ask me to predict which files change.
-4. Wait for my answer.
+3. State which files should change and why.
+4. Continue without waiting for an answer.
 5. Then apply minimal edits.
 6. Run pnpm check.
 ```
@@ -671,8 +671,8 @@ Teaching mode:
 3. Show the current claim flow.
 4. Propose the smallest testable change.
 5. Use TDD if there is a clean domain rule to test.
-6. Ask me to predict the bug: what happens if two claim requests arrive at the same time?
-7. Wait for my answer.
+6. Explain the double-submit/race bug: what happens if two claim requests arrive at the same time.
+7. Continue without waiting for an answer.
 8. Apply the smallest code change.
 9. Run checks.
 ```
@@ -740,7 +740,7 @@ First explain:
 4. What migration/schema/query changes are needed.
 5. What test or smoke check proves this works.
 
-Ask me to predict the files that change, then wait.
+State the files that should change and why, then continue with the scoped implementation.
 ```
 
 Verification:
@@ -819,8 +819,8 @@ Use TDD/documentation tests:
 
 Teaching mode:
 - Explain why we start in domain before DB.
-- Ask me to predict why resource stats should not mutate during extraction.
-- Wait for my answer before edits.
+- Explain why resource stats should not mutate during extraction.
+- Continue to the scoped edits after documenting the reasoning.
 ```
 
 Verification:
@@ -888,8 +888,8 @@ TDD:
 
 Teaching mode:
 - Explain the difference between deterministic tutorial data and later world rotation.
-- Ask me what the survey action should output.
-- Wait for my answer.
+- Explain what the survey action should output, with likely alternatives and why they are not chosen.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -949,12 +949,12 @@ Goal:
 - Do not add group thumpers.
 - Do not add jobs.
 
-Ask me to answer:
+Include this Q&A in the lesson doc:
 1. What is the difference between a thumper timer and a thumper run?
 2. Why does the target resource belong on the run?
 3. Why do choices/results need audit records later?
 
-Stop after the markdown plan.
+Stop after the markdown plan; do not ask Ryan to answer before writing it.
 ```
 
 Verification:
@@ -964,7 +964,7 @@ No code verification if planning-only.
 Commit:
 
 ```bash
-git add  docs/lessons/07-thumper-run-data-shape.mddocs/lessons/07-thumper-run-data-shape.md
+git add docs/lessons/07-thumper-run-data-shape.md
 git commit -m "docs: plan thumper run data shape"
 git push
 ```
@@ -1011,9 +1011,9 @@ Goal:
 Teaching mode:
 1. Explain current flow.
 2. Explain new flow.
-3. Ask me to predict what data the form must submit.
-4. Ask me to predict what the server must validate.
-5. Wait for my answers.
+3. State what data the form must submit.
+4. State what the server must validate.
+5. Continue without waiting for answers.
 6. Then implement in the smallest step.
 ```
 
@@ -1084,8 +1084,8 @@ TDD:
 
 Teaching mode:
 - Explain why active choices are short attention windows, not 40 minutes of watching.
-- Ask me to map complication → matching response.
-- Wait for my answer.
+- Map complication → matching response and explain why.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1141,8 +1141,8 @@ Goal:
 Teaching mode:
 1. Explain auditability.
 2. Explain why choices are stored, not just hidden in UI state.
-3. Ask me what needs to be recorded for each event window.
-4. Wait for my answer.
+3. State what needs to be recorded for each event window.
+4. Continue without waiting for an answer.
 5. Then implement minimal TDD/domain first, DB second.
 ```
 
@@ -1209,8 +1209,8 @@ Teaching mode:
 1. Explain why claimed resources need a ledger.
 2. Explain stack vs ledger.
 3. Explain why this must be transactional with claimed_at.
-4. Ask me to predict the minimum columns.
-5. Wait for my answer.
+4. State the minimum columns and why each is needed.
+5. Continue without waiting for an answer.
 6. Then implement in small steps.
 ```
 
@@ -1273,8 +1273,8 @@ TDD/testing:
 Teaching mode:
 1. Explain transaction.
 2. Explain idempotency.
-3. Ask me what can go wrong if claimed_at and resource reward are separate operations.
-4. Wait for my answer.
+3. Explain what can go wrong if claimed_at and resource reward are separate operations.
+4. Continue without waiting for an answer.
 5. Then implement.
 ```
 
@@ -1358,8 +1358,8 @@ TDD:
 
 Teaching mode:
 - Explain resource primacy.
-- Ask me why tuning should not upgrade the raw material.
-- Wait for my answer.
+- Explain why tuning should not upgrade the raw material.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1421,8 +1421,8 @@ Goal:
 Teaching mode:
 1. Explain resource spend vs item creation.
 2. Explain why crafting attempt should be recorded.
-3. Ask me to predict what database records change when crafting succeeds.
-4. Wait for my answer.
+3. State what database records change when crafting succeeds.
+4. Continue without waiting for an answer.
 5. Implement minimal TDD/domain first, DB second, web third.
 ```
 
@@ -1489,8 +1489,8 @@ TDD:
 
 Teaching mode:
 - Explain “survey better” as information improvement, not raw stat mutation.
-- Ask me what should be clearer after equipping the scanner.
-- Wait for my answer.
+- Explain what should be clearer after equipping the scanner.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1552,8 +1552,8 @@ TDD:
 
 Teaching mode:
 - Explain why two-layer durability is more trustworthy than simple item deletion.
-- Ask me what should happen after routine use.
-- Wait for my answer.
+- Explain what should happen after routine use.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1608,8 +1608,8 @@ Goal:
 Teaching mode:
 1. Explain why Field Repair Kit is an economy item.
 2. Explain why it should not be a full heal.
-3. Ask me to predict what a repair action should record.
-4. Wait for my answer.
+3. State what a repair action should record.
+4. Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1663,8 +1663,8 @@ Goal:
 
 Teaching mode:
 - Explain what information belongs on Pilot Home.
-- Ask me to rank what the player needs to know first.
-- Wait for my answer.
+- Rank what the player needs to know first and explain why.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1710,8 +1710,8 @@ Goal:
 
 Teaching mode:
 - Explain server load data for survey.
-- Ask me what fields each signal card should show.
-- Wait for my answer.
+- State what fields each signal card should show and why.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1757,8 +1757,8 @@ Goal:
 
 Teaching mode:
 - Explain projected values vs actual result.
-- Ask me which values are player-facing and why.
-- Wait for my answer.
+- State which values are player-facing and why.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1805,8 +1805,8 @@ Goal:
 
 Teaching mode:
 - Explain event windows as short attention moments.
-- Ask me how absent-player fallback should work.
-- Wait for my answer.
+- Explain how absent-player fallback should work.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1857,8 +1857,8 @@ Goal:
 
 Teaching mode:
 - Explain result explanation and player trust.
-- Ask me what needs to be visible to feel fair.
-- Wait for my answer.
+- State what needs to be visible to feel fair.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1908,8 +1908,8 @@ Goal:
 
 Teaching mode:
 - Explain thinking-craft.
-- Ask me to predict how resource stats feed property preview.
-- Wait for my answer.
+- Explain how resource stats feed property preview.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -1971,8 +1971,8 @@ Goal:
 
 Teaching mode:
 - Explain evidence vs over-instrumentation.
-- Ask me what question each event answers.
-- Wait for my answer.
+- State what question each event answers.
+- Continue without waiting for an answer.
 ```
 
 Verification:
@@ -2129,7 +2129,7 @@ Ask GPT-5.5 xHigh to check these every time:
 
 - Was the lesson written to markdown?
 - Did Cursor explain before editing?
-- Did you answer prediction/quiz questions?
+- Did Cursor include likely questions with answers instead of stopping for answers?
 - Did tests fail first for domain behavior changes?
 
 ### Verification
@@ -2168,12 +2168,12 @@ Stop and reset the workflow.
 You edited before teaching. For this project, follow learning-coach mode:
 1. Explain first.
 2. Write durable markdown lesson.
-3. Ask prediction questions.
-4. Wait for my answers.
-5. Review my answers.
-6. Only then apply code after I say go.
+3. Include likely questions with answers.
+4. Continue without waiting for answers.
+5. Include a self-check of the reasoning.
+6. Apply code after the explanation unless Ryan explicitly says to stop.
 
-Do not continue editing until you have written the lesson and quiz.
+Do not continue editing until you have written the lesson explanation and likely Q&A section.
 ```
 
 ---

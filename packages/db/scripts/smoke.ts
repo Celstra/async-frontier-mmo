@@ -1,12 +1,12 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { DEMO_PILOT_ID } from 'shared';
 import {
-	claimThumperEvent,
+	claimThumperRun,
 	createDb,
-	getOpenThumperForPilot,
-	insertThumperEvent
+	getOpenThumperRunForPilot,
+	insertThumperRun
 } from '../src/index.js';
-import { thumperEvents } from '../src/schema/thumperEvents.js';
+import { thumperRuns } from '../src/schema/thumperRuns.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -18,25 +18,28 @@ const db = createDb(databaseUrl);
 
 // Clear leftover open runs from local dev before asserting invariants
 await db
-	.update(thumperEvents)
+	.update(thumperRuns)
 	.set({ claimedAt: new Date() })
-	.where(and(eq(thumperEvents.pilotId, DEMO_PILOT_ID), isNull(thumperEvents.claimedAt)));
+	.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNull(thumperRuns.claimedAt)));
 
 // Use a past deploy so claim is immediately eligible
 const deployedAt = new Date(Date.now() - 120_000);
 const durationSeconds = 60;
+const targetResourceId = 'veyrith_copper';
 
-const inserted = await insertThumperEvent(db, {
+const inserted = await insertThumperRun(db, {
 	pilotId: DEMO_PILOT_ID,
+	targetResourceId,
 	deployedAt,
 	durationSeconds
 });
-const open = await getOpenThumperForPilot(db, DEMO_PILOT_ID);
+const open = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 let secondInsertBlocked = false;
 try {
-	await insertThumperEvent(db, {
+	await insertThumperRun(db, {
 		pilotId: DEMO_PILOT_ID,
+		targetResourceId,
 		deployedAt: new Date(),
 		durationSeconds: 60
 	});
@@ -44,15 +47,16 @@ try {
 	secondInsertBlocked = true;
 }
 
-const claimed = await claimThumperEvent(db, inserted.id);
-const openAfterClaim = await getOpenThumperForPilot(db, DEMO_PILOT_ID);
+const claimed = await claimThumperRun(db, inserted.id);
+const openAfterClaim = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
-const redeployed = await insertThumperEvent(db, {
+const redeployed = await insertThumperRun(db, {
 	pilotId: DEMO_PILOT_ID,
+	targetResourceId: 'keth_iron',
 	deployedAt: new Date(),
 	durationSeconds: 60
 });
-const openAfterRedeploy = await getOpenThumperForPilot(db, DEMO_PILOT_ID);
+const openAfterRedeploy = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 console.log({
 	inserted,
@@ -68,6 +72,10 @@ if (!open || open.id !== inserted.id) {
 	console.error('smoke failed: open thumper should match insert');
 	process.exit(1);
 }
+if (open.targetResourceId !== targetResourceId) {
+	console.error('smoke failed: open run should store target_resource_id');
+	process.exit(1);
+}
 if (!secondInsertBlocked) {
 	console.error('smoke failed: second open insert should be blocked by unique index');
 	process.exit(1);
@@ -78,6 +86,10 @@ if (!claimed || openAfterClaim !== null) {
 }
 if (!openAfterRedeploy || openAfterRedeploy.id !== redeployed.id) {
 	console.error('smoke failed: redeploy after claim should succeed');
+	process.exit(1);
+}
+if (openAfterRedeploy.targetResourceId !== 'keth_iron') {
+	console.error('smoke failed: redeploy should store new target_resource_id');
 	process.exit(1);
 }
 
