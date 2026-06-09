@@ -55,8 +55,12 @@ export const actions: Actions = {
 		const db = getDb();
 		const event = await getLatestThumperEvent(db);
 
-		if (!event || event.claimedAt) {
+		if (!event) {
 			return fail(400, { message: 'No thumper to claim' });
+		}
+
+		if (event.claimedAt) {
+			return { thumperDemo: null, claimed: true };
 		}
 
 		const thumperDemo = resolveThumperState({
@@ -69,12 +73,7 @@ export const actions: Actions = {
 			return fail(400, { message: 'Thumper is not claimable yet', thumperDemo });
 		}
 
-		const claimed = await claimThumperEvent(db, event.id);
-
-		// Idempotent: race or replay — already claimed, no second write
-		if (!claimed) {
-			return { thumperDemo: null, claimed: true };
-		}
+		await claimThumperEvent(db, event.id);
 
 		return { thumperDemo: null, claimed: true };
 	}
