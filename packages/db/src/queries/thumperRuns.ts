@@ -1,9 +1,9 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import type { Db } from '../client.js';
+import type { DbExecutor } from '../client.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
 
 export async function insertThumperRun(
-	db: Db,
+	db: DbExecutor,
 	input: {
 		pilotId: string;
 		targetResourceId: string;
@@ -24,7 +24,7 @@ export async function insertThumperRun(
 	return row;
 }
 
-export async function getLatestThumperRunForPilot(db: Db, pilotId: string) {
+export async function getLatestThumperRunForPilot(db: DbExecutor, pilotId: string) {
 	const [row] = await db
 		.select()
 		.from(thumperRuns)
@@ -35,7 +35,7 @@ export async function getLatestThumperRunForPilot(db: Db, pilotId: string) {
 	return row ?? null;
 }
 
-export async function getOpenThumperRunForPilot(db: Db, pilotId: string) {
+export async function getOpenThumperRunForPilot(db: DbExecutor, pilotId: string) {
 	const [row] = await db
 		.select()
 		.from(thumperRuns)
@@ -45,7 +45,7 @@ export async function getOpenThumperRunForPilot(db: Db, pilotId: string) {
 	return row ?? null;
 }
 
-export async function claimThumperRun(db: Db, id: string) {
+export async function claimThumperRun(db: DbExecutor, id: string) {
 	const [row] = await db
 		.update(thumperRuns)
 		.set({ claimedAt: new Date() })

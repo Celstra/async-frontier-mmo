@@ -1,16 +1,15 @@
 import {
-	claimThumperRun,
+	claimOpenThumperRunForPilot,
 	createDb,
+	deployThumperRunWithEventWindows,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
-	insertThumperEventWindows,
-	insertThumperRun,
-	insertThumperRunResult,
 	recordThumperEventWindowResponse
 } from '@async-frontier-mmo/db';
 import {
+	assertVeyrithTutorialWindowsReady,
 	generateFirstSessionEventWindows,
 	getRedMesaResource,
 	RED_MESA_BLOOM_RESOURCES,
@@ -60,6 +59,16 @@ function parseChosenResponse(value: FormDataEntryValue | null): ThumperWindowCho
 	return null;
 }
 
+function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now: Date): boolean {
+	return (
+		resolveThumperState({
+			deployedAt: run.deployedAt,
+			durationSeconds: run.durationSeconds,
+			now
+		}).status === 'claimable'
+	);
+}
+
 async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<Awaited<ReturnType<typeof getOpenThumperRunForPilot>>>) {
 	const now = new Date();
 	const thumperDemo = resolveThumperState({
@@ -86,6 +95,28 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 			responded: window.chosenResponse !== null
 		}))
 	};
+}
+
+async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
+	return claimOpenThumperRunForPilot(db, {
+		pilotId: DEMO_PILOT_ID,
+		now,
+		isClaimable: (run) => isRunClaimable(run, now),
+		validateWindows: (run, windows) => {
+			if (run.targetResourceId === 'veyrith_copper') {
+				assertVeyrithTutorialWindowsReady(windows);
+			}
+		},
+		buildResult: (run, windows) =>
+			resolveFirstSessionThumperRunResult({
+				targetResourceId: run.targetResourceId as NamedResourceId,
+				responses: windows.map((window) => ({
+					windowIndex: window.windowIndex,
+					complication: window.complication as 'signal_drift' | 'pump_strain',
+					chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
+				}))
+			})
+	});
 }
 
 export const load: PageServerLoad = async () => {
@@ -118,25 +149,22 @@ export const actions: Actions = {
 
 		const deployedAt = new Date();
 		const durationSeconds = 60;
+		const windows =
+			targetResourceId === 'veyrith_copper'
+				? generateFirstSessionEventWindows({ targetResourceId }).windows.map((window) => ({
+						windowIndex: window.windowIndex,
+						complication: window.complication,
+						matchingAction: window.matchingAction
+					}))
+				: [];
 
-		const run = await insertThumperRun(db, {
+		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: DEMO_PILOT_ID,
 			targetResourceId,
 			deployedAt,
-			durationSeconds
+			durationSeconds,
+			windows
 		});
-
-		if (targetResourceId === 'veyrith_copper') {
-			const plan = generateFirstSessionEventWindows({ targetResourceId });
-			await insertThumperEventWindows(db, {
-				thumperRunId: run.id,
-				windows: plan.windows.map((window) => ({
-					windowIndex: window.windowIndex,
-					complication: window.complication,
-					matchingAction: window.matchingAction
-				}))
-			});
-		}
 
 		const state = await loadOpenRunState(db, run);
 		return state;
@@ -181,61 +209,35 @@ export const actions: Actions = {
 
 	claim: async () => {
 		const db = getDb();
-		const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+		const now = new Date();
+		const outcome = await claimTutorialRun(db, now);
 
-		if (!run) {
-			const latest = await getLatestThumperRunForPilot(db, DEMO_PILOT_ID);
-			if (latest?.claimedAt) {
-				const existingResult = await getThumperRunResultForRun(db, latest.id);
-				return { thumperDemo: null, claimed: true, claimResult: existingResult };
-			}
-			return fail(400, { message: 'No thumper to claim' });
+		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
+			return { thumperDemo: null, claimed: true, claimResult: outcome.claimResult };
 		}
 
-		const thumperDemo = resolveThumperState({
-			deployedAt: run.deployedAt,
-			durationSeconds: run.durationSeconds,
-			now: new Date()
-		});
-
-		if (thumperDemo.status !== 'claimable') {
+		if (outcome.status === 'not_claimable') {
+			const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+			const thumperDemo = run
+				? resolveThumperState({
+						deployedAt: run.deployedAt,
+						durationSeconds: run.durationSeconds,
+						now
+					})
+				: null;
 			return fail(400, { message: 'Thumper is not claimable yet', thumperDemo });
 		}
 
-		const windows = await getThumperEventWindowsForRun(db, run.id);
-		if (windows.length > 0) {
-			const unresolved = windows.filter((window) => window.chosenResponse === null);
-			if (unresolved.length > 0) {
-				return fail(400, {
-					message: 'Resolve all event windows before claiming',
-					eventWindows: windows
-				});
-			}
-
-			const result = resolveFirstSessionThumperRunResult({
-				targetResourceId: run.targetResourceId as NamedResourceId,
-				responses: windows.map((window) => ({
-					windowIndex: window.windowIndex,
-					complication: window.complication as 'signal_drift' | 'pump_strain',
-					chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
-				}))
-			});
-
-			const resolvedAt = new Date();
-			await insertThumperRunResult(db, {
-				thumperRunId: run.id,
-				targetResourceId: result.targetResourceId,
-				projectedRecovery: result.projectedRecovery,
-				recoveredQuantity: result.recoveredQuantity,
-				wasteQuantity: result.wasteQuantity,
-				explanation: result.explanation,
-				resolvedAt
-			});
+		if (outcome.status === 'invalid_windows') {
+			return fail(400, { message: outcome.message });
 		}
 
-		await claimThumperRun(db, run.id);
-		const claimResult = await getThumperRunResultForRun(db, run.id);
+		const latest = await getLatestThumperRunForPilot(db, DEMO_PILOT_ID);
+		if (latest?.claimedAt) {
+			const existingResult = await getThumperRunResultForRun(db, latest.id);
+			return { thumperDemo: null, claimed: true, claimResult: existingResult };
+		}
 
-		return { thumperDemo: null, claimed: true, claimResult };
+		return fail(400, { message: 'No thumper to claim' });
 	}
 };

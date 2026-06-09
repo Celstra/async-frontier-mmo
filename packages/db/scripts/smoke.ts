@@ -1,17 +1,21 @@
-import { and, eq, isNull } from 'drizzle-orm';
-import { resolveFirstSessionThumperRunResult } from '@async-frontier-mmo/domain';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import {
+	assertVeyrithTutorialWindowsReady,
+	resolveFirstSessionThumperRunResult,
+	resolveThumperState
+} from '@async-frontier-mmo/domain';
 import { DEMO_PILOT_ID } from 'shared';
 import {
-	claimThumperRun,
+	claimOpenThumperRunForPilot,
 	createDb,
+	deployThumperRunWithEventWindows,
 	getOpenThumperRunForPilot,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
-	insertThumperEventWindows,
 	insertThumperRun,
-	insertThumperRunResult,
 	recordThumperEventWindowResponse
 } from '../src/index.js';
+import { thumperRunResults } from '../src/schema/thumperRunResults.js';
 import { thumperRuns } from '../src/schema/thumperRuns.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -22,41 +26,71 @@ if (!databaseUrl) {
 
 const db = createDb(databaseUrl);
 
-// Clear leftover open runs from local dev before asserting invariants
-await db
-	.update(thumperRuns)
-	.set({ claimedAt: new Date() })
-	.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNull(thumperRuns.claimedAt)));
+function failSmoke(message: string): never {
+	console.error(`smoke failed: ${message}`);
+	process.exit(1);
+}
+
+async function clearOpenRuns() {
+	await db
+		.update(thumperRuns)
+		.set({ claimedAt: new Date() })
+		.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNull(thumperRuns.claimedAt)));
+}
+
+function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now: Date) {
+	return (
+		resolveThumperState({
+			deployedAt: run.deployedAt,
+			durationSeconds: run.durationSeconds,
+			now
+		}).status === 'claimable'
+	);
+}
+
+async function claimTutorialRun(now: Date) {
+	return claimOpenThumperRunForPilot(db, {
+		pilotId: DEMO_PILOT_ID,
+		now,
+		isClaimable: (run) => isRunClaimable(run, now),
+		validateWindows: (run, windows) => {
+			if (run.targetResourceId === 'veyrith_copper') {
+				assertVeyrithTutorialWindowsReady(windows);
+			}
+		},
+		buildResult: (run, windows) =>
+			resolveFirstSessionThumperRunResult({
+				targetResourceId: 'veyrith_copper',
+				responses: windows.map((window) => ({
+					windowIndex: window.windowIndex,
+					complication: window.complication as 'signal_drift' | 'pump_strain',
+					chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
+				}))
+			})
+	});
+}
+
+await clearOpenRuns();
 
 const deployedAt = new Date(Date.now() - 120_000);
 const durationSeconds = 60;
 const targetResourceId = 'veyrith_copper';
 
-const run = await insertThumperRun(db, {
+const run = await deployThumperRunWithEventWindows(db, {
 	pilotId: DEMO_PILOT_ID,
 	targetResourceId,
 	deployedAt,
-	durationSeconds
-});
-
-await insertThumperEventWindows(db, {
-	thumperRunId: run.id,
+	durationSeconds,
 	windows: [
-		{
-			windowIndex: 1,
-			complication: 'signal_drift',
-			matchingAction: 'signal_tune'
-		},
-		{
-			windowIndex: 2,
-			complication: 'pump_strain',
-			matchingAction: 'clear_pump_problem'
-		}
+		{ windowIndex: 1, complication: 'signal_drift', matchingAction: 'signal_tune' },
+		{ windowIndex: 2, complication: 'pump_strain', matchingAction: 'clear_pump_problem' }
 	]
 });
 
-const open = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
-const windowsBefore = await getThumperEventWindowsForRun(db, run.id);
+const windowsAfterDeploy = await getThumperEventWindowsForRun(db, run.id);
+if (windowsAfterDeploy.length !== 2) {
+	failSmoke('deploy transaction should create run and two event windows together');
+}
 
 await recordThumperEventWindowResponse(db, {
 	thumperRunId: run.id,
@@ -69,65 +103,81 @@ await recordThumperEventWindowResponse(db, {
 	chosenResponse: 'clear_pump_problem'
 });
 
-const windowsAfter = await getThumperEventWindowsForRun(db, run.id);
-const result = resolveFirstSessionThumperRunResult({
-	targetResourceId: 'veyrith_copper',
-	responses: windowsAfter.map((window) => ({
-		windowIndex: window.windowIndex,
-		complication: window.complication as 'signal_drift' | 'pump_strain',
-		chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
-	}))
+const claimNow = new Date();
+const firstClaim = await claimTutorialRun(claimNow);
+if (firstClaim.status !== 'claimed' || !firstClaim.claimResult) {
+	failSmoke('first claim should win and insert result');
+}
+
+const secondClaim = await claimTutorialRun(claimNow);
+if (secondClaim.status !== 'already_claimed' || !secondClaim.claimResult) {
+	failSmoke('second claim should return existing result idempotently');
+}
+if (secondClaim.claimResult.id !== firstClaim.claimResult.id) {
+	failSmoke('double claim must not duplicate result row');
+}
+
+const [claimedRun] = await db.select().from(thumperRuns).where(eq(thumperRuns.id, run.id));
+if (!claimedRun?.claimedAt) {
+	failSmoke('normal claim path must set claimed_at when result exists');
+}
+
+const orphanResults = await db
+	.select()
+	.from(thumperRunResults)
+	.innerJoin(thumperRuns, eq(thumperRunResults.thumperRunId, thumperRuns.id))
+	.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNull(thumperRuns.claimedAt)));
+
+if (orphanResults.length > 0) {
+	failSmoke('result row must not exist on an unclaimed run after normal claim path');
+}
+
+await clearOpenRuns();
+
+const runWithoutWindows = await insertThumperRun(db, {
+	pilotId: DEMO_PILOT_ID,
+	targetResourceId,
+	deployedAt: new Date(Date.now() - 120_000),
+	durationSeconds: 60
 });
 
-await insertThumperRunResult(db, {
-	thumperRunId: run.id,
-	targetResourceId: result.targetResourceId,
-	projectedRecovery: result.projectedRecovery,
-	recoveredQuantity: result.recoveredQuantity,
-	wasteQuantity: result.wasteQuantity,
-	explanation: result.explanation,
-	resolvedAt: new Date()
-});
+const windowsMissing = await getThumperEventWindowsForRun(db, runWithoutWindows.id);
+if (windowsMissing.length !== 0) {
+	failSmoke('control run should have zero windows');
+}
 
-const claimed = await claimThumperRun(db, run.id);
-const storedResult = await getThumperRunResultForRun(db, run.id);
-const openAfterClaim = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+const invalidClaim = await claimTutorialRun(new Date());
+if (invalidClaim.status !== 'invalid_windows') {
+	failSmoke('Veyrith run with zero windows must not claim with a result');
+}
+
+const openAfterInvalidClaim = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+if (!openAfterInvalidClaim || openAfterInvalidClaim.id !== runWithoutWindows.id) {
+	failSmoke('invalid claim should leave the run open with no result');
+}
+
+const resultAfterInvalidClaim = await getThumperRunResultForRun(db, runWithoutWindows.id);
+if (resultAfterInvalidClaim) {
+	failSmoke('invalid claim must not insert thumper_run_result');
+}
+
+const claimedRunsWithResults = await db
+	.select({ runId: thumperRuns.id, claimedAt: thumperRuns.claimedAt })
+	.from(thumperRunResults)
+	.innerJoin(thumperRuns, eq(thumperRunResults.thumperRunId, thumperRuns.id))
+	.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNotNull(thumperRuns.claimedAt)));
+
+if (claimedRunsWithResults.length < 1) {
+	failSmoke('expected at least one claimed run with stored result from first claim');
+}
 
 console.log({
-	runId: run.id,
-	open: open?.id,
-	windowsBefore: windowsBefore.length,
-	windowsAfter: windowsAfter.map((w) => w.chosenResponse),
-	result,
-	claimed: claimed?.id,
-	storedResult: storedResult?.recoveredQuantity,
-	openAfterClaim
+	deployedRunId: run.id,
+	windowsAfterDeploy: windowsAfterDeploy.length,
+	firstClaim: firstClaim.claimResult.id,
+	secondClaimStatus: secondClaim.status,
+	invalidClaimStatus: invalidClaim.status
 });
-
-if (!open || open.id !== run.id) {
-	console.error('smoke failed: open thumper should match insert');
-	process.exit(1);
-}
-if (windowsBefore.length !== 2) {
-	console.error('smoke failed: expected two event windows');
-	process.exit(1);
-}
-if (windowsAfter.some((window) => window.chosenResponse === null)) {
-	console.error('smoke failed: responses should be recorded');
-	process.exit(1);
-}
-if (result.recoveredQuantity !== 60 || result.wasteQuantity !== 0) {
-	console.error('smoke failed: perfect responses should yield full tutorial recovery');
-	process.exit(1);
-}
-if (!storedResult || storedResult.recoveredQuantity !== 60) {
-	console.error('smoke failed: run result should be stored');
-	process.exit(1);
-}
-if (!claimed || openAfterClaim !== null) {
-	console.error('smoke failed: claim should close the open run');
-	process.exit(1);
-}
 
 console.log('smoke ok');
 process.exit(0);

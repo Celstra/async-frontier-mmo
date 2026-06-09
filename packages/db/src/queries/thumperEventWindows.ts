@@ -1,9 +1,9 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import type { Db } from '../client.js';
+import type { DbExecutor } from '../client.js';
 import { thumperEventWindows } from '../schema/thumperEventWindows.js';
 
 export async function insertThumperEventWindows(
-	db: Db,
+	db: DbExecutor,
 	input: {
 		thumperRunId: string;
 		windows: Array<{
@@ -30,7 +30,7 @@ export async function insertThumperEventWindows(
 		.returning();
 }
 
-export async function getThumperEventWindowsForRun(db: Db, thumperRunId: string) {
+export async function getThumperEventWindowsForRun(db: DbExecutor, thumperRunId: string) {
 	return db
 		.select()
 		.from(thumperEventWindows)
@@ -39,7 +39,7 @@ export async function getThumperEventWindowsForRun(db: Db, thumperRunId: string)
 }
 
 export async function recordThumperEventWindowResponse(
-	db: Db,
+	db: DbExecutor,
 	input: {
 		thumperRunId: string;
 		windowIndex: number;

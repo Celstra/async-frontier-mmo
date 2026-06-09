@@ -164,3 +164,23 @@ UI: text-only complication labels + Match / Hold buttons per open window; dev no
 - [x] `pnpm --filter @async-frontier-mmo/domain test` + `pnpm check` + `db:smoke`
 
 **Next exercise:** Claim grants `recovered_quantity` into `resource_stacks` with an `economy_ledger` row citing `thumper_run_result_id`.
+
+---
+
+## 12. Transaction / idempotency boundaries (required before ledger)
+
+| Operation | Boundary |
+|-----------|----------|
+| **Deploy** | `deployThumperRunWithEventWindows()` — run + windows in one transaction |
+| **Claim** | `claimOpenThumperRunForPilot()` — validate windows → conditional `claimed_at` update wins → only winner inserts `thumper_run_result` |
+| **Duplicate claim** | No open run + latest already claimed → return `{ claimed: true, claimResult: existing }` |
+| **Veyrith tutorial** | `assertVeyrithTutorialWindowsReady()` — exactly 2 windows, drift then strain, all answered; zero windows cannot claim with result |
+
+Winner gate SQL shape:
+
+```sql
+UPDATE thumper_runs
+SET claimed_at = now()
+WHERE id = $1 AND claimed_at IS NULL
+RETURNING *;
+```

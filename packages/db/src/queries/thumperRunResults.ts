@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
-import type { Db } from '../client.js';
+import type { DbExecutor } from '../client.js';
 import { thumperRunResults } from '../schema/thumperRunResults.js';
 
 export async function insertThumperRunResult(
-	db: Db,
+	db: DbExecutor,
 	input: {
 		thumperRunId: string;
 		targetResourceId: string;
@@ -30,7 +30,7 @@ export async function insertThumperRunResult(
 	return row;
 }
 
-export async function getThumperRunResultForRun(db: Db, thumperRunId: string) {
+export async function getThumperRunResultForRun(db: DbExecutor, thumperRunId: string) {
 	const [row] = await db
 		.select()
 		.from(thumperRunResults)

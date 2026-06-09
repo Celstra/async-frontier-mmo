@@ -1,0 +1,235 @@
+{
+  "id": "b4c5d6e7-f8a9-4012-b345-678901234567",
+  "prevId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.thumper_runs": {
+      "name": "thumper_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_resource_id": {
+          "name": "target_resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deployed_at": {
+          "name": "deployed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_seconds": {
+          "name": "duration_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.thumper_event_windows": {
+      "name": "thumper_event_windows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "thumper_run_id": {
+          "name": "thumper_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_index": {
+          "name": "window_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "complication": {
+          "name": "complication",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "matching_action": {
+          "name": "matching_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chosen_response": {
+          "name": "chosen_response",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "thumper_event_windows_run_window_idx": {
+          "name": "thumper_event_windows_run_window_idx",
+          "columns": [
+            {
+              "expression": "thumper_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "window_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "thumper_event_windows_thumper_run_id_thumper_runs_id_fk": {
+          "name": "thumper_event_windows_thumper_run_id_thumper_runs_id_fk",
+          "tableFrom": "thumper_event_windows",
+          "tableTo": "thumper_runs",
+          "columnsFrom": ["thumper_run_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.thumper_run_results": {
+      "name": "thumper_run_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "thumper_run_id": {
+          "name": "thumper_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_resource_id": {
+          "name": "target_resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "projected_recovery": {
+          "name": "projected_recovery",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recovered_quantity": {
+          "name": "recovered_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "waste_quantity": {
+          "name": "waste_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "explanation": {
+          "name": "explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "thumper_run_results_thumper_run_id_thumper_runs_id_fk": {
+          "name": "thumper_run_results_thumper_run_id_thumper_runs_id_fk",
+          "tableFrom": "thumper_run_results",
+          "tableTo": "thumper_runs",
+          "columnsFrom": ["thumper_run_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "thumper_run_results_thumper_run_id_unique": {
+          "name": "thumper_run_results_thumper_run_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["thumper_run_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

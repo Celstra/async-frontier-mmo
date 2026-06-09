@@ -1,5 +1,5 @@
 /** Persistence layer — Drizzle schema and queries. */
-export { createDb, type Db } from './client.js';
+export { createDb, type Db, type DbExecutor } from './client.js';
 export {
 	getThumperEventWindowsForRun,
 	insertThumperEventWindows,
@@ -11,6 +11,12 @@ export {
 	getOpenThumperRunForPilot,
 	insertThumperRun
 } from './queries/thumperRuns.js';
+export {
+	claimOpenThumperRunForPilot,
+	deployThumperRunWithEventWindows,
+	type ClaimThumperRunOutcome,
+	type ThumperRunResultPayload
+} from './queries/thumperRunWorkflow.js';
 export {
 	getThumperRunResultForRun,
 	insertThumperRunResult

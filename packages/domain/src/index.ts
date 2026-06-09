@@ -19,6 +19,8 @@ export type {
 	NamedResourceId,
 	ResourceFamily
 } from './resources/types';
+export { assertVeyrithTutorialWindowsReady } from './thumper/assertVeyrithTutorialWindowsReady';
+export type { TutorialWindowRow } from './thumper/assertVeyrithTutorialWindowsReady';
 export {
 	COMPLICATION_MATCHING_ACTION,
 	getMatchingAction,
