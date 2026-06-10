@@ -1,14 +1,6 @@
-import type { ResourceStatCode } from 'shared';
 import type { CompleteResourceStatMap, NamedResourceDefinition, NamedResourceId } from './types.js';
 
-/** Locked MVP stat codes for documentation tests and downstream consumers. */
-export const MVP_RESOURCE_STAT_CODES = [
-	'OQ',
-	'conductivity',
-	'hardness',
-	'heat_resistance',
-	'malleability'
-] as const satisfies readonly ResourceStatCode[];
+export { MVP_RESOURCE_STAT_CODES } from './familyStatCaps.js';
 
 function stats(values: CompleteResourceStatMap): CompleteResourceStatMap {
 	return values;

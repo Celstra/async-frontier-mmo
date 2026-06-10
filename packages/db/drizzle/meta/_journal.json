@@ -113,6 +113,13 @@
       "when": 1782300000000,
       "tag": "0015_thumper_parts_equip",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0016_bloom_rotation",
+      "breakpoints": true
     }
   ]
 }

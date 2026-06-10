@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { BLOOM_ONE_ID, BLOOM_ONE_SEED_RESOURCES } from '../seed/bloomOneSeed.js';
 import { resourceInstances } from '../schema/resourceInstances.js';
@@ -123,6 +123,50 @@ export async function getResourceInstanceByBloomSlug(
 
 export async function listResourceInstancesForBloom(db: DbExecutor, bloomId: number) {
 	return db.select().from(resourceInstances).where(eq(resourceInstances.bloomId, bloomId));
+}
+
+export async function listSpawnableResourceInstances(db: DbExecutor) {
+	return db
+		.select()
+		.from(resourceInstances)
+		.where(isNull(resourceInstances.extinctAt))
+		.orderBy(resourceInstances.family, resourceInstances.displayName);
+}
+
+export async function listAllResourceDisplayNames(db: DbExecutor): Promise<string[]> {
+	const rows = await db
+		.select({ displayName: resourceInstances.displayName })
+		.from(resourceInstances);
+
+	return rows.map((row) => row.displayName);
+}
+
+export async function getActiveBloomId(db: DbExecutor): Promise<number> {
+	const [row] = await db
+		.select({ bloomId: resourceInstances.bloomId })
+		.from(resourceInstances)
+		.where(isNull(resourceInstances.extinctAt))
+		.orderBy(desc(resourceInstances.bloomId))
+		.limit(1);
+
+	return row?.bloomId ?? BLOOM_ONE_ID;
+}
+
+export function resourceInstanceToSurveyResource(row: typeof resourceInstances.$inferSelect) {
+	return {
+		resourceSlug: row.resourceSlug,
+		displayName: row.displayName,
+		family: row.family as 'conductive_metal' | 'structural_alloy' | 'reactive_crystal',
+		stats: {
+			OQ: row.statOq,
+			conductivity: row.statConductivity,
+			hardness: row.statHardness,
+			heat_resistance: row.statHeatResistance,
+			malleability: row.statMalleability
+		},
+		concentrationMinPercent: row.concentrationMinPercent,
+		concentrationMaxPercent: row.concentrationMaxPercent
+	};
 }
 
 /** Idempotent seed for locked bloom #1 (Decision 006 + 021). */

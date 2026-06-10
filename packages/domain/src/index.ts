@@ -81,11 +81,36 @@ export type {
 	TuningAllocation
 } from './crafting/types.js';
 export {
+	generateBloom,
+	LIFESPAN_DAYS_MAX,
+	LIFESPAN_DAYS_MIN,
+	RESOURCES_PER_FAMILY,
+	type GeneratedBloom,
+	type GeneratedBloomResource
+} from './resources/bloomGenerator.js';
+export {
+	FAMILY_STAT_CAPS,
+	MVP_RESOURCE_STAT_CODES,
+	resourceStatsWithinFamilyCaps
+} from './resources/familyStatCaps.js';
+export {
 	getRedMesaResource,
 	listRedMesaResources,
-	MVP_RESOURCE_STAT_CODES,
 	RED_MESA_BLOOM_RESOURCES
 } from './resources/redMesaBloom';
+export {
+	deemphasizedStatsForLiveSchematics,
+	deemphasizedStatsForSlotFamily,
+	liveSchematicStatWeights,
+	schematicStatWeightsForSlotFamily
+} from './crafting/liveSchematicStatWeights.js';
+export {
+	buildActiveBloomSurvey,
+	isDeemphasizedSurveyStat,
+	type ActiveBloomSurveyResource,
+	type ActiveBloomSurveyResult,
+	type ActiveBloomSurveySignal
+} from './survey/activeBloomSurvey.js';
 export { surveyRedMesaFirstSession } from './survey/redMesaSurvey';
 export {
 	applySurveyClarityToResult,

@@ -34,7 +34,14 @@
 	);
 	const thumperPartItems = $derived(form?.thumperPartItems ?? data.thumperPartItems ?? []);
 	const equipThumperOutcome = $derived(form?.equipThumperOutcome ?? null);
-	const survey = $derived(form?.survey ?? data.survey);
+	const tutorialSurvey = $derived(form?.tutorialSurvey ?? data.tutorialSurvey ?? null);
+	const activeBloomSurvey = $derived(form?.activeBloomSurvey ?? data.activeBloomSurvey ?? null);
+	const surveyMode = $derived(form?.surveyMode ?? data.surveyMode ?? 'tutorial');
+	const activeBloomId = $derived(form?.activeBloomId ?? data.activeBloomId ?? 1);
+	const bloomRotation = $derived(form?.bloomRotation ?? null);
+	const hasCompletedTutorial = $derived(
+		form?.hasCompletedTutorial ?? data.hasCompletedTutorial ?? false
+	);
 
 	function stacksForFamily(family: string) {
 		return craftContext?.inventory.filter((stack) => stack.family === family) ?? [];
@@ -153,8 +160,15 @@
 <h1>Welcome to SvelteKit</h1>
 <p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
 
-{#if survey && !thumperDemo}
-	<h2>Red Mesa survey (first session)</h2>
+{#if (tutorialSurvey || activeBloomSurvey) && !thumperDemo}
+	<h2>
+		Red Mesa survey
+		{#if surveyMode === 'tutorial'}
+			(first session)
+		{:else}
+			(bloom #{activeBloomId})
+		{/if}
+	</h2>
 	{#if equippedScanner}
 		<p>
 			<small>
@@ -165,40 +179,101 @@
 	{:else}
 		<p><small>Basic Scanner Mk 0 — stat bands only until you equip a crafted scanner.</small></p>
 	{/if}
-	<ul>
-		{#each survey.signals as signal}
-			<li>
-				<strong>{signal.displayName}</strong>
-				{#if signal.recommended}(recommended){/if}
-				— {signal.teachingNote}
-				<ul>
-					{#each signal.statHints as hint}
-						<li>
-							{hint.stat}: {hint.band}
-							{#if hint.exactValue !== undefined}
-								(exact {hint.exactValue})
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			</li>
-		{/each}
-	</ul>
+	{#if surveyMode === 'tutorial' && tutorialSurvey}
+		<ul>
+			{#each tutorialSurvey.signals as signal}
+				<li>
+					<strong>{signal.displayName}</strong>
+					{#if signal.recommended}(recommended){/if}
+					— {signal.teachingNote}
+					<ul>
+						{#each signal.statHints as hint}
+							<li>
+								{hint.stat}: {hint.band}
+								{#if hint.exactValue !== undefined}
+									(exact {hint.exactValue})
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</li>
+			{/each}
+		</ul>
+	{:else if activeBloomSurvey}
+		<p>
+			<small>
+				Spawnable resources in the active bloom. Archived stacks in your inventory keep their
+				original provenance after rotation.
+			</small>
+		</p>
+		<ul>
+			{#each activeBloomSurvey.signals as signal}
+				<li>
+					<strong>{signal.displayName}</strong>
+					{#if signal.resourceSlug === activeBloomSurvey.recommendedResourceSlug}
+						(recommended)
+					{/if}
+					— concentration {signal.concentrationMinPercent}–{signal.concentrationMaxPercent}%
+					<ul>
+						{#each signal.statHints as hint}
+							<li class:stat-deemphasized={!hint.emphasized}>
+								{hint.stat}: {hint.band}
+								{#if hint.exactValue !== undefined}
+									(exact {hint.exactValue})
+								{/if}
+								{#if !hint.emphasized}
+									<small> — low craft relevance</small>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if import.meta.env.DEV && hasCompletedTutorial}
+		<form method="POST" action="?/rotateBloom">
+			<button type="submit">Rotate bloom (dev)</button>
+		</form>
+		{#if bloomRotation?.status === 'rotated'}
+			<p>
+				<small>
+					Rotated bloom #{bloomRotation.previousBloomId} → #{bloomRotation.newBloomId} (
+					{bloomRotation.spawnedResourceCount} new resources).
+				</small>
+			</p>
+		{/if}
+	{/if}
 
 	<form method="POST" action="?/deploy">
 		<fieldset>
 			<legend>Deploy thumper on signal</legend>
-			{#each survey.signals as signal}
-				<label>
-					<input
-						type="radio"
-						name="targetResourceId"
-						value={signal.resourceId}
-						checked={signal.recommended}
-					/>
-					{signal.displayName}
-				</label>
-			{/each}
+			{#if surveyMode === 'tutorial' && tutorialSurvey}
+				{#each tutorialSurvey.signals as signal}
+					<label>
+						<input
+							type="radio"
+							name="targetResourceId"
+							value={signal.resourceId}
+							checked={signal.recommended}
+						/>
+						{signal.displayName}
+					</label>
+				{/each}
+			{:else if activeBloomSurvey}
+				{#each activeBloomSurvey.signals as signal}
+					<label>
+						<input
+							type="radio"
+							name="targetResourceId"
+							value={signal.resourceSlug}
+							checked={signal.resourceSlug === activeBloomSurvey.recommendedResourceSlug}
+						/>
+						{signal.displayName}
+					</label>
+				{/each}
+			{/if}
 		</fieldset>
 		<label>
 			<input type="checkbox" name="isPushRun" value="true" />
@@ -283,6 +358,12 @@
 
 	{#if craftContext.inventory.length > 0}
 		<p><strong>Owned resources:</strong></p>
+		<p>
+			<small>
+				Family-orphan stats are de-emphasized in survey readouts (Decision 018 §6). CM
+				orphans: {craftContext.deemphasizedStatsByFamily?.conductive_metal?.join(', ') ?? 'none'}.
+			</small>
+		</p>
 		<ul>
 			{#each craftContext.inventory as stack}
 				<li>{stack.displayName} × {stack.quantity} ({stack.family})</li>
@@ -558,3 +639,9 @@
 		{/if}
 	</p>
 {/if}
+
+<style>
+	.stat-deemphasized {
+		opacity: 0.55;
+	}
+</style>

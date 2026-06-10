@@ -73,13 +73,22 @@ export {
 } from './queries/economyLedger.js';
 export {
 	ensureBloomOneResourceInstances,
+	getActiveBloomId,
 	getResourceInstanceByBloomSlug,
 	getResourceInstanceById,
 	insertResourceInstance,
+	listAllResourceDisplayNames,
 	listResourceInstancesForBloom,
+	listSpawnableResourceInstances,
 	ResourceInstanceStatsImmutableError,
+	resourceInstanceToSurveyResource,
 	updateResourceInstance
 } from './queries/resourceInstances.js';
+export {
+	getBloomRecord,
+	rotateActiveBloom,
+	type RotateBloomOutcome
+} from './queries/bloomRotation.js';
 export {
 	getResourceStackForPilotInstance,
 	grantResourceToPilot,
