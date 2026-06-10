@@ -35,6 +35,7 @@ export function resolveFirstSessionThumperRunResult(input: {
 	eventWindows?: ThumperEventWindowSnapshot[];
 	appliedWear?: number;
 	partModifiers?: ThumperPartRunModifiers;
+	projectedRecovery?: number;
 }): ThumperRunResult {
 	if (input.targetResourceId !== FIRST_SESSION_TARGET) {
 		throw new Error(
@@ -56,7 +57,7 @@ export function resolveFirstSessionThumperRunResult(input: {
 	return resolveThumperRunResult({
 		runConfig: {
 			targetResourceId: input.targetResourceId,
-			projectedRecovery: FIRST_SESSION_PROJECTED_RECOVERY,
+			projectedRecovery: input.projectedRecovery ?? FIRST_SESSION_PROJECTED_RECOVERY,
 			recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM,
 			appliedWear: input.appliedWear ?? 0,
 			partModifiers: input.partModifiers

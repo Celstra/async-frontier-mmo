@@ -1,5 +1,4 @@
 import {
-	countFieldRepairKitsForPilot,
 	deployThumperRunWithEventWindows,
 	getActiveBloomId,
 	getOpenThumperRunForPilot,
@@ -10,14 +9,15 @@ import {
 	hasPilotCompletedTutorialThumper
 } from '@async-frontier-mmo/db';
 import {
-	concentrationPercentToExtractionMultiplier,
-	DEFAULT_PROJECTED_RECOVERY,
+	EXTRACTION_TAIL_OPTIONS,
 	generateThumperEventWindows,
 	isTutorialThumperDeploy,
+	parseExtractionTailMinutes,
 	TUTORIAL_RUN_SEED,
 	type NamedResourceId
 } from '@async-frontier-mmo/domain';
 import { fail, redirect } from '@sveltejs/kit';
+import { loadDeployPreviewForPilot } from '$lib/server/deployLoad';
 import { getGameDb } from '$lib/server/gameDb';
 import { requireFrameChosenPilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
@@ -46,6 +46,9 @@ export const load: PageServerLoad = async (event) => {
 	const pilotId = resolvePilotId(event);
 	const resourceInstanceId = event.url.searchParams.get('resourceInstanceId');
 	const spotId = event.url.searchParams.get('spotId');
+	const selectedTailId = event.url.searchParams.get('tail') ?? '1h';
+	const extractionTailMinutes = parseExtractionTailMinutes(selectedTailId);
+	const previewPushRun = event.url.searchParams.get('push') === 'true';
 
 	if (!resourceInstanceId || !spotId) {
 		redirect(303, '/survey');
@@ -71,11 +74,20 @@ export const load: PageServerLoad = async (event) => {
 		pilotId,
 		TUTORIAL_RUN_SEED
 	);
+	const isTutorialRun = isTutorialThumperDeploy({
+		targetResourceId: resource.resourceSlug as NamedResourceId,
+		hasCompletedTutorial
+	});
+	const isPushRun = !isTutorialRun && previewPushRun;
 	const recommendedResourceSlug = recommendedResourceSlugForBloom(resource.bloomId, hasCompletedTutorial);
-	const extractionMultiplier = concentrationPercentToExtractionMultiplier(
-		sample.trueConcentrationPercent
-	);
-	const projectedRecovery = Math.round(DEFAULT_PROJECTED_RECOVERY * extractionMultiplier);
+
+	const { equippedParts, preview } = await loadDeployPreviewForPilot(db, {
+		pilotId,
+		trueConcentrationPercent: sample.trueConcentrationPercent,
+		extractionTailMinutes,
+		isPushRun,
+		isTutorialRun
+	});
 
 	return {
 		resourceInstanceId,
@@ -85,8 +97,14 @@ export const load: PageServerLoad = async (event) => {
 		recommended: resource.resourceSlug === recommendedResourceSlug,
 		teachingNote: surveyTeachingNote(resource.resourceSlug),
 		trueConcentrationPercent: sample.trueConcentrationPercent,
-		extractionMultiplier,
-		projectedRecovery
+		hasCompletedTutorial,
+		isTutorialRun,
+		showPushRunToggle: !isTutorialRun,
+		selectedTailId,
+		selectedPushRun: isPushRun,
+		extractionTailOptions: EXTRACTION_TAIL_OPTIONS,
+		equippedParts,
+		preview
 	};
 };
 
@@ -106,6 +124,9 @@ export const actions: Actions = {
 		const targetResourceId = await resolveDeployTargetSlug(db, formData.get('targetResourceId'));
 		const resourceInstanceId = formData.get('resourceInstanceId');
 		const spotId = formData.get('spotId');
+		const extractionTailMinutes = parseExtractionTailMinutes(
+			formData.get('extractionTail')?.toString()
+		);
 
 		if (!targetResourceId || typeof resourceInstanceId !== 'string' || typeof spotId !== 'string') {
 			return fail(400, { message: 'Invalid deploy target' });
@@ -121,7 +142,6 @@ export const actions: Actions = {
 			return fail(400, { message: 'Sample this deposit spot on Survey before deploying' });
 		}
 
-		const pilotFrame = await getPilotFrame(db, pilotId);
 		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 			db,
 			pilotId,
@@ -132,6 +152,16 @@ export const actions: Actions = {
 			hasCompletedTutorial
 		});
 		const isPushRun = !isTutorialRun && formData.get('isPushRun') === 'true';
+
+		const { preview } = await loadDeployPreviewForPilot(db, {
+			pilotId,
+			trueConcentrationPercent: sample.trueConcentrationPercent,
+			extractionTailMinutes,
+			isPushRun,
+			isTutorialRun
+		});
+
+		const pilotFrame = await getPilotFrame(db, pilotId);
 		const runSeed = isTutorialRun ? TUTORIAL_RUN_SEED : crypto.randomUUID();
 		const plan = generateThumperEventWindows({
 			targetResourceId: targetResourceId as NamedResourceId,
@@ -147,7 +177,11 @@ export const actions: Actions = {
 			runSeed: plan.runSeed,
 			isPushRun: plan.isPushRun,
 			deployedAt: new Date(),
-			durationSeconds: 60,
+			durationSeconds: preview.totalDurationSeconds,
+			depositSpotId: spotId,
+			trueConcentrationPercent: sample.trueConcentrationPercent,
+			extractionTailMinutes,
+			resourceInstanceId,
 			windows: plan.windows.map((window) => ({
 				windowIndex: window.windowIndex,
 				complication: window.complication,
@@ -155,7 +189,6 @@ export const actions: Actions = {
 			}))
 		});
 
-		await countFieldRepairKitsForPilot(db, pilotId);
 		redirect(303, '/');
 	}
 };

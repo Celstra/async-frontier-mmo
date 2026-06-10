@@ -12,6 +12,10 @@ export async function insertThumperRun(
 		isPushRun: boolean;
 		deployedAt: Date;
 		durationSeconds: number;
+		depositSpotId?: string | null;
+		trueConcentrationPercent?: number | null;
+		extractionTailMinutes?: number;
+		resourceInstanceId?: string | null;
 	}
 ) {
 	const [row] = await db
@@ -23,7 +27,11 @@ export async function insertThumperRun(
 			runSeed: input.runSeed,
 			isPushRun: input.isPushRun,
 			deployedAt: input.deployedAt,
-			durationSeconds: input.durationSeconds
+			durationSeconds: input.durationSeconds,
+			depositSpotId: input.depositSpotId ?? null,
+			trueConcentrationPercent: input.trueConcentrationPercent ?? null,
+			extractionTailMinutes: input.extractionTailMinutes ?? 60,
+			resourceInstanceId: input.resourceInstanceId ?? null
 		})
 		.returning();
 

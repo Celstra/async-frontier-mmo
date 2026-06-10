@@ -141,6 +141,13 @@
       "when": 1782700000000,
       "tag": "0019_premium_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782800000000,
+      "tag": "0020_thumper_run_deposit_tail",
+      "breakpoints": true
     }
   ]
 }

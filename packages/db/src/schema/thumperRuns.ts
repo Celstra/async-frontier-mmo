@@ -9,6 +9,13 @@ export const thumperRuns = pgTable(
 		/** Frame snapshotted at deploy — part of run config for audit replay. */
 		pilotFrameId: text('pilot_frame_id').notNull().default('recon'),
 		targetResourceId: text('target_resource_id').notNull(),
+		/** Sampled deposit spot from Decision 019 prospecting. */
+		depositSpotId: text('deposit_spot_id'),
+		/** Spot concentration at deploy — extraction multiplier input. */
+		trueConcentrationPercent: integer('true_concentration_percent'),
+		/** Passive extraction tail length (Decision 017). */
+		extractionTailMinutes: integer('extraction_tail_minutes').notNull().default(60),
+		resourceInstanceId: uuid('resource_instance_id'),
 		/** Stored at deploy — window order/complications replay from this seed. */
 		runSeed: text('run_seed').notNull().default('legacy'),
 		/** Push runs allow a third event window and higher projected recovery. */

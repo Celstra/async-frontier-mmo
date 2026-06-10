@@ -42,7 +42,9 @@ import {
 	MVP_CRAFT_SCHEMATICS,
 	FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 	FIRST_SCANNER_SUGGESTED_TUNING,
+	FIRST_SESSION_SCANNER_MINIMUM,
 	PUSH_RUN_PROJECTED_RECOVERY,
+	projectedRecoveryForStoredRun,
 	REINFORCED_HULL_PLATE,
 	thumperPartSlotForSchematic,
 	getEventWindowResponseOptions,
@@ -191,7 +193,14 @@ async function loadOpenRunState(
 
 async function buildTutorialClaimResult(
 	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
-	run: { id: string; targetResourceId: string; pilotFrameId: string },
+	run: {
+		id: string;
+		targetResourceId: string;
+		pilotFrameId: string;
+		isPushRun: boolean;
+		trueConcentrationPercent: number | null;
+		extractionTailMinutes: number;
+	},
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
 	const responses = windows
@@ -204,12 +213,20 @@ async function buildTutorialClaimResult(
 
 	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
 	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
+	const projectedRecovery = projectedRecoveryForStoredRun({
+		isPushRun: run.isPushRun,
+		trueConcentrationPercent: run.trueConcentrationPercent,
+		extractionTailMinutes: run.extractionTailMinutes,
+		partModifiers,
+		recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
+	});
 
 	return resolveFirstSessionThumperRunResult({
 		targetResourceId: run.targetResourceId as NamedResourceId,
 		pilotFrame: parseFrameId(run.pilotFrameId),
 		appliedWear: 0,
 		partModifiers,
+		projectedRecovery,
 		eventWindows: windows.map((window) => ({
 			windowIndex: window.windowIndex,
 			complication: window.complication as 'signal_drift' | 'pump_strain',
@@ -227,6 +244,8 @@ async function buildSeededClaimResult(
 		pilotFrameId: string;
 		runSeed: string;
 		isPushRun: boolean;
+		trueConcentrationPercent: number | null;
+		extractionTailMinutes: number;
 	},
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
@@ -240,13 +259,17 @@ async function buildSeededClaimResult(
 
 	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
 	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
+	const projectedRecovery = projectedRecoveryForStoredRun({
+		isPushRun: run.isPushRun,
+		trueConcentrationPercent: run.trueConcentrationPercent,
+		extractionTailMinutes: run.extractionTailMinutes,
+		partModifiers
+	});
 
 	return resolveThumperRunResult({
 		runConfig: {
 			targetResourceId: run.targetResourceId as NamedResourceId,
-			projectedRecovery: run.isPushRun
-				? PUSH_RUN_PROJECTED_RECOVERY
-				: DEFAULT_PROJECTED_RECOVERY,
+			projectedRecovery,
 			runSeed: run.runSeed,
 			appliedWear: 0,
 			partModifiers

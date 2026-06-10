@@ -66,6 +66,10 @@ export async function deployThumperRunWithEventWindows(
 		isPushRun: boolean;
 		deployedAt: Date;
 		durationSeconds: number;
+		depositSpotId?: string | null;
+		trueConcentrationPercent?: number | null;
+		extractionTailMinutes?: number;
+		resourceInstanceId?: string | null;
 		windows: EventWindowSeed[];
 	}
 ) {
@@ -77,7 +81,11 @@ export async function deployThumperRunWithEventWindows(
 			runSeed: input.runSeed,
 			isPushRun: input.isPushRun,
 			deployedAt: input.deployedAt,
-			durationSeconds: input.durationSeconds
+			durationSeconds: input.durationSeconds,
+			depositSpotId: input.depositSpotId ?? null,
+			trueConcentrationPercent: input.trueConcentrationPercent ?? null,
+			extractionTailMinutes: input.extractionTailMinutes ?? 60,
+			resourceInstanceId: input.resourceInstanceId ?? null
 		});
 
 		if (input.windows.length > 0) {
@@ -118,6 +126,9 @@ export async function deployThumperRunWithEventWindows(
 				source_type: 'thumper_run',
 				source_id: run.id,
 				target_resource_instance_id: targetInstance?.id ?? null,
+				deposit_spot_id: input.depositSpotId ?? null,
+				true_concentration_percent: input.trueConcentrationPercent ?? null,
+				extraction_tail_minutes: input.extractionTailMinutes ?? 60,
 				run_seed: input.runSeed,
 				is_push_run: input.isPushRun,
 				duration_seconds: input.durationSeconds
@@ -150,7 +161,15 @@ export async function claimOpenThumperRunForPilot(
 		) => void;
 		buildResult: (
 			tx: DbExecutor,
-			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string; isPushRun: boolean },
+			run: {
+				id: string;
+				targetResourceId: string;
+				pilotFrameId: string;
+				runSeed: string;
+				isPushRun: boolean;
+				trueConcentrationPercent: number | null;
+				extractionTailMinutes: number;
+			},
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => ThumperRunResultPayload | Promise<ThumperRunResultPayload>;
 		/** When set, grants recovered quantity to the bloom resource instance in the same transaction. */
