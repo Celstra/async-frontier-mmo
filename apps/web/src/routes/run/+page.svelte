@@ -83,14 +83,13 @@ $effect(() => {
 {:else if thumperDemo.status === 'active'}
 	<p>
 		Run timer: <strong>{displaySeconds ?? thumperDemo.secondsRemaining}s</strong> remaining
-		<small>(client countdown; server timestamps are authoritative at claim)</small>
 	</p>
 {:else if thumperDemo.status === 'claimable'}
 	<p><strong>Run finished</strong> — return to Pilot Home to claim results.</p>
 {/if}
 
 <section class="run-meters">
-	<h2>Run state (Decision 005)</h2>
+	<h2>Run state</h2>
 	<p>
 		<small>
 			These meters are player-facing estimates at the current moment. Claim applies your window
@@ -127,13 +126,13 @@ $effect(() => {
 	<h2>Event windows</h2>
 	<p>
 		<small>
-			Each window: matching action (frame-flavored when your frame specializes), hold, or Recall Early.
+			Something happened at the dig. Choose how to respond — or hold and accept a small penalty.
 			Field Repair kits: {fieldRepairKitCount} owned.
 		</small>
 	</p>
 
 	{#if form?.message}
-		<p><strong>{form.message}</strong></p>
+		<p class="flash flash--error"><strong>{form.message}</strong></p>
 	{/if}
 
 	<ul>
@@ -143,20 +142,30 @@ $effect(() => {
 					Window {window.windowIndex}: {complicationDisplayName(window.complication)}
 				</h3>
 				{#if window.responded}
-					<p>Responded: <strong>{chosenLabel(window.chosenResponse ?? '', window.matchingActionLabel)}</strong></p>
+					<p>
+						Responded: <strong>{chosenLabel(window.chosenResponse ?? '', window.matchingActionLabel)}</strong>
+					</p>
+					{#if window.outcomeLine}
+						<p class="outcome-line flash flash--success"><small>{window.outcomeLine}</small></p>
+					{/if}
 				{:else if isActiveWindow(window.windowIndex)}
 					<form method="POST" action="?/respond" class="response-form">
 						<input type="hidden" name="windowIndex" value={window.windowIndex} />
 						{#each window.responseOptions as option}
-							<button
-								type="submit"
-								name="chosenResponse"
-								value={option.id}
-								disabled={!option.enabled}
-								title={option.disabledReason ?? ''}
-							>
-								{optionLabel(option.id, window.matchingActionLabel)}
-							</button>
+							<div class="response-option">
+								<button
+									type="submit"
+									name="chosenResponse"
+									value={option.id}
+									disabled={!option.enabled}
+									title={option.disabledReason ?? ''}
+								>
+									{optionLabel(option.id, window.matchingActionLabel)}
+								</button>
+								{#if option.effectLine}
+									<p class="stakes-line"><small>{option.effectLine}</small></p>
+								{/if}
+							</div>
 						{/each}
 					</form>
 					{#each window.responseOptions as option}
@@ -179,9 +188,7 @@ $effect(() => {
 {:else if !openRun.recalled && thumperDemo.status === 'active'}
 	<p>
 		<small>
-			Absent-player fallback (Decision 005): if you do not respond, unresolved windows resolve under
-			conservative defaults at claim — no auto kit spend, no surprise run deletion. Jobs/workers
-			apply that later; for now, respond before the timer ends.
+			Unanswered windows resolve safely on their own at claim — no kit is ever auto-spent.
 		</small>
 	</p>
 {/if}
@@ -202,9 +209,21 @@ $effect(() => {
 
 	.response-form {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
+		flex-direction: column;
+		gap: 0.75rem;
 		margin-top: 0.5rem;
+	}
+
+	.response-option {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.stakes-line,
+	.outcome-line {
+		margin: 0;
+		color: #444;
 	}
 
 	.disabled-reason {

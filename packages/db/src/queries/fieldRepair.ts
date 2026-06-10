@@ -4,10 +4,16 @@ import {
 	applyHullDamageWithoutFieldRepair,
 	applyFieldRepairWithKit,
 	FIELD_REPAIR_KIT,
+	resolveEventWindowOutcome,
 	SURVEY_SCANNER_MK_I,
 	isThumperPartSchematic,
-	type FieldRepairOutcome
+	type EventWindowMeterSnapshot,
+	type FieldRepairOutcome,
+	type ThumperComplicationId,
+	type ThumperEventActionId,
+	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
+import { parseFrameId } from 'shared';
 import type { Db, DbExecutor } from '../client.js';
 import { appendEconomyLedgerEntry, appendItemConditionChangedLedger } from './economyLedger.js';
 import { craftSchematicForPilot, type CraftSchematicInput } from './crafting.js';
@@ -176,7 +182,11 @@ export type RecordThumperResponseInput = {
 	thumperRunId: string;
 	windowIndex: number;
 	complication: string;
+	matchingAction: string;
 	chosenResponse: string;
+	pilotFrameId: string;
+	currentMeters: EventWindowMeterSnapshot;
+	totalWindowCount: number;
 	runHullCondition: number;
 	runHullIntegrity: number;
 };
@@ -208,10 +218,22 @@ export async function recordThumperEventWindowResponseForPilot(
 			}
 		}
 
+		const windowOutcome = resolveEventWindowOutcome({
+			complication: input.complication as ThumperComplicationId,
+			matchingAction: input.matchingAction as ThumperEventActionId,
+			chosenResponse: input.chosenResponse as ThumperWindowChosenResponse,
+			pilotFrame: parseFrameId(input.pilotFrameId),
+			currentMeters: input.currentMeters,
+			windowIndex: input.windowIndex,
+			totalWindowCount: input.totalWindowCount
+		});
+
 		const recorded = await recordThumperEventWindowResponse(tx, {
 			thumperRunId: input.thumperRunId,
 			windowIndex: input.windowIndex,
-			chosenResponse: input.chosenResponse
+			chosenResponse: input.chosenResponse,
+			beforeState: windowOutcome.beforeState,
+			afterState: windowOutcome.afterState
 		});
 
 		if (!recorded) {

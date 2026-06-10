@@ -11,12 +11,15 @@ import {
 import {
 	buildActiveRunMeters,
 	computeThumperPartRunModifiers,
+	describeEventWindowStakes,
 	FIRST_SESSION_SCANNER_MINIMUM,
+	formatEventWindowOutcomeLine,
 	frameFlavoredActionLabel,
 	getEventWindowResponseOptions,
 	isThumperRunReadyToResolve,
 	resolveThumperState,
 	TUTORIAL_RUN_SEED,
+	type EventWindowMeterSnapshot,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
 	type ThumperPartSnapshot,
@@ -89,25 +92,100 @@ function equippedPartSnapshots(
 	return snapshots;
 }
 
+function parseMeterSnapshot(value: unknown): EventWindowMeterSnapshot | null {
+	if (!value || typeof value !== 'object') {
+		return null;
+	}
+	const row = value as Record<string, unknown>;
+	if (
+		typeof row.projectedRecovery !== 'number' ||
+		typeof row.signalLock !== 'number' ||
+		typeof row.pumpFlow !== 'number' ||
+		typeof row.threatPressure !== 'number' ||
+		typeof row.hullCondition !== 'number'
+	) {
+		return null;
+	}
+	return {
+		projectedRecovery: row.projectedRecovery,
+		signalLock: row.signalLock,
+		pumpFlow: row.pumpFlow,
+		threatPressure: row.threatPressure,
+		hullCondition: row.hullCondition
+	};
+}
+
+export function currentRunMetersFromWindows(
+	deployMeters: EventWindowMeterSnapshot,
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+): EventWindowMeterSnapshot {
+	const responded = windows
+		.filter((window) => window.afterState !== null)
+		.sort((left, right) => left.windowIndex - right.windowIndex);
+	if (responded.length === 0) {
+		return deployMeters;
+	}
+	const latest = responded[responded.length - 1]!;
+	const parsed = parseMeterSnapshot(latest.afterState);
+	return parsed ?? deployMeters;
+}
+
 export function mapEventWindowsForUi(
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
 	fieldRepairKitCount: number,
-	pilotFrameId: FrameId
+	pilotFrameId: FrameId,
+	deployMeters: EventWindowMeterSnapshot
 ) {
+	const totalWindowCount = windows.length;
+
 	return windows.map((window) => {
 		const matchingAction = window.matchingAction as ThumperEventActionId;
+		const complication = window.complication as ThumperComplicationId;
+		const metersForWindow = currentRunMetersFromWindows(
+			deployMeters,
+			windows.filter((row) => row.windowIndex < window.windowIndex)
+		);
+
+		const stakes = describeEventWindowStakes({
+			complication,
+			matchingAction,
+			pilotFrame: pilotFrameId,
+			fieldRepairKitCount,
+			currentMeters: metersForWindow,
+			windowIndex: window.windowIndex,
+			totalWindowCount
+		});
+
+		const beforeState = parseMeterSnapshot(window.beforeState);
+		const afterState = parseMeterSnapshot(window.afterState);
+		const outcomeLine =
+			window.chosenResponse && beforeState && afterState
+				? formatEventWindowOutcomeLine({
+						complication,
+						matchingAction,
+						chosenResponse: window.chosenResponse as ThumperWindowChosenResponse,
+						pilotFrame: pilotFrameId,
+						beforeState,
+						afterState
+					})
+				: null;
+
 		return {
 			windowIndex: window.windowIndex,
-			complication: window.complication as ThumperComplicationId,
+			complication,
 			matchingAction,
 			matchingActionLabel: frameFlavoredActionLabel(pilotFrameId, matchingAction),
 			chosenResponse: window.chosenResponse,
 			responded: window.chosenResponse !== null,
 			responseOptions: getEventWindowResponseOptions({
-				complication: window.complication as ThumperComplicationId,
+				complication,
 				matchingAction,
 				fieldRepairKitCount
-			})
+			}).map((option) => ({
+				...option,
+				effectLine: stakes.find((stake) => stake.id === option.id)?.effectLine ?? ''
+			})),
+			outcomeLine
 		};
 	});
 }
@@ -164,6 +242,12 @@ export async function loadOpenRunState(
 		});
 	}
 
+	const deployMeters = runMeters;
+	const displayMeters =
+		deployMeters === null
+			? null
+			: currentRunMetersFromWindows(deployMeters, eventWindowsRaw);
+
 	return {
 		thumperDemo,
 		loadedAt: now.toISOString(),
@@ -176,12 +260,23 @@ export async function loadOpenRunState(
 			isPushRun: run.isPushRun,
 			recalled
 		},
-		eventWindows: mapEventWindowsForUi(eventWindowsRaw, fieldRepairKitCount, pilotFrameId),
+		eventWindows: mapEventWindowsForUi(
+			eventWindowsRaw,
+			fieldRepairKitCount,
+			pilotFrameId,
+			deployMeters ?? {
+				projectedRecovery: 0,
+				signalLock: 0,
+				pumpFlow: 0,
+				threatPressure: 0,
+				hullCondition: run.runHullCondition
+			}
+		),
 		runHullCondition: run.runHullCondition,
 		runHullIntegrity: run.runHullIntegrity,
 		fieldRepairKitCount,
 		runReadyToResolve: isThumperRunReadyToResolve(eventWindowsRaw),
-		runMeters
+		runMeters: displayMeters
 	};
 }
 

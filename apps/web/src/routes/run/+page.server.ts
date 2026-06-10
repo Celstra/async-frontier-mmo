@@ -100,12 +100,25 @@ export const actions: Actions = {
 		}
 
 		if (window.chosenResponse === null) {
+			const preRespondState = await loadOpenRunState(db, run, fieldRepairKitCount, {
+				resolveDisplayName: resolveTargetDisplayName,
+				includeRunMeters: true,
+				isTutorialRun: run.runSeed === TUTORIAL_RUN_SEED
+			});
+			if (!preRespondState.runMeters) {
+				return fail(500, { message: 'Run meters unavailable' });
+			}
+
 			const outcome = await recordThumperEventWindowResponseForPilot(db, {
 				pilotId,
 				thumperRunId: run.id,
 				windowIndex,
 				complication: window.complication,
+				matchingAction: window.matchingAction,
 				chosenResponse,
+				pilotFrameId: run.pilotFrameId,
+				currentMeters: preRespondState.runMeters,
+				totalWindowCount: windows.length,
 				runHullCondition: run.runHullCondition,
 				runHullIntegrity: run.runHullIntegrity
 			});

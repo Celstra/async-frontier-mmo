@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { thumperRuns } from './thumperRuns.js';
 
 export const thumperEventWindows = pgTable(
@@ -12,7 +12,9 @@ export const thumperEventWindows = pgTable(
 		complication: text('complication').notNull(),
 		matchingAction: text('matching_action').notNull(),
 		chosenResponse: text('chosen_response'),
-		respondedAt: timestamp('responded_at', { withTimezone: true })
+		respondedAt: timestamp('responded_at', { withTimezone: true }),
+		beforeState: jsonb('before_state'),
+		afterState: jsonb('after_state')
 	},
 	(table) => [
 		uniqueIndex('thumper_event_windows_run_window_idx').on(

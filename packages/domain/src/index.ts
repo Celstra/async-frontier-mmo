@@ -212,6 +212,17 @@ export {
 	type ThumperWindowResponseOption,
 	type ThumperWindowResponseOptionId
 } from './thumper/getEventWindowResponseOptions';
+export {
+	COMPLICATION_METER_MATCHING_RESTORE,
+	COMPLICATION_METER_ONSET,
+	computeRecallForfeitedRecovery,
+	describeEventWindowStakes,
+	formatEventWindowOutcomeLine,
+	resolveEventWindowOutcome,
+	type EventWindowMeterSnapshot,
+	type EventWindowOutcome,
+	type EventWindowStakeOption
+} from './thumper/eventWindowOutcome.js';
 export { assertRecallResponseAudit } from './thumper/assertRecallResponseAudit';
 export { isTutorialThumperDeploy } from './thumper/isTutorialThumperDeploy';
 export {

@@ -1,6 +1,9 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
+import type { EventWindowMeterSnapshot } from '@async-frontier-mmo/domain';
 import type { DbExecutor } from '../client.js';
 import { thumperEventWindows } from '../schema/thumperEventWindows.js';
+
+export type EventWindowStateSnapshot = EventWindowMeterSnapshot;
 
 export async function insertThumperEventWindows(
 	db: DbExecutor,
@@ -44,13 +47,17 @@ export async function recordThumperEventWindowResponse(
 		thumperRunId: string;
 		windowIndex: number;
 		chosenResponse: string;
+		beforeState?: EventWindowStateSnapshot | null;
+		afterState?: EventWindowStateSnapshot | null;
 	}
 ) {
 	const [row] = await db
 		.update(thumperEventWindows)
 		.set({
 			chosenResponse: input.chosenResponse,
-			respondedAt: new Date()
+			respondedAt: new Date(),
+			beforeState: input.beforeState ?? null,
+			afterState: input.afterState ?? null
 		})
 		.where(
 			and(
