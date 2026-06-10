@@ -42,6 +42,7 @@ export async function deployThumperRunWithEventWindows(
 	db: Db,
 	input: {
 		pilotId: string;
+		pilotFrameId: string;
 		targetResourceId: string;
 		deployedAt: Date;
 		durationSeconds: number;
@@ -51,6 +52,7 @@ export async function deployThumperRunWithEventWindows(
 	return db.transaction(async (tx: DbExecutor) => {
 		const run = await insertThumperRun(tx, {
 			pilotId: input.pilotId,
+			pilotFrameId: input.pilotFrameId,
 			targetResourceId: input.targetResourceId,
 			deployedAt: input.deployedAt,
 			durationSeconds: input.durationSeconds
@@ -78,11 +80,11 @@ export async function claimOpenThumperRunForPilot(
 		now: Date;
 		isClaimable: (run: { deployedAt: Date; durationSeconds: number }) => boolean;
 		validateWindows: (
-			run: { id: string; targetResourceId: string },
+			run: { id: string; targetResourceId: string; pilotFrameId: string },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => void;
 		buildResult: (
-			run: { id: string; targetResourceId: string },
+			run: { id: string; targetResourceId: string; pilotFrameId: string },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => ThumperRunResultPayload;
 	}

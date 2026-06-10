@@ -2,14 +2,17 @@ import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import {
 	assertVeyrithTutorialWindowsReady,
 	resolveFirstSessionThumperRunResult,
-	resolveThumperState
+	resolveThumperState,
+	type ThumperEventActionId
 } from '@async-frontier-mmo/domain';
-import { DEMO_PILOT_ID } from 'shared';
+import { DEMO_PILOT_ID, parseFrameId } from 'shared';
 import {
 	claimOpenThumperRunForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
+	ensureDemoPilot,
 	getOpenThumperRunForPilot,
+	getPilotFrame,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
 	insertThumperRun,
@@ -61,6 +64,12 @@ async function claimTutorialRun(now: Date) {
 		buildResult: (run, windows) =>
 			resolveFirstSessionThumperRunResult({
 				targetResourceId: 'veyrith_copper',
+				pilotFrame: parseFrameId(run.pilotFrameId),
+				eventWindows: windows.map((window) => ({
+					windowIndex: window.windowIndex,
+					complication: window.complication as 'signal_drift' | 'pump_strain',
+					matchingAction: window.matchingAction as ThumperEventActionId
+				})),
 				responses: windows.map((window) => ({
 					windowIndex: window.windowIndex,
 					complication: window.complication as 'signal_drift' | 'pump_strain',
@@ -68,6 +77,12 @@ async function claimTutorialRun(now: Date) {
 				}))
 			})
 	});
+}
+
+await ensureDemoPilot(db);
+const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
+if (pilotFrame !== 'recon') {
+	failSmoke('demo pilot should default to recon frame');
 }
 
 await clearOpenRuns();
@@ -78,6 +93,7 @@ const targetResourceId = 'veyrith_copper';
 
 const run = await deployThumperRunWithEventWindows(db, {
 	pilotId: DEMO_PILOT_ID,
+	pilotFrameId: pilotFrame,
 	targetResourceId,
 	deployedAt,
 	durationSeconds,
@@ -86,6 +102,10 @@ const run = await deployThumperRunWithEventWindows(db, {
 		{ windowIndex: 2, complication: 'pump_strain', matchingAction: 'clear_pump_problem' }
 	]
 });
+
+if (run.pilotFrameId !== 'recon') {
+	failSmoke('deploy should snapshot pilot frame on thumper_runs');
+}
 
 const windowsAfterDeploy = await getThumperEventWindowsForRun(db, run.id);
 if (windowsAfterDeploy.length !== 2) {
@@ -136,6 +156,7 @@ await clearOpenRuns();
 
 const runWithoutWindows = await insertThumperRun(db, {
 	pilotId: DEMO_PILOT_ID,
+	pilotFrameId: pilotFrame,
 	targetResourceId,
 	deployedAt: new Date(Date.now() - 120_000),
 	durationSeconds: 60
@@ -173,6 +194,7 @@ if (claimedRunsWithResults.length < 1) {
 
 console.log({
 	deployedRunId: run.id,
+	pilotFrameId: run.pilotFrameId,
 	windowsAfterDeploy: windowsAfterDeploy.length,
 	firstClaim: firstClaim.claimResult.id,
 	secondClaimStatus: secondClaim.status,

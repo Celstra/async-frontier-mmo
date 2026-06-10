@@ -36,6 +36,20 @@
       "when": 1781200000000,
       "tag": "0004_thumper_event_windows_and_results",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781300000000,
+      "tag": "0005_pilots_frame",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781400000000,
+      "tag": "0006_thumper_runs_pilot_frame",
+      "breakpoints": true
     }
   ]
 }

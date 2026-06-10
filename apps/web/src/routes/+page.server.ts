@@ -2,8 +2,10 @@ import {
 	claimOpenThumperRunForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
+	ensureDemoPilot,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
+	getPilotFrame,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
 	recordThumperEventWindowResponse
@@ -21,7 +23,7 @@ import {
 	type ThumperWindowChosenResponse,
 	resolveThumperState
 } from '@async-frontier-mmo/domain';
-import { DEMO_PILOT_ID } from 'shared';
+import { DEMO_PILOT_ID, parseFrameId } from 'shared';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { Actions, PageServerLoad } from './$types';
@@ -85,7 +87,8 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 		openRun: {
 			id: run.id,
 			targetResourceId: run.targetResourceId,
-			targetDisplayName: target.displayName
+			targetDisplayName: target.displayName,
+			pilotFrameId: parseFrameId(run.pilotFrameId)
 		},
 		eventWindows: eventWindows.map((window) => ({
 			windowIndex: window.windowIndex,
@@ -95,6 +98,26 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 			responded: window.chosenResponse !== null
 		}))
 	};
+}
+
+function buildTutorialClaimResult(
+	run: { targetResourceId: string; pilotFrameId: string },
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+) {
+	return resolveFirstSessionThumperRunResult({
+		targetResourceId: run.targetResourceId as NamedResourceId,
+		pilotFrame: parseFrameId(run.pilotFrameId),
+		eventWindows: windows.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as 'signal_drift' | 'pump_strain',
+			matchingAction: window.matchingAction as ThumperEventActionId
+		})),
+		responses: windows.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as 'signal_drift' | 'pump_strain',
+			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
+		}))
+	});
 }
 
 async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
@@ -107,34 +130,37 @@ async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
 				assertVeyrithTutorialWindowsReady(windows);
 			}
 		},
-		buildResult: (run, windows) =>
-			resolveFirstSessionThumperRunResult({
-				targetResourceId: run.targetResourceId as NamedResourceId,
-				responses: windows.map((window) => ({
-					windowIndex: window.windowIndex,
-					complication: window.complication as 'signal_drift' | 'pump_strain',
-					chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
-				}))
-			})
+		buildResult: (run, windows) => buildTutorialClaimResult(run, windows)
 	});
 }
 
 export const load: PageServerLoad = async () => {
 	const survey = surveyRedMesaFirstSession();
 	const db = getDb();
+	await ensureDemoPilot(db);
+	const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
 	const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 	if (!run) {
-		return { thumperDemo: null, loadedAt: null, survey, openRun: null, eventWindows: [] };
+		return {
+			thumperDemo: null,
+			loadedAt: null,
+			survey,
+			openRun: null,
+			eventWindows: [],
+			pilotFrame
+		};
 	}
 
 	const state = await loadOpenRunState(db, run);
-	return { survey, ...state };
+	return { survey, pilotFrame, ...state };
 };
 
 export const actions: Actions = {
 	deploy: async ({ request }) => {
 		const db = getDb();
+		await ensureDemoPilot(db);
+		const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
 		const open = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 		if (open) {
@@ -160,6 +186,7 @@ export const actions: Actions = {
 
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: DEMO_PILOT_ID,
+			pilotFrameId: pilotFrame,
 			targetResourceId,
 			deployedAt,
 			durationSeconds,

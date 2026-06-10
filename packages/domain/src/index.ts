@@ -28,16 +28,20 @@ export {
 	THUMPER_SAFETY_CHOICES
 } from './thumper/complicationActions';
 export { generateFirstSessionEventWindows } from './thumper/generateFirstSessionEventWindows';
+export { getFrameMatchingBonusRecovery, FRAME_MATCHING_BONUS_RECOVERY } from './thumper/frameActionEffects';
 export {
 	FIRST_SESSION_PROJECTED_RECOVERY,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	resolveFirstSessionThumperRunResult
 } from './thumper/resolveFirstSessionThumperRunResult';
-export type {
-	ThumperEventWindowResponse,
-	ThumperRunResult,
-	ThumperWindowChosenResponse
-} from './thumper/resolveFirstSessionThumperRunResult';
+export {
+	resolveThumperRunResult,
+	type ThumperEventWindowResponse,
+	type ThumperEventWindowSnapshot,
+	type ThumperRunConfig,
+	type ThumperRunResult,
+	type ThumperWindowChosenResponse
+} from './thumper/resolveThumperRunResult';
 export {
 	resolveThumperState,
 	type ResolveThumperStateInput,
