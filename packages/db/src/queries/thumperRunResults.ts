@@ -10,6 +10,9 @@ export async function insertThumperRunResult(
 		projectedRecovery: number;
 		recoveredQuantity: number;
 		wasteQuantity: number;
+		forfeitedRecovery: number;
+		resolutionType: string;
+		appliedWear: number;
 		explanation: string;
 		resolvedAt: Date;
 	}
@@ -22,6 +25,9 @@ export async function insertThumperRunResult(
 			projectedRecovery: input.projectedRecovery,
 			recoveredQuantity: input.recoveredQuantity,
 			wasteQuantity: input.wasteQuantity,
+			forfeitedRecovery: input.forfeitedRecovery,
+			resolutionType: input.resolutionType,
+			appliedWear: input.appliedWear,
 			explanation: input.explanation,
 			resolvedAt: input.resolvedAt
 		})

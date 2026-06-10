@@ -11,6 +11,9 @@ export const thumperRunResults = pgTable('thumper_run_results', {
 	projectedRecovery: integer('projected_recovery').notNull(),
 	recoveredQuantity: integer('recovered_quantity').notNull(),
 	wasteQuantity: integer('waste_quantity').notNull(),
+	forfeitedRecovery: integer('forfeited_recovery').notNull().default(0),
+	resolutionType: text('resolution_type').notNull().default('completed'),
+	appliedWear: integer('applied_wear').notNull().default(0),
 	explanation: text('explanation').notNull(),
 	resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull()
 });

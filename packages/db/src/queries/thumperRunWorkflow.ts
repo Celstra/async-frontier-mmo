@@ -15,6 +15,9 @@ export type ThumperRunResultPayload = {
 	projectedRecovery: number;
 	recoveredQuantity: number;
 	wasteQuantity: number;
+	forfeitedRecovery: number;
+	resolutionType: string;
+	appliedWear: number;
 	explanation: string;
 };
 
@@ -83,7 +86,10 @@ export async function claimOpenThumperRunForPilot(
 	input: {
 		pilotId: string;
 		now: Date;
-		isClaimable: (run: { deployedAt: Date; durationSeconds: number }) => boolean;
+		isClaimable: (
+			run: { deployedAt: Date; durationSeconds: number },
+			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+		) => boolean;
 		isResolvableRun: (run: { runSeed: string }) => boolean;
 		notResolvableMessage?: string;
 		validateWindows: (
@@ -108,7 +114,9 @@ export async function claimOpenThumperRunForPilot(
 			return { status: 'no_open_run' };
 		}
 
-		if (!input.isClaimable(run)) {
+		const windows = await getThumperEventWindowsForRun(tx, run.id);
+
+		if (!input.isClaimable(run, windows)) {
 			return { status: 'not_claimable' };
 		}
 
@@ -120,8 +128,6 @@ export async function claimOpenThumperRunForPilot(
 					'This run type cannot be resolved yet'
 			};
 		}
-
-		const windows = await getThumperEventWindowsForRun(tx, run.id);
 
 		try {
 			input.validateWindows(run, windows);
@@ -149,15 +155,18 @@ export async function claimOpenThumperRunForPilot(
 		}
 
 		const resultPayload = input.buildResult(run, windows);
-		const claimResult = await insertThumperRunResult(tx, {
-			thumperRunId: run.id,
-			targetResourceId: resultPayload.targetResourceId,
-			projectedRecovery: resultPayload.projectedRecovery,
-			recoveredQuantity: resultPayload.recoveredQuantity,
-			wasteQuantity: resultPayload.wasteQuantity,
-			explanation: resultPayload.explanation,
-			resolvedAt: input.now
-		});
+			const claimResult = await insertThumperRunResult(tx, {
+				thumperRunId: run.id,
+				targetResourceId: resultPayload.targetResourceId,
+				projectedRecovery: resultPayload.projectedRecovery,
+				recoveredQuantity: resultPayload.recoveredQuantity,
+				wasteQuantity: resultPayload.wasteQuantity,
+				forfeitedRecovery: resultPayload.forfeitedRecovery,
+				resolutionType: resultPayload.resolutionType,
+				appliedWear: resultPayload.appliedWear,
+				explanation: resultPayload.explanation,
+				resolvedAt: input.now
+			});
 
 		return { status: 'claimed', claimResult };
 	});

@@ -51,7 +51,12 @@ export {
 	type ThumperWindowResponseOption,
 	type ThumperWindowResponseOptionId
 } from './thumper/getEventWindowResponseOptions';
+export { assertRecallResponseAudit } from './thumper/assertRecallResponseAudit';
 export { isTutorialThumperDeploy } from './thumper/isTutorialThumperDeploy';
+export {
+	validateEventWindowRespondOrder,
+	type EventWindowRow
+} from './thumper/validateEventWindowRespondOrder';
 export {
 	validateEventWindowResponse,
 	type EventWindowResponseValidation
@@ -68,6 +73,7 @@ export {
 	type ThumperEventWindowResponse,
 	type ThumperEventWindowSnapshot,
 	type ThumperRunConfig,
+	type ThumperRunResolutionType,
 	type ThumperRunResult,
 	type ThumperWindowChosenResponse
 } from './thumper/resolveThumperRunResult';

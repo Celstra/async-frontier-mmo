@@ -55,7 +55,12 @@ async function claimTutorialRun(now: Date) {
 	return claimOpenThumperRunForPilot(db, {
 		pilotId: DEMO_PILOT_ID,
 		now,
-		isClaimable: (run) => isRunClaimable(run, now),
+		isClaimable: (run, windows) => {
+			if (windows.some((window) => window.chosenResponse === 'recall_early')) {
+				return true;
+			}
+			return isRunClaimable(run, now);
+		},
 		isResolvableRun: (run) => run.runSeed === 'first-session-scripted',
 		validateWindows: (run, windows) => {
 			if (run.runSeed === 'first-session-scripted') {
@@ -71,11 +76,16 @@ async function claimTutorialRun(now: Date) {
 					complication: window.complication as 'signal_drift' | 'pump_strain',
 					matchingAction: window.matchingAction as ThumperEventActionId
 				})),
-				responses: windows.map((window) => ({
-					windowIndex: window.windowIndex,
-					complication: window.complication as 'signal_drift' | 'pump_strain',
-					chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
-				}))
+				responses: windows
+					.filter((window) => window.chosenResponse !== null)
+					.map((window) => ({
+						windowIndex: window.windowIndex,
+						complication: window.complication as 'signal_drift' | 'pump_strain',
+						chosenResponse: window.chosenResponse as
+							| 'signal_tune'
+							| 'clear_pump_problem'
+							| 'recall_early'
+					}))
 			})
 	});
 }

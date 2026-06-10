@@ -23,4 +23,13 @@ describe('assertVeyrithTutorialWindowsReady', () => {
 			])
 		).toThrow(/response on every event window/);
 	});
+
+	it('accepts recall after window 1 with window 2 left unanswered', () => {
+		expect(() =>
+			assertVeyrithTutorialWindowsReady([
+				readyWindows[0],
+				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'recall_early' }
+			])
+		).not.toThrow();
+	});
 });

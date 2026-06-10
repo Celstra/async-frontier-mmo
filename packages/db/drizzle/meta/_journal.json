@@ -57,6 +57,13 @@
       "when": 1781500000000,
       "tag": "0007_thumper_runs_seed_push",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0008_thumper_run_results_recall",
+      "breakpoints": true
     }
   ]
 }

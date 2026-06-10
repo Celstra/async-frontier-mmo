@@ -32,6 +32,7 @@ export function resolveFirstSessionThumperRunResult(input: {
 	responses: ThumperEventWindowResponse[];
 	pilotFrame: FrameId;
 	eventWindows?: ThumperEventWindowSnapshot[];
+	appliedWear?: number;
 }): ThumperRunResult {
 	if (input.targetResourceId !== FIRST_SESSION_TARGET) {
 		throw new Error(
@@ -39,7 +40,10 @@ export function resolveFirstSessionThumperRunResult(input: {
 		);
 	}
 
-	if (input.responses.length !== 2) {
+	const recalled = input.responses.some(
+		(response) => response.chosenResponse === 'recall_early'
+	);
+	if (!recalled && input.responses.length !== 2) {
 		throw new Error('First-session run expects exactly two event window responses');
 	}
 
@@ -51,7 +55,8 @@ export function resolveFirstSessionThumperRunResult(input: {
 		runConfig: {
 			targetResourceId: input.targetResourceId,
 			projectedRecovery: FIRST_SESSION_PROJECTED_RECOVERY,
-			recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
+			recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM,
+			appliedWear: input.appliedWear ?? 0
 		},
 		eventWindows,
 		responses: input.responses,

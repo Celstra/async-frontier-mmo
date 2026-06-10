@@ -22,6 +22,7 @@ import {
 	resolveFirstSessionThumperRunResult,
 	surveyRedMesaFirstSession,
 	THUMPER_EVENT_ACTIONS,
+	validateEventWindowRespondOrder,
 	validateEventWindowResponse,
 	type NamedResourceId,
 	type ThumperComplicationId,
@@ -64,8 +65,8 @@ function parseWindowIndex(value: FormDataEntryValue | null): number | null {
 }
 
 function parseChosenResponse(value: FormDataEntryValue | null): ThumperWindowChosenResponse | null {
-	if (value === 'hold') {
-		return 'hold';
+	if (value === 'hold' || value === 'recall_early') {
+		return value;
 	}
 	if (typeof value === 'string' && THUMPER_EVENT_ACTIONS.includes(value as ThumperEventActionId)) {
 		return value as ThumperEventActionId;
@@ -73,7 +74,28 @@ function parseChosenResponse(value: FormDataEntryValue | null): ThumperWindowCho
 	return null;
 }
 
-function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now: Date): boolean {
+function isRunEndedByRecall(
+	windows: ReadonlyArray<{ chosenResponse: string | null }>
+): boolean {
+	return windows.some((window) => window.chosenResponse === 'recall_early');
+}
+
+function isRunReadyToResolve(
+	windows: ReadonlyArray<{ chosenResponse: string | null }>
+): boolean {
+	if (windows.length === 0) {
+		return true;
+	}
+	if (isRunEndedByRecall(windows)) {
+		return true;
+	}
+	return windows.every((window) => window.chosenResponse !== null);
+}
+
+function isRunClaimableByTimer(
+	run: { deployedAt: Date; durationSeconds: number },
+	now: Date
+): boolean {
 	return (
 		resolveThumperState({
 			deployedAt: run.deployedAt,
@@ -81,6 +103,17 @@ function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now:
 			now
 		}).status === 'claimable'
 	);
+}
+
+function isRunClaimableForPilot(
+	run: { deployedAt: Date; durationSeconds: number },
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
+	now: Date
+): boolean {
+	if (isRunEndedByRecall(windows)) {
+		return isRunReadyToResolve(windows);
+	}
+	return isRunClaimableByTimer(run, now);
 }
 
 function mapEventWindowsForUi(
@@ -96,7 +129,7 @@ function mapEventWindowsForUi(
 			complication: window.complication as ThumperComplicationId,
 			matchingAction: window.matchingAction as ThumperEventActionId,
 			fieldRepairKitCount: DEMO_FIELD_REPAIR_KIT_COUNT
-		}).filter((option) => option.kind !== 'safety_choice')
+		})
 	}));
 }
 
@@ -109,6 +142,7 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 	});
 	const target = getRedMesaResource(run.targetResourceId as NamedResourceId);
 	const eventWindows = await getThumperEventWindowsForRun(db, run.id);
+	const recalled = isRunEndedByRecall(eventWindows);
 
 	return {
 		thumperDemo,
@@ -120,9 +154,11 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 			pilotFrameId: parseFrameId(run.pilotFrameId),
 			runSeed: run.runSeed,
 			isPushRun: run.isPushRun,
-			claimResolutionAvailable: run.runSeed === TUTORIAL_RUN_SEED
+			claimResolutionAvailable: run.runSeed === TUTORIAL_RUN_SEED,
+			recalled
 		},
-		eventWindows: mapEventWindowsForUi(eventWindows)
+		eventWindows: mapEventWindowsForUi(eventWindows),
+		runReadyToResolve: isRunReadyToResolve(eventWindows)
 	};
 }
 
@@ -130,19 +166,24 @@ function buildTutorialClaimResult(
 	run: { targetResourceId: string; pilotFrameId: string },
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
+	const responses = windows
+		.filter((window) => window.chosenResponse !== null)
+		.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as 'signal_drift' | 'pump_strain',
+			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
+		}));
+
 	return resolveFirstSessionThumperRunResult({
 		targetResourceId: run.targetResourceId as NamedResourceId,
 		pilotFrame: parseFrameId(run.pilotFrameId),
+		appliedWear: 0,
 		eventWindows: windows.map((window) => ({
 			windowIndex: window.windowIndex,
 			complication: window.complication as 'signal_drift' | 'pump_strain',
 			matchingAction: window.matchingAction as ThumperEventActionId
 		})),
-		responses: windows.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication as 'signal_drift' | 'pump_strain',
-			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
-		}))
+		responses
 	});
 }
 
@@ -150,7 +191,7 @@ async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
 	return claimOpenThumperRunForPilot(db, {
 		pilotId: DEMO_PILOT_ID,
 		now,
-		isClaimable: (run) => isRunClaimable(run, now),
+		isClaimable: (run, windows) => isRunClaimableForPilot(run, windows, now),
 		isResolvableRun: (run) => run.runSeed === TUTORIAL_RUN_SEED,
 		notResolvableMessage: SEEDED_RUN_NOT_RESOLVABLE_MESSAGE,
 		validateWindows: (run, windows) => {
@@ -181,6 +222,7 @@ export const load: PageServerLoad = async () => {
 			survey,
 			openRun: null,
 			eventWindows: [],
+			runReadyToResolve: false,
 			pilotFrame,
 			hasCompletedTutorial
 		};
@@ -264,6 +306,19 @@ export const actions: Actions = {
 		const window = windows.find((row) => row.windowIndex === windowIndex);
 		if (!window) {
 			return fail(400, { message: 'Event window not found' });
+		}
+
+		if (isRunEndedByRecall(windows)) {
+			return fail(400, { message: 'Run already ended with Recall Early' });
+		}
+
+		const orderValidation = validateEventWindowRespondOrder({
+			windows,
+			windowIndex,
+			chosenResponse
+		});
+		if (!orderValidation.ok) {
+			return fail(400, { message: orderValidation.reason });
 		}
 
 		const validation = validateEventWindowResponse({

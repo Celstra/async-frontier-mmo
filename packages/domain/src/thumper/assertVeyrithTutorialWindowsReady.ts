@@ -5,7 +5,8 @@ export type TutorialWindowRow = {
 };
 
 /**
- * Decision 011 — Veyrith first-session claim requires exactly two answered tutorial windows.
+ * Decision 011 — Veyrith first-session claim requires tutorial windows to be
+ * completed or ended early via Recall Early.
  */
 export function assertVeyrithTutorialWindowsReady(windows: ReadonlyArray<TutorialWindowRow>): void {
 	if (windows.length !== 2) {
@@ -22,6 +23,19 @@ export function assertVeyrithTutorialWindowsReady(windows: ReadonlyArray<Tutoria
 
 	if (window2.windowIndex !== 2 || window2.complication !== 'pump_strain') {
 		throw new Error('Veyrith tutorial window 2 must be pump_strain');
+	}
+
+	const recallWindow = windows.find((window) => window.chosenResponse === 'recall_early');
+	if (recallWindow) {
+		for (const window of windows) {
+			if (window.windowIndex < recallWindow.windowIndex && window.chosenResponse === null) {
+				throw new Error('Windows before recall must be answered');
+			}
+			if (window.windowIndex > recallWindow.windowIndex && window.chosenResponse !== null) {
+				throw new Error('No responses are allowed after Recall Early');
+			}
+		}
+		return;
 	}
 
 	if (window1.chosenResponse === null || window2.chosenResponse === null) {

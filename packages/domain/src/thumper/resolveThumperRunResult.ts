@@ -1,15 +1,20 @@
 import type { FrameId } from 'shared';
 import type { NamedResourceId } from '../resources/types.js';
+import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
 import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
+
+export type ThumperRunResolutionType = 'completed' | 'recalled';
 
 export type ThumperRunConfig = {
 	targetResourceId: NamedResourceId;
 	projectedRecovery: number;
-	/** Minimum recovered quantity after penalties (e.g. first-session scanner floor). */
+	/** Minimum recovered quantity after penalties (completed runs only). */
 	recoveryFloor?: number;
 	/** Stored for audit / future seeded generation; does not affect MVP tutorial math yet. */
 	runSeed?: string;
+	/** Wear already applied before resolution — recall must not erase it (MVP pass-through). */
+	appliedWear?: number;
 };
 
 export type ThumperEventWindowSnapshot = {
@@ -19,7 +24,7 @@ export type ThumperEventWindowSnapshot = {
 	matchingAction: ThumperEventActionId;
 };
 
-export type ThumperWindowChosenResponse = ThumperEventActionId | 'hold';
+export type ThumperWindowChosenResponse = ThumperEventActionId | 'hold' | 'recall_early';
 
 export type ThumperEventWindowResponse = {
 	windowIndex: number;
@@ -32,6 +37,9 @@ export type ThumperRunResult = {
 	projectedRecovery: number;
 	recoveredQuantity: number;
 	wasteQuantity: number;
+	forfeitedRecovery: number;
+	resolutionType: ThumperRunResolutionType;
+	appliedWear: number;
 	explanation: string;
 };
 
@@ -42,10 +50,13 @@ const COMPLICATION_PENALTY_WASTE: Record<ThumperComplicationId, number> = {
 	pump_strain: 15
 };
 
+const RECALL_EXPLANATION_PREFIX =
+	'Recall Early: secured progress kept; remaining projected recovery was not extracted.';
+
 function penaltyWasteForResponse(
 	complication: ThumperComplicationId,
 	matchingAction: ThumperEventActionId,
-	chosenResponse: ThumperWindowChosenResponse
+	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>
 ): number {
 	if (chosenResponse === matchingAction) {
 		return 0;
@@ -57,7 +68,7 @@ function penaltyWasteForResponse(
 function describeResponse(
 	complication: ThumperComplicationId,
 	matchingAction: ThumperEventActionId,
-	chosenResponse: ThumperWindowChosenResponse,
+	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>,
 	frameBonus: number,
 	pilotFrame: FrameId
 ): string {
@@ -73,28 +84,38 @@ function describeResponse(
 	return `${complication}: used ${chosenResponse} instead of ${matchingAction} — partial recovery loss.`;
 }
 
-/**
- * Resolve a thumper run from stored window rows, player responses, and pilot frame.
- * Quantity and waste only — named resource stats stay immutable in the catalog.
- */
-export function resolveThumperRunResult(input: {
+function findRecallWindowIndex(responses: ThumperEventWindowResponse[]): number | null {
+	const recalls = responses.filter((response) => response.chosenResponse === 'recall_early');
+	if (recalls.length > 1) {
+		throw new Error('Only one Recall Early response is allowed per run');
+	}
+	return recalls[0]?.windowIndex ?? null;
+}
+
+function resolveAnsweredWindows(input: {
 	runConfig: ThumperRunConfig;
 	eventWindows: ThumperEventWindowSnapshot[];
 	responses: ThumperEventWindowResponse[];
 	pilotFrame: FrameId;
-}): ThumperRunResult {
-	const { runConfig, eventWindows, responses, pilotFrame } = input;
+	applyRecoveryFloor: boolean;
+}): Omit<ThumperRunResult, 'resolutionType' | 'forfeitedRecovery'> {
+	const { runConfig, eventWindows, responses, pilotFrame, applyRecoveryFloor } = input;
 
 	if (responses.length !== eventWindows.length) {
 		throw new Error('Event window responses must match the planned window count');
 	}
 
 	const projectedRecovery = runConfig.projectedRecovery;
+
 	let wasteQuantity = 0;
 	let frameBonusRecovery = 0;
 	const explanationParts: string[] = [];
 
 	for (const response of responses) {
+		if (response.chosenResponse === 'recall_early') {
+			throw new Error('recall_early is not a complication response');
+		}
+
 		const window = eventWindows.find((row) => row.windowIndex === response.windowIndex);
 		if (!window) {
 			throw new Error(`No event window for index ${response.windowIndex}`);
@@ -131,10 +152,10 @@ export function resolveThumperRunResult(input: {
 	}
 
 	const rawRecovered = projectedRecovery - wasteQuantity + frameBonusRecovery;
-	const floor = runConfig.recoveryFloor ?? 0;
+	const floor = applyRecoveryFloor ? (runConfig.recoveryFloor ?? 0) : 0;
 	const recoveredQuantity = Math.max(floor, rawRecovered);
 
-	if (runConfig.recoveryFloor !== undefined && rawRecovered < runConfig.recoveryFloor) {
+	if (applyRecoveryFloor && runConfig.recoveryFloor !== undefined && rawRecovered < runConfig.recoveryFloor) {
 		explanationParts.push(
 			`Recovery floor applied: recovered at least ${runConfig.recoveryFloor}.`
 		);
@@ -145,6 +166,83 @@ export function resolveThumperRunResult(input: {
 		projectedRecovery,
 		recoveredQuantity,
 		wasteQuantity,
+		appliedWear: runConfig.appliedWear ?? 0,
 		explanation: explanationParts.join(' ')
+	};
+}
+
+/**
+ * Resolve a thumper run from stored window rows, player responses, and pilot frame.
+ * Quantity and waste only — named resource stats stay immutable in the catalog.
+ */
+export function resolveThumperRunResult(input: {
+	runConfig: ThumperRunConfig;
+	eventWindows: ThumperEventWindowSnapshot[];
+	responses: ThumperEventWindowResponse[];
+	pilotFrame: FrameId;
+}): ThumperRunResult {
+	const { runConfig, eventWindows, responses, pilotFrame } = input;
+	assertRecallResponseAudit({ eventWindows, responses });
+	const recallWindowIndex = findRecallWindowIndex(responses);
+	const appliedWear = runConfig.appliedWear ?? 0;
+
+	if (recallWindowIndex === null) {
+		const result = resolveAnsweredWindows({
+			runConfig,
+			eventWindows,
+			responses,
+			pilotFrame,
+			applyRecoveryFloor: true
+		});
+
+		return {
+			...result,
+			forfeitedRecovery: 0,
+			resolutionType: 'completed'
+		};
+	}
+
+	const securedWindows = eventWindows.filter((window) => window.windowIndex < recallWindowIndex);
+	const securedResponses = responses.filter(
+		(response) =>
+			response.chosenResponse !== 'recall_early' && response.windowIndex < recallWindowIndex
+	);
+
+	const skippedWindowCount = eventWindows.length - securedWindows.length;
+	const forfeitedRecovery = Math.round(
+		(runConfig.projectedRecovery * skippedWindowCount) / eventWindows.length
+	);
+
+	if (securedWindows.length === 0) {
+		return {
+			targetResourceId: runConfig.targetResourceId,
+			projectedRecovery: runConfig.projectedRecovery,
+			recoveredQuantity: 0,
+			wasteQuantity: 0,
+			forfeitedRecovery,
+			resolutionType: 'recalled',
+			appliedWear,
+			explanation: `${RECALL_EXPLANATION_PREFIX} No windows were secured before recall.`
+		};
+	}
+
+	const secured = resolveAnsweredWindows({
+		runConfig: {
+			...runConfig,
+			projectedRecovery: runConfig.projectedRecovery - forfeitedRecovery
+		},
+		eventWindows: securedWindows,
+		responses: securedResponses,
+		pilotFrame,
+		applyRecoveryFloor: false
+	});
+
+	return {
+		...secured,
+		projectedRecovery: runConfig.projectedRecovery,
+		forfeitedRecovery,
+		resolutionType: 'recalled',
+		appliedWear,
+		explanation: `${secured.explanation} ${RECALL_EXPLANATION_PREFIX}`
 	};
 }
