@@ -7,6 +7,7 @@ import { economyLedger } from '../schema/economyLedger.js';
 import { items } from '../schema/items.js';
 import { pilots } from '../schema/pilots.js';
 import { repairActions } from '../schema/repairActions.js';
+import { resourceInstances } from '../schema/resourceInstances.js';
 import { resourceStacks } from '../schema/resourceStacks.js';
 import { thumperEventWindows } from '../schema/thumperEventWindows.js';
 import { thumperRunResults } from '../schema/thumperRunResults.js';
@@ -46,6 +47,7 @@ describeDb('deposit spot yield depletion', () => {
 	let veyrithSlug = '';
 	let spotId = '';
 	let bloomGenerationSeed = '';
+	let originalProspectingCycle = 1;
 
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
@@ -56,6 +58,7 @@ describeDb('deposit spot yield depletion', () => {
 		expect(veyrith).not.toBeNull();
 		veyrithInstanceId = veyrith!.id;
 		veyrithSlug = veyrith!.resourceSlug;
+		originalProspectingCycle = veyrith!.prospectingCycle;
 
 		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
 		expect(bloom).not.toBeNull();
@@ -70,6 +73,11 @@ describeDb('deposit spot yield depletion', () => {
 	});
 
 	afterAll(async () => {
+		await db
+			.update(resourceInstances)
+			.set({ prospectingCycle: originalProspectingCycle })
+			.where(eq(resourceInstances.id, veyrithInstanceId));
+
 		await clearPilotProspectingState(db, testPilotId);
 		await db.delete(depositSpotYields).where(eq(depositSpotYields.spotId, spotId));
 
@@ -100,6 +108,13 @@ describeDb('deposit spot yield depletion', () => {
 		await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, testPilotId));
 		await db.delete(pilots).where(eq(pilots.id, testPilotId));
 	});
+
+	async function resetVeyrithCycle() {
+		await db
+			.update(resourceInstances)
+			.set({ prospectingCycle: 1 })
+			.where(eq(resourceInstances.id, veyrithInstanceId));
+	}
 
 	async function clearPilotRuns() {
 		const pilotRuns = await db
@@ -140,6 +155,7 @@ describeDb('deposit spot yield depletion', () => {
 		runSeed: string;
 		windows: Array<{ windowIndex: number; complication: string; matchingAction: string }>;
 		trueConcentrationPercent: number;
+		depositSpotId?: string;
 	}) {
 		const deployedAt = new Date(Date.now() - 120_000);
 		const run = await deployThumperRunWithEventWindows(db, {
@@ -150,7 +166,7 @@ describeDb('deposit spot yield depletion', () => {
 			isPushRun: false,
 			deployedAt,
 			durationSeconds: 60,
-			depositSpotId: spotId,
+			depositSpotId: input.depositSpotId ?? spotId,
 			trueConcentrationPercent: input.trueConcentrationPercent,
 			extractionTailMinutes: 60,
 			resourceInstanceId: veyrithInstanceId,
@@ -170,6 +186,7 @@ describeDb('deposit spot yield depletion', () => {
 
 	it('rejects deploy on an exhausted spot', async () => {
 		await clearPilotProspectingState(db, testPilotId);
+		await resetVeyrithCycle();
 		await db.delete(depositSpotYields).where(eq(depositSpotYields.spotId, spotId));
 		await sampleSpot();
 		await seedDepositSpotRemainingUnits(db, {
@@ -200,6 +217,7 @@ describeDb('deposit spot yield depletion', () => {
 	it('caps claim payout to remaining units and exhausts the spot', async () => {
 		await clearPilotRuns();
 		await clearPilotProspectingState(db, testPilotId);
+		await resetVeyrithCycle();
 		await db.delete(depositSpotYields).where(eq(depositSpotYields.spotId, spotId));
 		const sample = await sampleSpot();
 
@@ -261,6 +279,7 @@ describeDb('deposit spot yield depletion', () => {
 
 	it('reflects thinning yield band after partial extraction', async () => {
 		await clearPilotProspectingState(db, testPilotId);
+		await resetVeyrithCycle();
 		await db.delete(depositSpotYields).where(eq(depositSpotYields.spotId, spotId));
 		await sampleSpot();
 
@@ -293,9 +312,10 @@ describeDb('deposit spot yield depletion', () => {
 		expect(spot?.yieldBandLabel).toBe('Thinning');
 	});
 
-	it('grants reduced amount on a second claim after the spot is nearly drained', async () => {
+	it('grants reduced amount on a second claim after rolling to a new cycle spot', async () => {
 		await clearPilotRuns();
 		await clearPilotProspectingState(db, testPilotId);
+		await resetVeyrithCycle();
 		await db.delete(depositSpotYields).where(eq(depositSpotYields.spotId, spotId));
 		const sample = await sampleSpot();
 
@@ -333,19 +353,42 @@ describeDb('deposit spot yield depletion', () => {
 		}
 		expect(firstClaim.claimResult.recoveredQuantity).toBeGreaterThan(0);
 
-		const afterFirst = await getDepositSpotYieldState(db, {
-			spotId,
-			resourceInstanceId: veyrithInstanceId,
-			generationSeed: bloomGenerationSeed
+		const cycleTwoSpotId = generateDepositSpots({
+			resourceSlug: veyrithSlug,
+			bloomGenerationSeed,
+			concentrationMinPercent: 30,
+			concentrationMaxPercent: 67,
+			prospectingCycle: 2
+		})[0]!.spotId;
+
+		await scanFamilyForPilot(db, {
+			pilotId: testPilotId,
+			family: 'conductive_metal',
+			bloomId: BLOOM_ONE_ID
 		});
-		const remainingBeforeSecond = afterFirst.remainingUnits;
-		expect(remainingBeforeSecond).toBeGreaterThan(0);
-		expect(remainingBeforeSecond).toBeLessThan(100);
+		const secondSample = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			spotId: cycleTwoSpotId,
+			bloomId: BLOOM_ONE_ID
+		});
+		expect(secondSample.status).toBe('ok');
+		if (secondSample.status !== 'ok') {
+			throw new Error('expected second sample');
+		}
+
+		await seedDepositSpotRemainingUnits(db, {
+			spotId: cycleTwoSpotId,
+			resourceInstanceId: veyrithInstanceId,
+			generationSeed: bloomGenerationSeed,
+			remainingUnits: 40
+		});
 
 		await deployAndResolveRun({
 			runSeed: `second-partial-drain-${Date.now()}`,
 			windows: plan.windows,
-			trueConcentrationPercent: sample.trueConcentrationPercent
+			trueConcentrationPercent: secondSample.trueConcentrationPercent,
+			depositSpotId: cycleTwoSpotId
 		});
 
 		const secondClaim = await claimOpenThumperRunForPilot(db, {
@@ -362,18 +405,7 @@ describeDb('deposit spot yield depletion', () => {
 		if (secondClaim.status !== 'claimed' || !secondClaim.claimResult) {
 			throw new Error('expected second claim');
 		}
-		expect(secondClaim.claimResult.recoveredQuantity).toBeLessThanOrEqual(
-			remainingBeforeSecond
-		);
+		expect(secondClaim.claimResult.recoveredQuantity).toBeLessThanOrEqual(40);
 		expect(secondClaim.claimResult.recoveredQuantity).toBeGreaterThan(0);
-
-		const afterSecond = await getDepositSpotYieldState(db, {
-			spotId,
-			resourceInstanceId: veyrithInstanceId,
-			generationSeed: bloomGenerationSeed
-		});
-		expect(afterSecond.remainingUnits).toBe(
-			remainingBeforeSecond - secondClaim.claimResult.recoveredQuantity
-		);
 	});
 });

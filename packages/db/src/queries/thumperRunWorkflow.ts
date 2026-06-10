@@ -1,5 +1,5 @@
-import { rollEventWindowSeverity, TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
-import { eq } from 'drizzle-orm';
+import { rollEventWindowSeverity, PROSPECTING_CYCLE_SCATTER_LINE, TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
+import { and, eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { getBloomRecord } from './bloomRotation.js';
 import {
@@ -8,12 +8,12 @@ import {
 	formatDepositSpotDrainAdjustment
 } from './depositSpotYields.js';
 
-export { DepositSpotExhaustedError } from './depositSpotYields.js';
+export { DepositSpotExhaustedError, DepositSpotStaleError } from './depositSpotYields.js';
 import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
 import { snapshotEquippedPartsForRun } from './thumperRunParts.js';
 import { grantResourceToPilotTx } from './resourceGrants.js';
-import { getActiveBloomId, getResourceInstanceByBloomSlug, getResourceInstanceById } from './resourceInstances.js';
+import { getActiveBloomId, getResourceInstanceByBloomSlug, getResourceInstanceById, incrementResourceInstanceProspectingCycle } from './resourceInstances.js';
 import {
 	claimThumperRun,
 	getLatestThumperRunForPilot,
@@ -22,6 +22,7 @@ import {
 } from './thumperRuns.js';
 import { getThumperRunResultForRun, insertThumperRunResult } from './thumperRunResults.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
+import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
 
 export type ThumperRunResultPayload = {
 	targetResourceId: string;
@@ -103,7 +104,11 @@ export async function deployThumperRunWithEventWindows(
 			await assertDepositSpotDeployable(tx, {
 				spotId: input.depositSpotId,
 				resourceInstanceId: resolvedResourceInstanceId,
-				generationSeed
+				generationSeed,
+				resourceSlug: targetInstance.resourceSlug,
+				concentrationMinPercent: targetInstance.concentrationMinPercent,
+				concentrationMaxPercent: targetInstance.concentrationMaxPercent,
+				prospectingCycle: targetInstance.prospectingCycle
 			});
 		}
 
@@ -295,6 +300,29 @@ export async function claimOpenThumperRunForPilot(
 						explanation: resultPayload.explanation.includes(adjustmentLine)
 							? resultPayload.explanation
 							: `${resultPayload.explanation}\n\n${adjustmentLine}`
+					};
+				}
+			}
+		}
+
+		if (run.depositSpotId && run.resourceInstanceId) {
+			const resourceInstance = await getResourceInstanceById(tx, run.resourceInstanceId);
+			if (resourceInstance) {
+				await incrementResourceInstanceProspectingCycle(tx, run.resourceInstanceId);
+				await tx
+					.delete(pilotFamilyScans)
+					.where(
+						and(
+							eq(pilotFamilyScans.pilotId, input.pilotId),
+							eq(pilotFamilyScans.bloomId, resourceInstance.bloomId),
+							eq(pilotFamilyScans.family, resourceInstance.family)
+						)
+					);
+
+				if (!resultPayload.explanation.includes(PROSPECTING_CYCLE_SCATTER_LINE)) {
+					resultPayload = {
+						...resultPayload,
+						explanation: `${resultPayload.explanation}\n\n${PROSPECTING_CYCLE_SCATTER_LINE}`
 					};
 				}
 			}

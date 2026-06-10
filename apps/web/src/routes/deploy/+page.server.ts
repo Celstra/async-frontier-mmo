@@ -1,5 +1,6 @@
 import {
 	DepositSpotExhaustedError,
+	DepositSpotStaleError,
 	deployThumperRunWithEventWindows,
 	getActiveBloomId,
 	getBloomRecord,
@@ -248,6 +249,11 @@ export const actions: Actions = {
 		} catch (error) {
 			if (error instanceof DepositSpotExhaustedError) {
 				return fail(400, { message: 'This deposit is exhausted — survey for a new spot' });
+			}
+			if (error instanceof DepositSpotStaleError) {
+				return fail(400, {
+					message: 'That deposit signal has faded — scan for fresh spots.'
+				});
 			}
 			throw error;
 		}

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { BLOOM_ONE_ID, BLOOM_ONE_SEED_RESOURCES } from '../seed/bloomOneSeed.js';
 import { resourceInstances } from '../schema/resourceInstances.js';
@@ -93,6 +93,22 @@ export async function updateResourceInstance(
 		.returning();
 
 	return updated ?? null;
+}
+
+/** World-state bump after a deposit-spot thumper claim — not a stat mutation. */
+export async function incrementResourceInstanceProspectingCycle(
+	db: DbExecutor,
+	resourceInstanceId: string
+): Promise<number | null> {
+	const [updated] = await db
+		.update(resourceInstances)
+		.set({
+			prospectingCycle: sql`${resourceInstances.prospectingCycle} + 1`
+		})
+		.where(eq(resourceInstances.id, resourceInstanceId))
+		.returning({ prospectingCycle: resourceInstances.prospectingCycle });
+
+	return updated?.prospectingCycle ?? null;
 }
 
 export async function getResourceInstanceById(db: DbExecutor, resourceInstanceId: string) {

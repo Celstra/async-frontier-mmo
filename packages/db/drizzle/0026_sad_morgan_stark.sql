@@ -1,0 +1,1 @@
+ALTER TABLE "resource_instances" ADD COLUMN "prospecting_cycle" integer DEFAULT 1 NOT NULL;

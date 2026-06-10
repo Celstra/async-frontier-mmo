@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { familyDisplayLabel } from '$lib/displayLabels';
 	import {
 		FAMILY_SCAN_ENERGY_LABEL,
@@ -10,7 +11,11 @@
 
 	let { data, form }: PageProps = $props();
 
-	const resources = $derived(form?.resources ?? data.resources);
+	/** Merge action + load; gate cards on paid family scan (Decision 019). */
+	const hasFamilyScan = $derived(form?.hasFamilyScan ?? data.hasFamilyScan);
+	const resources = $derived(
+		hasFamilyScan ? (form?.resources ?? data.resources) : []
+	);
 	const surveyEnergy = $derived(form?.surveyEnergy ?? data.surveyEnergy);
 	const selectedFamily = $derived(form?.selectedFamily ?? data.selectedFamily);
 	const message = $derived(form?.message ?? null);
@@ -70,12 +75,21 @@
 	<p class="flash flash--error">{message}</p>
 {/if}
 
-<form method="POST" action="?/scanFamily" use:enhance>
+<form
+	method="POST"
+	action="?/scanFamily"
+	use:enhance={() => {
+		return async ({ update }) => {
+			await update();
+			await invalidateAll();
+		};
+	}}
+>
 	<input type="hidden" name="family" value={selectedFamily} />
 	<button type="submit">Scan {familyDisplayLabel(selectedFamily)} family — {FAMILY_SCAN_ENERGY_LABEL}</button>
 </form>
 
-{#if !data.hasFamilyScan}
+{#if !hasFamilyScan}
 	<p><em>Scan a family to reveal resources and deposit spots. {FAMILY_SCAN_ENERGY_LABEL}.</em></p>
 {:else}
 	<p>
@@ -86,9 +100,10 @@
 	</p>
 {/if}
 
-{#if resources.length === 0 && data.hasFamilyScan}
-	<p>No spawnable resources in this family for the active bloom.</p>
-{:else}
+{#if hasFamilyScan}
+	{#if resources.length === 0}
+		<p>No spawnable resources in this family for the active bloom.</p>
+	{:else}
 	<ul class="resource-cards">
 		{#each resources as resource}
 			<li class="resource-card">
@@ -139,7 +154,12 @@
 									method="POST"
 									action="?/sampleSpot"
 									style="display: inline"
-									use:enhance
+									use:enhance={() => {
+										return async ({ update }) => {
+											await update();
+											await invalidateAll();
+										};
+									}}
 									onsubmit={() => trackSampleTarget(resource.resourceInstanceId, spot.spotId)}
 								>
 									<input type="hidden" name="family" value={selectedFamily} />
@@ -161,6 +181,7 @@
 			</li>
 		{/each}
 	</ul>
+	{/if}
 {/if}
 
 <style>

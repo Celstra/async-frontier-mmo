@@ -21,6 +21,8 @@ export const resourceInstances = pgTable(
 		concentrationMaxPercent: integer('concentration_max_percent').notNull(),
 		/** Hidden lifespan rolled at spawn (Decision 020). */
 		lifespanDays: integer('lifespan_days').notNull(),
+		/** Bumps on thumper claim — rolls fresh deposit topology for this spawn (Decision 019). */
+		prospectingCycle: integer('prospecting_cycle').notNull().default(1),
 		spawnedAt: timestamp('spawned_at', { withTimezone: true }).notNull(),
 		extinctAt: timestamp('extinct_at', { withTimezone: true })
 	},

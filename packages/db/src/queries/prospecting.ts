@@ -2,6 +2,7 @@ import {
 	applyProspectingScannerWear,
 	buildFamilyScanPreview,
 	createEmptyPilotSurveyProgress,
+	findDepositSpot,
 	generateDepositSpots,
 	isDeemphasizedSurveyStat,
 	resolveSurveyEnergy,
@@ -87,7 +88,8 @@ async function ensurePilotSurveyEnergyRow(db: DbExecutor, pilotId: string, now: 
 async function loadPilotSurveyProgress(
 	db: DbExecutor,
 	pilotId: string,
-	nowMs: number
+	nowMs: number,
+	bloomId?: number
 ): Promise<PilotSurveyProgress> {
 	const now = new Date(nowMs);
 	const energyRow = await ensurePilotSurveyEnergyRow(db, pilotId, now);
@@ -97,6 +99,8 @@ async function loadPilotSurveyProgress(
 		nowMs
 	});
 
+	const bloomScoped = bloomId !== undefined;
+
 	const revealRows = await db
 		.select({ resourceSlug: resourceInstances.resourceSlug })
 		.from(pilotResourceStatReveals)
@@ -104,12 +108,27 @@ async function loadPilotSurveyProgress(
 			resourceInstances,
 			eq(pilotResourceStatReveals.resourceInstanceId, resourceInstances.id)
 		)
-		.where(eq(pilotResourceStatReveals.pilotId, pilotId));
+		.where(
+			bloomScoped
+				? and(
+						eq(pilotResourceStatReveals.pilotId, pilotId),
+						eq(resourceInstances.bloomId, bloomId)
+					)
+				: eq(pilotResourceStatReveals.pilotId, pilotId)
+		);
 
 	const sampleRows = await db
 		.select({ spotId: pilotDepositSpotSamples.spotId })
 		.from(pilotDepositSpotSamples)
-		.where(eq(pilotDepositSpotSamples.pilotId, pilotId));
+		.innerJoin(
+			resourceInstances,
+			eq(pilotDepositSpotSamples.resourceInstanceId, resourceInstances.id)
+		)
+		.where(
+			bloomScoped
+				? and(eq(pilotDepositSpotSamples.pilotId, pilotId), eq(resourceInstances.bloomId, bloomId))
+				: eq(pilotDepositSpotSamples.pilotId, pilotId)
+		);
 
 	const revealedResourceSlugs = new Set(revealRows.map((row) => row.resourceSlug));
 
@@ -197,17 +216,21 @@ async function applyEquippedScannerWear(
 	});
 }
 
-function depositSpotsForResource(
-	resourceSlug: string,
-	bloomGenerationSeed: string,
-	concentrationMinPercent: number,
-	concentrationMaxPercent: number
+function depositSpotsForResourceInstance(
+	row: {
+		resourceSlug: string;
+		concentrationMinPercent: number;
+		concentrationMaxPercent: number;
+		prospectingCycle: number;
+	},
+	bloomGenerationSeed: string
 ): DepositSpot[] {
 	return generateDepositSpots({
-		resourceSlug,
+		resourceSlug: row.resourceSlug,
 		bloomGenerationSeed,
-		concentrationMinPercent,
-		concentrationMaxPercent
+		concentrationMinPercent: row.concentrationMinPercent,
+		concentrationMaxPercent: row.concentrationMaxPercent,
+		prospectingCycle: row.prospectingCycle
 	});
 }
 
@@ -243,9 +266,10 @@ async function yieldBySpotIdForFamilyInstances(
 export async function getPilotProspectingProgress(
 	db: DbExecutor,
 	pilotId: string,
-	now: Date = new Date()
+	now: Date = new Date(),
+	bloomId?: number
 ): Promise<PilotProspectingProgress> {
-	const progress = await loadPilotSurveyProgress(db, pilotId, now.getTime());
+	const progress = await loadPilotSurveyProgress(db, pilotId, now.getTime(), bloomId);
 
 	return {
 		surveyEnergy: progress.surveyEnergy,
@@ -320,7 +344,13 @@ export async function previewFamilyScanForPilot(
 }> {
 	const now = input.now ?? new Date();
 	const nowMs = now.getTime();
-	const pilotProgress = await loadPilotSurveyProgress(db, input.pilotId, nowMs);
+	const activeBloomId = input.bloomId ?? (await getActiveBloomId(db));
+	const pilotProgress = await loadPilotSurveyProgress(
+		db,
+		input.pilotId,
+		nowMs,
+		activeBloomId
+	);
 	const resolved = resolveSurveyEnergy({
 		storedEnergy: pilotProgress.surveyEnergy,
 		lastUpdatedAtMs: pilotProgress.lastEnergyUpdatedAtMs,
@@ -331,8 +361,6 @@ export async function previewFamilyScanForPilot(
 		surveyEnergy: resolved.energy,
 		lastEnergyUpdatedAtMs: resolved.lastUpdatedAtMs
 	};
-
-	const activeBloomId = input.bloomId ?? (await getActiveBloomId(db));
 	const bloomGenerationSeed = await getBloomGenerationSeed(db, activeBloomId);
 	const instanceRows = await listResourceInstancesForBloom(db, activeBloomId);
 	const familyInstances = instanceRows.filter((row) => row.family === input.family);
@@ -342,12 +370,7 @@ export async function previewFamilyScanForPilot(
 	const spotsByResourceSlug = Object.fromEntries(
 		familyInstances.map((row) => [
 			row.resourceSlug,
-			depositSpotsForResource(
-				row.resourceSlug,
-				bloomGenerationSeed,
-				row.concentrationMinPercent,
-				row.concentrationMaxPercent
-			)
+			depositSpotsForResourceInstance(row, bloomGenerationSeed)
 		])
 	);
 
@@ -434,9 +457,9 @@ export async function scanFamilyForPilot(
 	const nowMs = now.getTime();
 
 	return db.transaction(async (tx) => {
-		const energyRow = await ensurePilotSurveyEnergyRow(tx, input.pilotId, now);
-		const pilotProgress = await loadPilotSurveyProgress(tx, input.pilotId, nowMs);
 		const bloomId = input.bloomId ?? (await getActiveBloomId(tx));
+		const energyRow = await ensurePilotSurveyEnergyRow(tx, input.pilotId, now);
+		const pilotProgress = await loadPilotSurveyProgress(tx, input.pilotId, nowMs, bloomId);
 		const bloomGenerationSeed = await getBloomGenerationSeed(tx, bloomId);
 
 		const instanceRows = await listResourceInstancesForBloom(tx, bloomId);
@@ -446,12 +469,7 @@ export async function scanFamilyForPilot(
 		const spotsByResourceSlug = Object.fromEntries(
 			familyInstances.map((row) => [
 				row.resourceSlug,
-				depositSpotsForResource(
-					row.resourceSlug,
-					bloomGenerationSeed,
-					row.concentrationMinPercent,
-					row.concentrationMaxPercent
-				)
+				depositSpotsForResourceInstance(row, bloomGenerationSeed)
 			])
 		);
 
@@ -568,19 +586,22 @@ export async function sampleSpotForPilot(
 
 		const bloomGenerationSeed = await getBloomGenerationSeed(tx, bloomId);
 		const resource = resourceInstanceToSurveyResource(resourceRow);
-		const spots = depositSpotsForResource(
-			resource.resourceSlug,
+		const spot = findDepositSpot({
+			resourceSlug: resource.resourceSlug,
 			bloomGenerationSeed,
-			resource.concentrationMinPercent,
-			resource.concentrationMaxPercent
-		);
-		const spot = spots.find((candidate) => candidate.spotId === input.spotId);
+			concentrationMinPercent: resource.concentrationMinPercent,
+			concentrationMaxPercent: resource.concentrationMaxPercent,
+			prospectingCycle: resourceRow.prospectingCycle,
+			spotId: input.spotId
+		});
 		if (!spot) {
 			return { status: 'spot_not_found' as const };
 		}
 
+		const spots = depositSpotsForResourceInstance(resourceRow, bloomGenerationSeed);
+
 		const energyRow = await ensurePilotSurveyEnergyRow(tx, input.pilotId, now);
-		const pilotProgress = await loadPilotSurveyProgress(tx, input.pilotId, nowMs);
+		const pilotProgress = await loadPilotSurveyProgress(tx, input.pilotId, nowMs, bloomId);
 
 		const sampleResult = sampleDepositSpot({
 			resource,

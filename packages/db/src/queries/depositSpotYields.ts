@@ -1,5 +1,6 @@
 import {
 	depositSpotCapacityUnits,
+	findDepositSpot,
 	presentDepositSpotYield,
 	type DepositSpotYieldBand
 } from '@async-frontier-mmo/domain';
@@ -22,6 +23,13 @@ export class DepositSpotExhaustedError extends Error {
 	constructor(spotId: string) {
 		super(`Deposit spot ${spotId} is exhausted`);
 		this.name = 'DepositSpotExhaustedError';
+	}
+}
+
+export class DepositSpotStaleError extends Error {
+	constructor(spotId: string) {
+		super(`Deposit spot ${spotId} belongs to a prior prospecting cycle`);
+		this.name = 'DepositSpotStaleError';
 	}
 }
 
@@ -203,15 +211,31 @@ export function yieldPresentationMap(
 	);
 }
 
-/** Reject deploy when no units remain. */
+/** Reject deploy when spot id is stale or no units remain. */
 export async function assertDepositSpotDeployable(
 	tx: DbExecutor,
 	input: {
 		spotId: string;
 		resourceInstanceId: string;
 		generationSeed: string;
+		resourceSlug: string;
+		concentrationMinPercent: number;
+		concentrationMaxPercent: number;
+		prospectingCycle: number;
 	}
 ): Promise<DepositSpotYieldState> {
+	const currentSpot = findDepositSpot({
+		resourceSlug: input.resourceSlug,
+		bloomGenerationSeed: input.generationSeed,
+		concentrationMinPercent: input.concentrationMinPercent,
+		concentrationMaxPercent: input.concentrationMaxPercent,
+		prospectingCycle: input.prospectingCycle,
+		spotId: input.spotId
+	});
+	if (!currentSpot) {
+		throw new DepositSpotStaleError(input.spotId);
+	}
+
 	const state = await ensureDepositSpotYieldRow(tx, input);
 	if (state.remainingUnits <= 0) {
 		throw new DepositSpotExhaustedError(input.spotId);

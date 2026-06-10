@@ -3,6 +3,7 @@ import type { ActiveBloomSurveyResource } from './activeBloomSurvey.js';
 import {
 	createEmptyPilotSurveyProgress,
 	DEFAULT_PROJECTED_RECOVERY,
+	formatDepositSpotId,
 	generateDepositSpots,
 	presentResourceStatsForPilot,
 	projectedRecoveryWithConcentration,
@@ -164,5 +165,47 @@ describe('prospectingSampling', () => {
 		expect(richSpotRecovery).toBeGreaterThan(poorSpotRecovery);
 		expect(poorSpotRecovery).toBeLessThan(base);
 		expect(richSpotRecovery).toBeGreaterThan(base);
+	});
+
+	it('keeps cycle 1 spot ids in the legacy format for backward compatibility', () => {
+		const spots = spotsForResource();
+		expect(spots[0]?.spotId).toBe(formatDepositSpotId(testResource.resourceSlug, 1, 0));
+		expect(spots[0]?.spotId).toBe(`${testResource.resourceSlug}:spot:0`);
+		expect(spots[0]?.spotId).not.toMatch(/:c\d+:spot:/);
+	});
+
+	it('produces deterministic spots per cycle and changes ids and concentrations across cycles', () => {
+		const cycleOneA = generateDepositSpots({
+			resourceSlug: testResource.resourceSlug,
+			bloomGenerationSeed: bloomSeed,
+			concentrationMinPercent: testResource.concentrationMinPercent,
+			concentrationMaxPercent: testResource.concentrationMaxPercent,
+			prospectingCycle: 1
+		});
+		const cycleOneB = generateDepositSpots({
+			resourceSlug: testResource.resourceSlug,
+			bloomGenerationSeed: bloomSeed,
+			concentrationMinPercent: testResource.concentrationMinPercent,
+			concentrationMaxPercent: testResource.concentrationMaxPercent,
+			prospectingCycle: 1
+		});
+		const cycleTwo = generateDepositSpots({
+			resourceSlug: testResource.resourceSlug,
+			bloomGenerationSeed: bloomSeed,
+			concentrationMinPercent: testResource.concentrationMinPercent,
+			concentrationMaxPercent: testResource.concentrationMaxPercent,
+			prospectingCycle: 2
+		});
+
+		expect(cycleOneA).toEqual(cycleOneB);
+		expect(cycleTwo[0]?.spotId).toBe(`${testResource.resourceSlug}:c2:spot:0`);
+		expect(cycleTwo.map((spot) => spot.spotId)).not.toEqual(cycleOneA.map((spot) => spot.spotId));
+
+		const sharedIndex = Math.min(cycleOneA.length, cycleTwo.length) - 1;
+		if (sharedIndex >= 0) {
+			expect(cycleTwo[sharedIndex]?.trueConcentrationPercent).not.toBe(
+				cycleOneA[sharedIndex]?.trueConcentrationPercent
+			);
+		}
 	});
 });

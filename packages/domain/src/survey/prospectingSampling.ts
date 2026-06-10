@@ -30,6 +30,33 @@ export const SAMPLE_TRICKLE_UNITS = 2;
 export const SPOTS_PER_RESOURCE_MIN = 3;
 export const SPOTS_PER_RESOURCE_MAX = 5;
 
+/** Shown on claim when a deposit-spot thump advances the resource prospecting cycle. */
+export const PROSPECTING_CYCLE_SCATTER_LINE =
+	'The thump scattered nearby signals — survey for fresh deposits.';
+
+/** Cycle 1 keeps legacy ids (`slug:spot:N`); cycle ≥ 2 inserts `:cN:` before the spot index. */
+export function formatDepositSpotId(
+	resourceSlug: string,
+	prospectingCycle: number,
+	spotIndex: number
+): string {
+	if (prospectingCycle <= 1) {
+		return `${resourceSlug}:spot:${spotIndex}`;
+	}
+	return `${resourceSlug}:c${prospectingCycle}:spot:${spotIndex}`;
+}
+
+function depositSpotGenerationSeed(input: {
+	bloomGenerationSeed: string;
+	resourceSlug: string;
+	prospectingCycle: number;
+}): string {
+	if (input.prospectingCycle <= 1) {
+		return `spots:${input.bloomGenerationSeed}:${input.resourceSlug}`;
+	}
+	return `spots:${input.bloomGenerationSeed}:${input.resourceSlug}:c${input.prospectingCycle}`;
+}
+
 /** SWG baseline: ~67% concentration ≈ 1.0× extraction rate. */
 export const SWG_BASE_CONCENTRATION_PERCENT = 67;
 
@@ -140,8 +167,16 @@ export function generateDepositSpots(input: {
 	bloomGenerationSeed: string;
 	concentrationMinPercent: number;
 	concentrationMaxPercent: number;
+	prospectingCycle?: number;
 }): DepositSpot[] {
-	const rng = createSeededRng(`spots:${input.bloomGenerationSeed}:${input.resourceSlug}`);
+	const prospectingCycle = input.prospectingCycle ?? 1;
+	const rng = createSeededRng(
+		depositSpotGenerationSeed({
+			bloomGenerationSeed: input.bloomGenerationSeed,
+			resourceSlug: input.resourceSlug,
+			prospectingCycle
+		})
+	);
 	const count = rollInt(rng, SPOTS_PER_RESOURCE_MIN, SPOTS_PER_RESOURCE_MAX);
 	const spots: DepositSpot[] = [];
 
@@ -153,7 +188,7 @@ export function generateDepositSpots(input: {
 		);
 
 		spots.push({
-			spotId: `${input.resourceSlug}:spot:${index}`,
+			spotId: formatDepositSpotId(input.resourceSlug, prospectingCycle, index),
 			resourceSlug: input.resourceSlug,
 			spotIndex: index,
 			trueConcentrationPercent
@@ -161,6 +196,18 @@ export function generateDepositSpots(input: {
 	}
 
 	return spots;
+}
+
+export function findDepositSpot(input: {
+	resourceSlug: string;
+	bloomGenerationSeed: string;
+	concentrationMinPercent: number;
+	concentrationMaxPercent: number;
+	prospectingCycle: number;
+	spotId: string;
+}): DepositSpot | undefined {
+	const spots = generateDepositSpots(input);
+	return spots.find((candidate) => candidate.spotId === input.spotId);
 }
 
 /**

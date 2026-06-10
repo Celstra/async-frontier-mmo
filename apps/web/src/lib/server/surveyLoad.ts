@@ -42,12 +42,12 @@ export async function loadSurveyScreenData(
 		activeBloomId,
 		hasCompletedTutorial
 	);
-	const prospectingProgress = await getPilotProspectingProgress(db, pilotId);
 	const hasFamilyScan = await hasPilotFamilyScan(db, {
 		pilotId,
 		bloomId: activeBloomId,
 		family: selectedFamily
 	});
+	const prospectingProgress = await getPilotProspectingProgress(db, pilotId, new Date(), activeBloomId);
 
 	const preview = hasFamilyScan
 		? await previewFamilyScanForPilot(db, {

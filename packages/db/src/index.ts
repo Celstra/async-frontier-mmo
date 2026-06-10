@@ -66,6 +66,7 @@ export {
 } from './queries/thumperRuns.js';
 export {
 	DepositSpotExhaustedError,
+	DepositSpotStaleError,
 	formatDepositSpotDrainAdjustment,
 	getDepositSpotYieldState,
 	loadDepositSpotYieldMap,
@@ -101,7 +102,7 @@ export {
 	getActiveBloomId,
 	getResourceInstanceByBloomSlug,
 	getResourceInstanceById,
-	insertResourceInstance,
+	incrementResourceInstanceProspectingCycle,
 	listAllResourceDisplayNames,
 	listResourceInstancesForBloom,
 	listSpawnableResourceInstances,
