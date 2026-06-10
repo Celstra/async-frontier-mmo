@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
+import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
 import { snapshotEquippedPartsForRun } from './thumperRunParts.js';
 import { grantResourceToPilotTx } from './resourceGrants.js';
-import { getResourceInstanceByBloomSlug } from './resourceInstances.js';
+import { getActiveBloomId, getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import {
 	claimThumperRun,
 	getLatestThumperRunForPilot,
@@ -101,6 +102,28 @@ export async function deployThumperRunWithEventWindows(
 				})
 				.where(eq(thumperRuns.id, run.id));
 		}
+
+		const activeBloomId = await getActiveBloomId(tx);
+		const targetInstance = await getResourceInstanceByBloomSlug(
+			tx,
+			activeBloomId,
+			input.targetResourceId
+		);
+
+		await appendEconomyLedgerEntry(tx, {
+			eventType: 'thumper_deployed',
+			pilotId: input.pilotId,
+			quantityDelta: 0,
+			payload: {
+				source_type: 'thumper_run',
+				source_id: run.id,
+				target_resource_instance_id: targetInstance?.id ?? null,
+				run_seed: input.runSeed,
+				is_push_run: input.isPushRun,
+				duration_seconds: input.durationSeconds
+			},
+			createdAt: input.deployedAt
+		});
 
 		return run;
 	});
@@ -207,6 +230,19 @@ export async function claimOpenThumperRunForPilot(
 			appliedWear: resultPayload.appliedWear,
 			explanation: resultPayload.explanation,
 			resolvedAt: input.now
+		});
+
+		await appendEconomyLedgerEntry(tx, {
+			eventType: 'thumper_claimed',
+			pilotId: input.pilotId,
+			quantityDelta: 0,
+			payload: {
+				source_type: 'thumper_run',
+				source_id: run.id,
+				recovered_quantity: resultPayload.recoveredQuantity,
+				resolution_type: resultPayload.resolutionType
+			},
+			createdAt: input.now
 		});
 
 		if (input.afterResultInserted) {

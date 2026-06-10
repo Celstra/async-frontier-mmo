@@ -2,8 +2,15 @@ import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	assertVeyrithTutorialWindowsReady,
+	DEFAULT_PROJECTED_RECOVERY,
+	generateSeededThumperEventWindows,
+	PUSH_RUN_PROJECTED_RECOVERY,
 	resolveFirstSessionThumperRunResult,
-	type ThumperEventActionId
+	resolveThumperRunResult,
+	type NamedResourceId,
+	type ThumperComplicationId,
+	type ThumperEventActionId,
+	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
 import { parseFrameId } from 'shared';
 import { createDb } from '../client.js';
@@ -48,6 +55,61 @@ function ledgerGrantsForResult(
 			'source_id' in entry.payload &&
 			entry.payload.source_id === resultId
 	);
+}
+
+function ledgerEntriesForRun(
+	entries: Awaited<ReturnType<typeof listEconomyLedgerEntriesForPilot>>,
+	eventType: 'thumper_deployed' | 'thumper_claimed',
+	runId: string
+) {
+	return entries.filter(
+		(entry) =>
+			entry.eventType === eventType &&
+			entry.payload !== null &&
+			typeof entry.payload === 'object' &&
+			'source_type' in entry.payload &&
+			entry.payload.source_type === 'thumper_run' &&
+			'source_id' in entry.payload &&
+			entry.payload.source_id === runId
+	);
+}
+
+async function buildSeededClaimResult(
+	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
+	runRow: {
+		id: string;
+		targetResourceId: string;
+		pilotFrameId: string;
+		runSeed: string;
+		isPushRun: boolean;
+	},
+	windows: Awaited<ReturnType<typeof import('./thumperEventWindows.js').getThumperEventWindowsForRun>>
+) {
+	const snapshots = await getThumperRunPartSnapshots(tx, runRow.id);
+	return resolveThumperRunResult({
+		runConfig: {
+			targetResourceId: runRow.targetResourceId as NamedResourceId,
+			projectedRecovery: runRow.isPushRun
+				? PUSH_RUN_PROJECTED_RECOVERY
+				: DEFAULT_PROJECTED_RECOVERY,
+			runSeed: runRow.runSeed,
+			appliedWear: 0,
+			partModifiers: partModifiersFromRunSnapshots(snapshots)
+		},
+		eventWindows: windows.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as ThumperComplicationId,
+			matchingAction: window.matchingAction as ThumperEventActionId
+		})),
+		responses: windows
+			.filter((window) => window.chosenResponse !== null)
+			.map((window) => ({
+				windowIndex: window.windowIndex,
+				complication: window.complication as ThumperComplicationId,
+				chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
+			})),
+		pilotFrame: parseFrameId(runRow.pilotFrameId)
+	});
 }
 
 describeDb('transactional claim reward', () => {
@@ -227,5 +289,136 @@ describeDb('transactional claim reward', () => {
 
 		const ledgerAfterSecond = await listEconomyLedgerEntriesForPilot(db, testPilotId);
 		expect(ledgerGrantsForResult(ledgerAfterSecond, firstClaim.claimResult.id)).toHaveLength(1);
+	});
+
+	it('claims a seeded non-tutorial run with deploy and claim ledger rows', async () => {
+		const seededPilotId = `${testPilotId}-seeded`;
+		await db.insert(pilots).values({ id: seededPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await ensureStarterThumperPartsForPilot(db, seededPilotId);
+
+		const veyrithInstance = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
+		expect(veyrithInstance).not.toBeNull();
+
+		const stackBefore = await getResourceStackForPilotInstance(
+			db,
+			seededPilotId,
+			veyrithInstance!.id
+		);
+		const quantityBefore = stackBefore?.quantity ?? 0;
+
+		const runSeed = `seeded-claim-${Date.now()}`;
+		const plan = generateSeededThumperEventWindows({
+			runSeed,
+			targetResourceId: 'veyrith_copper',
+			isPushRun: false
+		});
+		const deployedAt = new Date(Date.now() - 120_000);
+
+		const run = await deployThumperRunWithEventWindows(db, {
+			pilotId: seededPilotId,
+			pilotFrameId: 'recon',
+			targetResourceId: 'veyrith_copper',
+			runSeed: plan.runSeed,
+			isPushRun: plan.isPushRun,
+			deployedAt,
+			durationSeconds: 60,
+			windows: plan.windows
+		});
+
+		for (const window of plan.windows) {
+			await recordThumperEventWindowResponse(db, {
+				thumperRunId: run.id,
+				windowIndex: window.windowIndex,
+				chosenResponse: window.matchingAction
+			});
+		}
+
+		const claimNow = new Date();
+		const firstClaim = await claimOpenThumperRunForPilot(db, {
+			pilotId: seededPilotId,
+			now: claimNow,
+			isClaimable: () => true,
+			isResolvableRun: () => true,
+			validateWindows: () => undefined,
+			buildResult: buildSeededClaimResult,
+			grantResourceReward: { bloomId: BLOOM_ONE_ID }
+		});
+
+		if (firstClaim.status !== 'claimed' || !firstClaim.claimResult) {
+			throw new Error('expected seeded claim to succeed');
+		}
+
+		expect(firstClaim.reward?.quantityGranted).toBe(firstClaim.claimResult.recoveredQuantity);
+		expect(firstClaim.claimResult.recoveredQuantity).toBeGreaterThan(0);
+
+		const stackAfterFirst = await getResourceStackForPilotInstance(
+			db,
+			seededPilotId,
+			veyrithInstance!.id
+		);
+		expect(stackAfterFirst!.quantity).toBe(
+			quantityBefore + firstClaim.claimResult.recoveredQuantity
+		);
+
+		const pilotLedger = await listEconomyLedgerEntriesForPilot(db, seededPilotId);
+		expect(ledgerEntriesForRun(pilotLedger, 'thumper_deployed', run.id)).toHaveLength(1);
+		expect(ledgerEntriesForRun(pilotLedger, 'thumper_claimed', run.id)).toHaveLength(1);
+		expect(ledgerGrantsForResult(pilotLedger, firstClaim.claimResult.id)).toHaveLength(1);
+
+		const secondClaim = await claimOpenThumperRunForPilot(db, {
+			pilotId: seededPilotId,
+			now: claimNow,
+			isClaimable: () => true,
+			isResolvableRun: () => true,
+			validateWindows: () => undefined,
+			buildResult: buildSeededClaimResult,
+			grantResourceReward: { bloomId: BLOOM_ONE_ID }
+		});
+
+		if (secondClaim.status !== 'already_claimed') {
+			throw new Error('expected second seeded claim to be already_claimed');
+		}
+
+		const stackAfterSecond = await getResourceStackForPilotInstance(
+			db,
+			seededPilotId,
+			veyrithInstance!.id
+		);
+		expect(stackAfterSecond!.quantity).toBe(stackAfterFirst!.quantity);
+
+		const ledgerAfterSecond = await listEconomyLedgerEntriesForPilot(db, seededPilotId);
+		expect(ledgerEntriesForRun(ledgerAfterSecond, 'thumper_deployed', run.id)).toHaveLength(1);
+		expect(ledgerEntriesForRun(ledgerAfterSecond, 'thumper_claimed', run.id)).toHaveLength(1);
+		expect(ledgerGrantsForResult(ledgerAfterSecond, firstClaim.claimResult.id)).toHaveLength(1);
+
+		const seededRuns = await db
+			.select({ id: thumperRuns.id })
+			.from(thumperRuns)
+			.where(eq(thumperRuns.pilotId, seededPilotId));
+		const seededRunIds = seededRuns.map((row) => row.id);
+
+		await db.delete(repairActions).where(eq(repairActions.pilotId, seededPilotId));
+		if (seededRunIds.length > 0) {
+			await db
+				.delete(thumperRunResults)
+				.where(inArray(thumperRunResults.thumperRunId, seededRunIds));
+			await db
+				.delete(thumperEventWindows)
+				.where(inArray(thumperEventWindows.thumperRunId, seededRunIds));
+			await db.delete(thumperRuns).where(eq(thumperRuns.pilotId, seededPilotId));
+		}
+		await db
+			.update(pilots)
+			.set({
+				equippedScannerItemId: null,
+				equippedDrillItemId: null,
+				equippedPumpItemId: null,
+				equippedHullItemId: null
+			})
+			.where(eq(pilots.id, seededPilotId));
+		await db.delete(items).where(eq(items.pilotId, seededPilotId));
+		await db.delete(economyLedger).where(eq(economyLedger.pilotId, seededPilotId));
+		await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, seededPilotId));
+		await db.delete(pilots).where(eq(pilots.id, seededPilotId));
 	});
 });

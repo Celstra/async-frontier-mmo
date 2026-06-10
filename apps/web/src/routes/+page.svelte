@@ -109,9 +109,8 @@
 	const thumperSource = $derived(
 		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
 	);
-	const canClaimRun = $derived(openRun?.claimResolutionAvailable === true);
 	const canSubmitClaim = $derived(
-		canClaimRun && (openRun?.recalled === true || thumperDemo?.status === 'claimable') && runReadyToResolve
+		(openRun?.recalled === true || thumperDemo?.status === 'claimable') && runReadyToResolve
 	);
 
 	let displaySeconds = $state<number | null>(null);
@@ -339,11 +338,9 @@
 	<form method="POST" action="?/claim">
 		<button type="submit">Claim thumper</button>
 	</form>
-{:else if thumperDemo && canClaimRun && !runReadyToResolve}
+{:else if thumperDemo && !runReadyToResolve}
 	<p>Resolve event windows or choose Recall Early before claiming.</p>
-{:else if thumperDemo?.status === 'claimable' && !canClaimRun}
-	<p>Seeded run claim resolution is not available yet. Practice responding to event windows.</p>
-{:else if thumperDemo && canClaimRun && !openRun?.recalled && thumperDemo.status !== 'claimable'}
+{:else if thumperDemo && !openRun?.recalled && thumperDemo.status !== 'claimable'}
 	<p>Wait for the run timer or choose Recall Early to end the run.</p>
 {/if}
 

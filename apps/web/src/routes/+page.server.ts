@@ -35,12 +35,14 @@ import {
 	assertVeyrithTutorialWindowsReady,
 	buildActiveBloomSurvey,
 	BASIC_DRILL_HEAD,
+	DEFAULT_PROJECTED_RECOVERY,
 	deemphasizedStatsForSlotFamily,
 	EFFICIENT_PUMP,
 	FIELD_REPAIR_KIT,
 	MVP_CRAFT_SCHEMATICS,
 	FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 	FIRST_SCANNER_SUGGESTED_TUNING,
+	PUSH_RUN_PROJECTED_RECOVERY,
 	REINFORCED_HULL_PLATE,
 	thumperPartSlotForSchematic,
 	generateThumperEventWindows,
@@ -53,6 +55,7 @@ import {
 	TUTORIAL_RUN_SEED,
 	RED_MESA_BLOOM_RESOURCES,
 	resolveFirstSessionThumperRunResult,
+	resolveThumperRunResult,
 	surveyRedMesaFirstSession,
 	THUMPER_EVENT_ACTIONS,
 	validateEventWindowRespondOrder,
@@ -66,14 +69,12 @@ import {
 	type ThumperWindowChosenResponse,
 	resolveThumperState
 } from '@async-frontier-mmo/domain';
-import { DEMO_PILOT_ID, parseFrameId } from 'shared';
+import { parseFrameId } from 'shared';
 import { dev } from '$app/environment';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
+import { resolvePilotId } from '$lib/server/pilot';
 import type { Actions, PageServerLoad } from './$types';
-
-const SEEDED_RUN_NOT_RESOLVABLE_MESSAGE =
-	'Seeded run claim resolution is not available yet. Complete the tutorial run first, or wait for the non-tutorial resolver lesson.';
 
 function getDb() {
 	const databaseUrl = env.DATABASE_URL;
@@ -180,7 +181,6 @@ async function loadOpenRunState(
 			pilotFrameId: parseFrameId(run.pilotFrameId),
 			runSeed: run.runSeed,
 			isPushRun: run.isPushRun,
-			claimResolutionAvailable: run.runSeed === TUTORIAL_RUN_SEED,
 			recalled
 		},
 		eventWindows: mapEventWindowsForUi(eventWindows, fieldRepairKitCount),
@@ -218,6 +218,48 @@ async function buildTutorialClaimResult(
 			matchingAction: window.matchingAction as ThumperEventActionId
 		})),
 		responses
+	});
+}
+
+async function buildSeededClaimResult(
+	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
+	run: {
+		id: string;
+		targetResourceId: string;
+		pilotFrameId: string;
+		runSeed: string;
+		isPushRun: boolean;
+	},
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+) {
+	const responses = windows
+		.filter((window) => window.chosenResponse !== null)
+		.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as ThumperComplicationId,
+			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
+		}));
+
+	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
+	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
+
+	return resolveThumperRunResult({
+		runConfig: {
+			targetResourceId: run.targetResourceId as NamedResourceId,
+			projectedRecovery: run.isPushRun
+				? PUSH_RUN_PROJECTED_RECOVERY
+				: DEFAULT_PROJECTED_RECOVERY,
+			runSeed: run.runSeed,
+			appliedWear: 0,
+			partModifiers
+		},
+		eventWindows: windows.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as ThumperComplicationId,
+			matchingAction: window.matchingAction as ThumperEventActionId
+		})),
+		responses,
+		pilotFrame: parseFrameId(run.pilotFrameId)
 	});
 }
 
@@ -369,13 +411,13 @@ async function loadThumperPartsContext(db: ReturnType<typeof getDb>, pilotId: st
 	};
 }
 
-async function loadSurveyContextForDemoPilot(db: ReturnType<typeof getDb>) {
+async function loadSurveyContextForPilot(db: ReturnType<typeof getDb>, pilotId: string) {
 	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 		db,
-		DEMO_PILOT_ID,
+		pilotId,
 		TUTORIAL_RUN_SEED
 	);
-	return loadSurveyContext(db, DEMO_PILOT_ID, hasCompletedTutorial);
+	return loadSurveyContext(db, pilotId, hasCompletedTutorial);
 }
 
 async function loadSurveyContext(
@@ -475,19 +517,23 @@ async function loadCraftContext(db: ReturnType<typeof getDb>, pilotId: string) {
 	};
 }
 
-async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
+async function claimOpenRun(db: ReturnType<typeof getDb>, pilotId: string, now: Date) {
+	const activeBloomId = await getActiveBloomId(db);
+
 	return claimOpenThumperRunForPilot(db, {
-		pilotId: DEMO_PILOT_ID,
+		pilotId,
 		now,
 		isClaimable: (run, windows) => isThumperRunClaimable({ run, windows, now }),
-		isResolvableRun: (run) => run.runSeed === TUTORIAL_RUN_SEED,
-		notResolvableMessage: SEEDED_RUN_NOT_RESOLVABLE_MESSAGE,
+		isResolvableRun: () => true,
 		validateWindows: (run, windows) => {
 			if (run.runSeed === TUTORIAL_RUN_SEED) {
 				assertVeyrithTutorialWindowsReady(windows);
 			}
 		},
-		buildResult: (tx, run, windows) => buildTutorialClaimResult(tx, run, windows),
+		buildResult: (tx, run, windows) =>
+			run.runSeed === TUTORIAL_RUN_SEED
+				? buildTutorialClaimResult(tx, run, windows)
+				: buildSeededClaimResult(tx, run, windows),
 		afterResultInserted: async (tx, { run, windows }) => {
 			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
 			const responses = windows
@@ -505,24 +551,25 @@ async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
 				isPushRun: run.isPushRun
 			});
 		},
-		grantResourceReward: { bloomId: BLOOM_ONE_ID }
+		grantResourceReward: { bloomId: activeBloomId }
 	});
 }
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async (event) => {
 	const db = getDb();
+	const pilotId = resolvePilotId(event);
 	await ensureDemoPilotReady(db);
-	const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
+	const pilotFrame = await getPilotFrame(db, pilotId);
 	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 		db,
-		DEMO_PILOT_ID,
+		pilotId,
 		TUTORIAL_RUN_SEED
 	);
-	const surveyContext = await loadSurveyContext(db, DEMO_PILOT_ID, hasCompletedTutorial);
-	const thumperPartsContext = await loadThumperPartsContext(db, DEMO_PILOT_ID);
-	const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
-	const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
-	const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+	const surveyContext = await loadSurveyContext(db, pilotId, hasCompletedTutorial);
+	const thumperPartsContext = await loadThumperPartsContext(db, pilotId);
+	const craftContext = await loadCraftContext(db, pilotId);
+	const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
+	const run = await getOpenThumperRunForPilot(db, pilotId);
 
 	if (!run) {
 		return {
@@ -552,22 +599,23 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-	deploy: async ({ request }) => {
+	deploy: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
-		const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
+		const pilotFrame = await getPilotFrame(db, pilotId);
 		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 			db,
-			DEMO_PILOT_ID,
+			pilotId,
 			TUTORIAL_RUN_SEED
 		);
-		const open = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+		const open = await getOpenThumperRunForPilot(db, pilotId);
 
 		if (open) {
 			return fail(400, { message: 'Demo pilot already has an open thumper' });
 		}
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const targetResourceId = await resolveDeployTargetSlug(db, formData.get('targetResourceId'));
 		if (!targetResourceId) {
 			return fail(400, { message: 'Invalid or missing target resource' });
@@ -590,7 +638,7 @@ export const actions: Actions = {
 		const durationSeconds = 60;
 
 		const run = await deployThumperRunWithEventWindows(db, {
-			pilotId: DEMO_PILOT_ID,
+			pilotId,
 			pilotFrameId: pilotFrame,
 			targetResourceId,
 			runSeed: plan.runSeed,
@@ -604,20 +652,21 @@ export const actions: Actions = {
 			}))
 		});
 
-		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
+		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
 		const state = await loadOpenRunState(db, run, fieldRepairKitCount);
 		return { hasCompletedTutorial, ...state };
 	},
 
-	respond: async ({ request }) => {
+	respond: async (event) => {
 		const db = getDb();
-		const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+		const pilotId = resolvePilotId(event);
+		const run = await getOpenThumperRunForPilot(db, pilotId);
 
 		if (!run) {
 			return fail(400, { message: 'No open thumper run' });
 		}
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const windowIndex = parseWindowIndex(formData.get('windowIndex'));
 		const chosenResponse = parseChosenResponse(formData.get('chosenResponse'));
 
@@ -644,7 +693,7 @@ export const actions: Actions = {
 			return fail(400, { message: orderValidation.reason });
 		}
 
-		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
+		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
 		const validation = validateEventWindowResponse({
 			complication: window.complication as ThumperComplicationId,
 			matchingAction: window.matchingAction as ThumperEventActionId,
@@ -657,7 +706,7 @@ export const actions: Actions = {
 
 		if (window.chosenResponse === null) {
 			const outcome = await recordThumperEventWindowResponseForPilot(db, {
-				pilotId: DEMO_PILOT_ID,
+				pilotId,
 				thumperRunId: run.id,
 				windowIndex,
 				complication: window.complication,
@@ -673,16 +722,25 @@ export const actions: Actions = {
 			}
 		}
 
-		const refreshedRun = (await getOpenThumperRunForPilot(db, DEMO_PILOT_ID))!;
-		const refreshedKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
+		const refreshedRun = (await getOpenThumperRunForPilot(db, pilotId))!;
+		const refreshedKitCount = await countFieldRepairKitsForPilot(db, pilotId);
 		const state = await loadOpenRunState(db, refreshedRun, refreshedKitCount);
 		return state;
 	},
 
-	claim: async () => {
+	claim: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		const now = new Date();
-		const outcome = await claimTutorialRun(db, now);
+
+		let outcome;
+		try {
+			outcome = await claimOpenRun(db, pilotId, now);
+		} catch (error) {
+			return fail(500, {
+				message: error instanceof Error ? error.message : 'Claim failed unexpectedly'
+			});
+		}
 
 		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
 			return {
@@ -694,7 +752,7 @@ export const actions: Actions = {
 		}
 
 		if (outcome.status === 'not_claimable') {
-			const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
+			const run = await getOpenThumperRunForPilot(db, pilotId);
 			const thumperDemo = run
 				? resolveThumperState({
 						deployedAt: run.deployedAt,
@@ -713,7 +771,7 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.message });
 		}
 
-		const latest = await getLatestThumperRunForPilot(db, DEMO_PILOT_ID);
+		const latest = await getLatestThumperRunForPilot(db, pilotId);
 		if (latest?.claimedAt) {
 			const existingResult = await getThumperRunResultForRun(db, latest.id);
 			return { thumperDemo: null, claimed: true, claimResult: existingResult };
@@ -722,11 +780,12 @@ export const actions: Actions = {
 		return fail(400, { message: 'No thumper to claim' });
 	},
 
-	craftScanner: async ({ request }) => {
+	craftScanner: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const idempotencyKey = formData.get('idempotencyKey');
 		const craftMode = parseCraftMode(formData.get('craftMode'));
 		const tuning = parseTuningAllocation(formData);
@@ -754,7 +813,7 @@ export const actions: Actions = {
 		}
 
 		const outcome = await craftSurveyScannerForPilot(db, {
-			pilotId: DEMO_PILOT_ID,
+			pilotId,
 			idempotencyKey,
 			slotInputs: slotInputs as Array<{ slotId: string; resourceInstanceId: string }>,
 			tuning,
@@ -766,9 +825,9 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
-		const surveyContext = await loadSurveyContextForDemoPilot(db);
-		const thumperPartsContext = await loadThumperPartsContext(db, DEMO_PILOT_ID);
+		const craftContext = await loadCraftContext(db, pilotId);
+		const surveyContext = await loadSurveyContextForPilot(db, pilotId);
+		const thumperPartsContext = await loadThumperPartsContext(db, pilotId);
 
 		return {
 			craftOutcome: {
@@ -782,11 +841,12 @@ export const actions: Actions = {
 		};
 	},
 
-	craftThumperPart: async ({ request }) => {
+	craftThumperPart: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const schematicId = formData.get('schematicId');
 		const idempotencyKey = formData.get('idempotencyKey');
 		const craftMode = parseCraftMode(formData.get('craftMode'));
@@ -827,7 +887,7 @@ export const actions: Actions = {
 		}
 
 		const outcome = await craftSchematicForPilot(db, {
-			pilotId: DEMO_PILOT_ID,
+			pilotId,
 			idempotencyKey,
 			schematic,
 			slotInputs: slotInputs as Array<{ slotId: string; resourceInstanceId: string }>,
@@ -840,8 +900,8 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
-		const thumperPartsContext = await loadThumperPartsContext(db, DEMO_PILOT_ID);
+		const craftContext = await loadCraftContext(db, pilotId);
+		const thumperPartsContext = await loadThumperPartsContext(db, pilotId);
 
 		return {
 			craftOutcome: {
@@ -854,11 +914,12 @@ export const actions: Actions = {
 		};
 	},
 
-	craftRepairKit: async ({ request }) => {
+	craftRepairKit: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const idempotencyKey = formData.get('idempotencyKey');
 		const craftMode = parseCraftMode(formData.get('craftMode'));
 		const tuning = parseRepairKitTuningAllocation(formData);
@@ -886,7 +947,7 @@ export const actions: Actions = {
 		}
 
 		const outcome = await craftFieldRepairKitForPilot(db, {
-			pilotId: DEMO_PILOT_ID,
+			pilotId,
 			idempotencyKey,
 			slotInputs: slotInputs as Array<{ slotId: string; resourceInstanceId: string }>,
 			tuning,
@@ -898,10 +959,10 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
-		const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
-		const surveyContext = await loadSurveyContextForDemoPilot(db);
-		const thumperPartsContext = await loadThumperPartsContext(db, DEMO_PILOT_ID);
+		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
+		const craftContext = await loadCraftContext(db, pilotId);
+		const surveyContext = await loadSurveyContextForPilot(db, pilotId);
+		const thumperPartsContext = await loadThumperPartsContext(db, pilotId);
 
 		return {
 			craftOutcome: {
@@ -916,17 +977,18 @@ export const actions: Actions = {
 		};
 	},
 
-	rotateBloom: async () => {
+	rotateBloom: async (event) => {
 		if (!dev) {
 			return fail(403, { message: 'Rotate bloom is only available in dev builds' });
 		}
 
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
 
 		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 			db,
-			DEMO_PILOT_ID,
+			pilotId,
 			TUTORIAL_RUN_SEED
 		);
 		if (!hasCompletedTutorial) {
@@ -935,26 +997,27 @@ export const actions: Actions = {
 			});
 		}
 
-		const outcome = await rotateActiveBloom(db, { pilotId: DEMO_PILOT_ID });
+		const outcome = await rotateActiveBloom(db, { pilotId });
 		if (outcome.status === 'no_active_bloom') {
 			return fail(400, { message: 'No active bloom to rotate' });
 		}
 
-		const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
+		const craftContext = await loadCraftContext(db, pilotId);
 
 		return {
 			hasCompletedTutorial,
 			bloomRotation: outcome,
 			craftContext,
-			...(await loadSurveyContextForDemoPilot(db))
+			...(await loadSurveyContextForPilot(db, pilotId))
 		};
 	},
 
-	equipThumperPart: async ({ request }) => {
+	equipThumperPart: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const slot = formData.get('slot');
 		const itemId = formData.get('itemId');
 
@@ -963,7 +1026,7 @@ export const actions: Actions = {
 		}
 
 		const outcome = await equipThumperPartForPilot(db, {
-			pilotId: DEMO_PILOT_ID,
+			pilotId,
 			slot,
 			itemId: typeof itemId === 'string' && itemId.length > 0 ? itemId : null
 		});
@@ -972,7 +1035,7 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const thumperPartsContext = await loadThumperPartsContext(db, DEMO_PILOT_ID);
+		const thumperPartsContext = await loadThumperPartsContext(db, pilotId);
 
 		return {
 			equipThumperOutcome:
@@ -985,22 +1048,23 @@ export const actions: Actions = {
 						}
 					: { slot: outcome.slot, action: 'unequipped' as const },
 			...thumperPartsContext,
-			...(await loadSurveyContextForDemoPilot(db))
+			...(await loadSurveyContextForPilot(db, pilotId))
 		};
 	},
 
-	equipScanner: async ({ request }) => {
+	equipScanner: async (event) => {
 		const db = getDb();
+		const pilotId = resolvePilotId(event);
 		await ensureDemoPilotReady(db);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const itemId = formData.get('itemId');
 		if (typeof itemId !== 'string' || itemId.length === 0) {
 			return fail(400, { message: 'Missing scanner item' });
 		}
 
 		const outcome = await equipScannerItemForPilot(db, {
-			pilotId: DEMO_PILOT_ID,
+			pilotId,
 			itemId
 		});
 
@@ -1008,7 +1072,7 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const surveyContext = await loadSurveyContextForDemoPilot(db);
+		const surveyContext = await loadSurveyContextForPilot(db, pilotId);
 
 		return {
 			equipOutcome: {
