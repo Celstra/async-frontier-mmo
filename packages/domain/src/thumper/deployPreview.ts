@@ -34,6 +34,12 @@ export type DeployRunMeterPreview = {
 	conditionRisk: number;
 };
 
+/** Decision 005 run-state meters shown during the active thumper run. */
+export type ActiveRunMeterPreview = Pick<
+	DeployRunMeterPreview,
+	'projectedRecovery' | 'signalLock' | 'pumpFlow' | 'threatPressure' | 'hullCondition'
+>;
+
 export type DeployPreview = DeployRunMeterPreview & {
 	baseProjectedRecovery: number;
 	concentrationMultiplier: number;
@@ -185,5 +191,42 @@ export function buildDeployPreview(input: {
 		hullCondition,
 		depthRisk,
 		conditionRisk
+	};
+}
+
+/**
+ * Player-facing run meters during an open thumper run.
+ * Uses deploy math for recovery/signal/pump/threat; hull reads live run durability.
+ */
+export function buildActiveRunMeters(input: {
+	trueConcentrationPercent: number;
+	extractionTailMinutes: number;
+	isPushRun: boolean;
+	partModifiers: ThumperPartRunModifiers;
+	surveyClarityScore?: number;
+	equippedParts: {
+		drill: DeployEquippedPartSummary | null;
+		pump: DeployEquippedPartSummary | null;
+		hull: DeployEquippedPartSummary | null;
+	};
+	runHullCondition: number;
+	recoveryFloor?: number;
+}): ActiveRunMeterPreview {
+	const deploy = buildDeployPreview({
+		trueConcentrationPercent: input.trueConcentrationPercent,
+		extractionTailMinutes: input.extractionTailMinutes,
+		isPushRun: input.isPushRun,
+		partModifiers: input.partModifiers,
+		surveyClarityScore: input.surveyClarityScore,
+		equippedParts: input.equippedParts,
+		recoveryFloor: input.recoveryFloor
+	});
+
+	return {
+		projectedRecovery: deploy.projectedRecovery,
+		signalLock: deploy.signalLock,
+		pumpFlow: deploy.pumpFlow,
+		threatPressure: deploy.threatPressure,
+		hullCondition: input.runHullCondition
 	};
 }

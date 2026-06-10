@@ -62,13 +62,15 @@ export function buildSuggestedNextAction(input: {
 		if (pendingWindow) {
 			return {
 				label: 'Respond to thumper event',
-				detail: `Window ${pendingWindow.windowIndex} needs a choice on ${input.openRun.targetDisplayName}.`
+				detail: `Window ${pendingWindow.windowIndex} needs a choice on ${input.openRun.targetDisplayName}.`,
+				href: '/run'
 			};
 		}
 
 		return {
 			label: 'Monitor thumper run',
-			detail: `${input.openRun.targetDisplayName} — about ${input.thumperDemo.secondsRemaining}s remaining.`
+			detail: `${input.openRun.targetDisplayName} — about ${input.thumperDemo.secondsRemaining}s remaining.`,
+			href: '/run'
 		};
 	}
 

@@ -170,6 +170,7 @@ export {
 } from './thumper/generateSeededThumperEventWindows';
 export {
 	ACTIVE_PHASE_SECONDS,
+	buildActiveRunMeters,
 	buildDeployPreview,
 	computeDeployProjectedRecovery,
 	EXTRACTION_TAIL_OPTIONS,
@@ -177,10 +178,17 @@ export {
 	parseExtractionTailMinutes,
 	projectedRecoveryForStoredRun,
 	totalRunDurationSeconds,
+	type ActiveRunMeterPreview,
 	type DeployPreview,
 	type DeployRunMeterPreview,
 	type ExtractionTailId
 } from './thumper/deployPreview.js';
+export {
+	complicationDisplayName,
+	eventActionLabel,
+	frameFlavoredActionLabel,
+	COMPLICATION_DISPLAY_NAMES
+} from './thumper/eventActionLabels.js';
 export {
 	generateThumperEventWindows,
 	TUTORIAL_RUN_SEED,

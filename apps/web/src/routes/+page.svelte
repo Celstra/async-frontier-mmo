@@ -17,11 +17,9 @@
 	const thumperDemo = $derived(
 		form?.claimed ? null : (data.thumperDemo ?? form?.thumperDemo)
 	);
-	const openRun = $derived(
-		form?.claimed ? null : (data.openRun ?? form?.openRun ?? null)
-	);
-	const eventWindows = $derived(form?.eventWindows ?? data.eventWindows ?? []);
-	const runReadyToResolve = $derived(form?.runReadyToResolve ?? data.runReadyToResolve ?? false);
+	const openRun = $derived(form?.claimed ? null : (data.openRun ?? null));
+	const eventWindows = $derived(data.eventWindows ?? []);
+	const runReadyToResolve = $derived(data.runReadyToResolve ?? false);
 	const claimResult = $derived(form?.claimResult ?? null);
 	const claimReward = $derived(form?.reward ?? null);
 	const craftContext = $derived(form?.craftContext ?? data.craftContext);
@@ -120,22 +118,6 @@
 	);
 
 	let displaySeconds = $state<number | null>(null);
-
-	function optionLabel(optionId: string): string {
-		return optionId === 'recall_early' ? 'Recall Early' : optionId;
-	}
-
-	function isActiveWindow(windowIndex: number): boolean {
-		if (openRun?.recalled) {
-			return false;
-		}
-		const prior = eventWindows.filter((window) => window.windowIndex < windowIndex);
-		if (!prior.every((window) => window.responded)) {
-			return false;
-		}
-		const current = eventWindows.find((window) => window.windowIndex === windowIndex);
-		return current ? !current.responded : false;
-	}
 
 	$effect(() => {
 		if (!thumperDemo || thumperDemo.status !== 'active') {
@@ -241,51 +223,23 @@
 	</section>
 
 {#if thumperDemo}
-	<p>Thumper running on <strong>{openRun?.targetDisplayName ?? 'unknown signal'}</strong>.</p>
-	{#if openRun?.isPushRun}
-		<p><small>Push run — {eventWindows.length} event windows</small></p>
-	{/if}
-	{#if openRun?.recalled}
-		<p><small>Run ended early — secured progress kept; claim when ready.</small></p>
-	{/if}
-
-	{#if eventWindows.length > 0}
-		<h2>Event windows</h2>
-		<ul>
-			{#each eventWindows as window}
-				<li>
-					<strong>Window {window.windowIndex}:</strong> {window.complication}
-					{#if window.responded}
-						— responded: {optionLabel(window.chosenResponse ?? '')}
-					{:else if isActiveWindow(window.windowIndex)}
-						<form method="POST" action="?/respond" style="display: inline">
-							<input type="hidden" name="windowIndex" value={window.windowIndex} />
-							{#each window.responseOptions as option}
-								<button
-									type="submit"
-									name="chosenResponse"
-									value={option.id}
-									disabled={!option.enabled}
-									title={option.disabledReason ?? ''}
-								>
-									{optionLabel(option.id)}
-								</button>
-							{/each}
-						</form>
-						{#each window.responseOptions as option}
-							{#if !option.enabled && option.disabledReason}
-								<p><small>{option.disabledReason}</small></p>
-							{/if}
-						{/each}
-					{:else if openRun?.recalled}
-						— skipped after recall
-					{:else}
-						— waiting for earlier windows
-					{/if}
-				</li>
-			{/each}
-		</ul>
-	{/if}
+	<section class="run-summary">
+		<h2>Active thumper</h2>
+		<p>
+			Running on <strong>{openRun?.targetDisplayName ?? 'unknown signal'}</strong>.
+			{#if openRun?.isPushRun}
+				<small>Push run — {eventWindows.length} event windows</small>
+			{/if}
+		</p>
+		{#if openRun?.recalled}
+			<p><small>Recalled early — claim when ready.</small></p>
+		{:else if thumperDemo.status === 'active'}
+			<p>
+				<small>~{displaySeconds ?? thumperDemo.secondsRemaining}s remaining</small>
+			</p>
+		{/if}
+		<p><a href="/run"><strong>Open Thumper Run screen →</strong></a></p>
+	</section>
 {/if}
 
 {#if canSubmitClaim}

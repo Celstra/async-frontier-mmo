@@ -24,7 +24,6 @@ import {
 	getThumperRunResultForRun,
 	hasPilotCompletedTutorialThumper,
 	listPilotResourceStacksWithInstances,
-	recordThumperEventWindowResponseForPilot,
 	applyRunWearToPartItems,
 	getEquippedThumperPartsForPilot,
 	getThumperRunPartSnapshots,
@@ -47,7 +46,6 @@ import {
 	projectedRecoveryForStoredRun,
 	REINFORCED_HULL_PLATE,
 	thumperPartSlotForSchematic,
-	getEventWindowResponseOptions,
 	getRedMesaResource,
 	isThumperRunClaimable,
 	isThumperRunReadyToResolve,
@@ -56,9 +54,6 @@ import {
 	RED_MESA_BLOOM_RESOURCES,
 	resolveFirstSessionThumperRunResult,
 	resolveThumperRunResult,
-	THUMPER_EVENT_ACTIONS,
-	validateEventWindowRespondOrder,
-	validateEventWindowResponse,
 	type CraftMode,
 	type NamedResourceId,
 	type SchematicDefinition,
@@ -81,6 +76,8 @@ import {
 	FRAME_CHOICE_OPTIONS
 } from '$lib/pilotHome';
 import { resolvePilotId } from '$lib/server/pilot';
+import { loadOpenRunState } from '$lib/server/runLoad';
+import { resolveTargetDisplayName } from '$lib/server/targetResource';
 import type { Actions, PageServerLoad } from './$types';
 
 function getDb() {
@@ -99,96 +96,6 @@ async function requireFrameChosenPilot(db: ReturnType<typeof getDb>, pilotId: st
 	}
 	await ensurePilotGameReady(db, pilotId);
 	return null;
-}
-
-async function resolveTargetDisplayName(
-	db: ReturnType<typeof getDb>,
-	targetResourceId: string
-): Promise<string> {
-	if (targetResourceId in RED_MESA_BLOOM_RESOURCES) {
-		return getRedMesaResource(targetResourceId as NamedResourceId).displayName;
-	}
-
-	const activeBloomId = await getActiveBloomId(db);
-	const instance = await getResourceInstanceByBloomSlug(db, activeBloomId, targetResourceId);
-	return instance?.displayName ?? targetResourceId;
-}
-
-function parseWindowIndex(value: FormDataEntryValue | null): number | null {
-	if (typeof value !== 'string') {
-		return null;
-	}
-	const index = Number.parseInt(value, 10);
-	return Number.isInteger(index) && index > 0 ? index : null;
-}
-
-function parseChosenResponse(value: FormDataEntryValue | null): ThumperWindowChosenResponse | null {
-	if (value === 'hold' || value === 'recall_early') {
-		return value;
-	}
-	if (typeof value === 'string' && THUMPER_EVENT_ACTIONS.includes(value as ThumperEventActionId)) {
-		return value as ThumperEventActionId;
-	}
-	return null;
-}
-
-function isRunEndedByRecall(
-	windows: ReadonlyArray<{ chosenResponse: string | null }>
-): boolean {
-	return windows.some((window) => window.chosenResponse === 'recall_early');
-}
-
-function mapEventWindowsForUi(
-	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
-	fieldRepairKitCount: number
-) {
-	return windows.map((window) => ({
-		windowIndex: window.windowIndex,
-		complication: window.complication,
-		matchingAction: window.matchingAction,
-		chosenResponse: window.chosenResponse,
-		responded: window.chosenResponse !== null,
-		responseOptions: getEventWindowResponseOptions({
-			complication: window.complication as ThumperComplicationId,
-			matchingAction: window.matchingAction as ThumperEventActionId,
-			fieldRepairKitCount
-		})
-	}));
-}
-
-async function loadOpenRunState(
-	db: ReturnType<typeof getDb>,
-	run: NonNullable<Awaited<ReturnType<typeof getOpenThumperRunForPilot>>>,
-	fieldRepairKitCount: number
-) {
-	const now = new Date();
-	const thumperDemo = resolveThumperState({
-		deployedAt: run.deployedAt,
-		durationSeconds: run.durationSeconds,
-		now
-	});
-	const targetDisplayName = await resolveTargetDisplayName(db, run.targetResourceId);
-	const eventWindows = await getThumperEventWindowsForRun(db, run.id);
-	const recalled = isRunEndedByRecall(eventWindows);
-
-	return {
-		thumperDemo,
-		loadedAt: now.toISOString(),
-		openRun: {
-			id: run.id,
-			targetResourceId: run.targetResourceId,
-			targetDisplayName,
-			pilotFrameId: parseFrameId(run.pilotFrameId),
-			runSeed: run.runSeed,
-			isPushRun: run.isPushRun,
-			recalled
-		},
-		eventWindows: mapEventWindowsForUi(eventWindows, fieldRepairKitCount),
-		runHullCondition: run.runHullCondition,
-		runHullIntegrity: run.runHullIntegrity,
-		fieldRepairKitCount,
-		runReadyToResolve: isThumperRunReadyToResolve(eventWindows)
-	};
 }
 
 async function buildTutorialClaimResult(
@@ -695,7 +602,9 @@ export const load: PageServerLoad = async (event) => {
 		};
 	}
 
-	const state = await loadOpenRunState(db, run, fieldRepairKitCount);
+	const state = await loadOpenRunState(db, run, fieldRepairKitCount, {
+		resolveDisplayName: resolveTargetDisplayName
+	});
 	const pilotHome = await loadPilotHomeContext(db, pilotId, {
 		...pilotHomeBase,
 		openRun: state.openRun,
@@ -732,77 +641,6 @@ export const actions: Actions = {
 		}
 
 		await setPilotFrame(db, pilotId, frameIdRaw);
-	},
-
-	respond: async (event) => {
-		const db = getDb();
-		const pilotId = resolvePilotId(event);
-		const run = await getOpenThumperRunForPilot(db, pilotId);
-
-		if (!run) {
-			return fail(400, { message: 'No open thumper run' });
-		}
-
-		const formData = await event.request.formData();
-		const windowIndex = parseWindowIndex(formData.get('windowIndex'));
-		const chosenResponse = parseChosenResponse(formData.get('chosenResponse'));
-
-		if (windowIndex === null || chosenResponse === null) {
-			return fail(400, { message: 'Invalid event window response' });
-		}
-
-		const windows = await getThumperEventWindowsForRun(db, run.id);
-		const window = windows.find((row) => row.windowIndex === windowIndex);
-		if (!window) {
-			return fail(400, { message: 'Event window not found' });
-		}
-
-		if (isRunEndedByRecall(windows)) {
-			return fail(400, { message: 'Run already ended with Recall Early' });
-		}
-
-		const orderValidation = validateEventWindowRespondOrder({
-			windows,
-			windowIndex,
-			chosenResponse
-		});
-		if (!orderValidation.ok) {
-			return fail(400, { message: orderValidation.reason });
-		}
-
-		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-		const validation = validateEventWindowResponse({
-			complication: window.complication as ThumperComplicationId,
-			matchingAction: window.matchingAction as ThumperEventActionId,
-			chosenResponse,
-			fieldRepairKitCount
-		});
-		if (!validation.ok) {
-			return fail(400, { message: validation.reason });
-		}
-
-		if (window.chosenResponse === null) {
-			const outcome = await recordThumperEventWindowResponseForPilot(db, {
-				pilotId,
-				thumperRunId: run.id,
-				windowIndex,
-				complication: window.complication,
-				chosenResponse,
-				runHullCondition: run.runHullCondition,
-				runHullIntegrity: run.runHullIntegrity
-			});
-			if (outcome.status === 'no_repair_kit') {
-				return fail(400, { message: 'Field Repair requires a crafted Field Repair Kit' });
-			}
-			if (outcome.status === 'not_recorded') {
-				return fail(400, { message: 'Could not record event window response' });
-			}
-		}
-
-		const refreshedRun = (await getOpenThumperRunForPilot(db, pilotId))!;
-		const refreshedKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-		const state = await loadOpenRunState(db, refreshedRun, refreshedKitCount);
-		return state;
 	},
 
 	claim: async (event) => {
