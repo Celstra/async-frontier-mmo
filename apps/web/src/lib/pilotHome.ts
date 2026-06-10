@@ -94,17 +94,19 @@ export function buildSuggestedNextAction(input: {
 		};
 	}
 
-	if (input.scannerItems.length > 0 && !input.equippedScanner) {
+		if (input.hasCompletedTutorial && input.scannerItems.length === 0) {
 		return {
-			label: 'Equip Survey Scanner',
-			detail: 'Your crafted scanner improves the next survey readout.'
+			label: 'Craft Survey Scanner Module Mk I',
+			detail: 'Turn claimed Veyrith Copper into clearer survey information.',
+			href: '/craft'
 		};
 	}
 
-	if (input.hasCompletedTutorial && input.scannerItems.length === 0) {
+	if (input.scannerItems.length > 0 && !input.equippedScanner) {
 		return {
-			label: 'Craft Survey Scanner Module Mk I',
-			detail: 'Turn claimed Veyrith Copper into clearer survey information.'
+			label: 'Equip Survey Scanner',
+			detail: 'Your crafted scanner improves the next survey readout.',
+			href: '/craft'
 		};
 	}
 

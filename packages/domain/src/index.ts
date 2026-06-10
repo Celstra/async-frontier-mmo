@@ -4,6 +4,12 @@ import type { ResourceStatCode } from 'shared';
 export type ResourceStatMap = Partial<Record<ResourceStatCode, number>>;
 
 export { buildCraftResultExplanation } from './crafting/buildCraftResultExplanation.js';
+export {
+	buildResourceAllocationHints,
+	stackSlotFitScore,
+	type InventoryStackWithStats,
+	type StackAllocationHint
+} from './crafting/buildResourceAllocationHints.js';
 export type {
 	CraftPropertyDriver,
 	CraftPropertyExplanation,

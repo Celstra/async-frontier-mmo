@@ -114,7 +114,7 @@
 		<p>{data.explanation.salvageNote}</p>
 
 		<p class="craft-link">
-			<a href="/#crafting-workshop"><strong>Crafting + Gear →</strong></a>
+			<a href="/craft"><strong>Crafting + Gear →</strong></a>
 			Turn claimed {data.targetDisplayName} into scanner modules and thumper parts.
 		</p>
 
