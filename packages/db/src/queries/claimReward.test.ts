@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	assertVeyrithTutorialWindowsReady,
@@ -7,13 +7,19 @@ import {
 } from '@async-frontier-mmo/domain';
 import { parseFrameId } from 'shared';
 import { createDb } from '../client.js';
+import { items } from '../schema/items.js';
 import { pilots } from '../schema/pilots.js';
+import { repairActions } from '../schema/repairActions.js';
 import { resourceStacks } from '../schema/resourceStacks.js';
+import { thumperEventWindows } from '../schema/thumperEventWindows.js';
+import { thumperRunResults } from '../schema/thumperRunResults.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
 import { economyLedger } from '../schema/economyLedger.js';
 import { listEconomyLedgerEntriesForPilot } from './economyLedger.js';
 import { ensureDemoPilot } from './pilots.js';
+import { ensureStarterThumperPartsForPilot } from './thumperPartEquipment.js';
+import { getThumperRunPartSnapshots, partModifiersFromRunSnapshots } from './thumperRunParts.js';
 import {
 	ensureBloomOneResourceInstances,
 	getResourceInstanceByBloomSlug
@@ -52,13 +58,39 @@ describeDb('transactional claim reward', () => {
 		await ensureDemoPilot(db);
 		await ensureBloomOneResourceInstances(db);
 		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await ensureStarterThumperPartsForPilot(db, testPilotId);
 	});
 
 	afterAll(async () => {
+		const pilotRuns = await db
+			.select({ id: thumperRuns.id })
+			.from(thumperRuns)
+			.where(eq(thumperRuns.pilotId, testPilotId));
+		const runIds = pilotRuns.map((run) => run.id);
+
+		await db.delete(repairActions).where(eq(repairActions.pilotId, testPilotId));
+
+		if (runIds.length > 0) {
+			await db
+				.delete(thumperRunResults)
+				.where(inArray(thumperRunResults.thumperRunId, runIds));
+			await db
+				.delete(thumperEventWindows)
+				.where(inArray(thumperEventWindows.thumperRunId, runIds));
+			// Cascades thumper_run_part_snapshots (item_id FK blocks deleting items first).
+			await db.delete(thumperRuns).where(eq(thumperRuns.pilotId, testPilotId));
+		}
+
 		await db
-			.update(thumperRuns)
-			.set({ claimedAt: new Date() })
-			.where(and(eq(thumperRuns.pilotId, testPilotId), isNull(thumperRuns.claimedAt)));
+			.update(pilots)
+			.set({
+				equippedScannerItemId: null,
+				equippedDrillItemId: null,
+				equippedPumpItemId: null,
+				equippedHullItemId: null
+			})
+			.where(eq(pilots.id, testPilotId));
+		await db.delete(items).where(eq(items.pilotId, testPilotId));
 		await db.delete(economyLedger).where(eq(economyLedger.pilotId, testPilotId));
 		await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, testPilotId));
 		await db.delete(pilots).where(eq(pilots.id, testPilotId));
@@ -108,10 +140,12 @@ describeDb('transactional claim reward', () => {
 			isClaimable: () => true,
 			isResolvableRun: () => true,
 			validateWindows: (_run, windows) => assertVeyrithTutorialWindowsReady(windows),
-			buildResult: (runRow, windows) =>
-				resolveFirstSessionThumperRunResult({
+			buildResult: async (tx, runRow, windows) => {
+				const snapshots = await getThumperRunPartSnapshots(tx, runRow.id);
+				return resolveFirstSessionThumperRunResult({
 					targetResourceId: 'veyrith_copper',
 					pilotFrame: parseFrameId(runRow.pilotFrameId),
+					partModifiers: partModifiersFromRunSnapshots(snapshots),
 					eventWindows: windows.map((window) => ({
 						windowIndex: window.windowIndex,
 						complication: window.complication as 'signal_drift' | 'pump_strain',
@@ -124,7 +158,8 @@ describeDb('transactional claim reward', () => {
 							complication: window.complication as 'signal_drift' | 'pump_strain',
 							chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
 						}))
-				}),
+				});
+			},
 			grantResourceReward: { bloomId: BLOOM_ONE_ID }
 		});
 
@@ -155,10 +190,12 @@ describeDb('transactional claim reward', () => {
 			isClaimable: () => true,
 			isResolvableRun: () => true,
 			validateWindows: (_run, windows) => assertVeyrithTutorialWindowsReady(windows),
-			buildResult: (runRow, windows) =>
-				resolveFirstSessionThumperRunResult({
+			buildResult: async (tx, runRow, windows) => {
+				const snapshots = await getThumperRunPartSnapshots(tx, runRow.id);
+				return resolveFirstSessionThumperRunResult({
 					targetResourceId: 'veyrith_copper',
 					pilotFrame: parseFrameId(runRow.pilotFrameId),
+					partModifiers: partModifiersFromRunSnapshots(snapshots),
 					eventWindows: windows.map((window) => ({
 						windowIndex: window.windowIndex,
 						complication: window.complication as 'signal_drift' | 'pump_strain',
@@ -171,7 +208,8 @@ describeDb('transactional claim reward', () => {
 							complication: window.complication as 'signal_drift' | 'pump_strain',
 							chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
 						}))
-				}),
+				});
+			},
 			grantResourceReward: { bloomId: BLOOM_ONE_ID }
 		});
 

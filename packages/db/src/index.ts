@@ -8,12 +8,28 @@ export {
 	type CraftSchematicOutcome
 } from './queries/crafting.js';
 export {
+	applyRepairKitToItemForPilot,
 	craftFieldRepairKitForPilot,
 	countFieldRepairKitsForPilot,
 	FieldRepairKitUnavailableError,
 	recordThumperEventWindowResponseForPilot,
 	type RecordThumperResponseOutcome
 } from './queries/fieldRepair.js';
+export {
+	applyRunWearToPartItems,
+	getRunHullItemForRepair,
+	getThumperRunPartSnapshots,
+	partModifiersFromRunSnapshots,
+	snapshotEquippedPartsForRun
+} from './queries/thumperRunParts.js';
+export {
+	equipThumperPartForPilot,
+	ensureStarterThumperPartsForPilot,
+	getEquippedThumperPartsForPilot,
+	listThumperPartItemsForPilot,
+	ThumperPartEquipValidationError,
+	type EquipThumperPartOutcome
+} from './queries/thumperPartEquipment.js';
 export { ensureDemoPilot, ensureDemoPilotReady, getPilotById, getPilotFrame } from './queries/pilots.js';
 export { listPilotResourceStacksWithInstances } from './queries/pilotInventory.js';
 export { consumeResourceFromPilotTx, InsufficientResourceError } from './queries/resourceConsumes.js';
@@ -78,4 +94,5 @@ export { resourceStacks } from './schema/resourceStacks.js';
 export { thumperEventWindows } from './schema/thumperEventWindows.js';
 export { thumperRunResults } from './schema/thumperRunResults.js';
 export { repairActions } from './schema/repairActions.js';
+export { thumperRunPartSnapshots } from './schema/thumperRunPartSnapshots.js';
 export { thumperRuns } from './schema/thumperRuns.js';

@@ -8,6 +8,7 @@ import {
 	type ThumperRunResult,
 	type ThumperWindowChosenResponse
 } from './resolveThumperRunResult.js';
+import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 
 export {
 	type ThumperEventWindowResponse,
@@ -33,6 +34,7 @@ export function resolveFirstSessionThumperRunResult(input: {
 	pilotFrame: FrameId;
 	eventWindows?: ThumperEventWindowSnapshot[];
 	appliedWear?: number;
+	partModifiers?: ThumperPartRunModifiers;
 }): ThumperRunResult {
 	if (input.targetResourceId !== FIRST_SESSION_TARGET) {
 		throw new Error(
@@ -56,7 +58,8 @@ export function resolveFirstSessionThumperRunResult(input: {
 			targetResourceId: input.targetResourceId,
 			projectedRecovery: FIRST_SESSION_PROJECTED_RECOVERY,
 			recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM,
-			appliedWear: input.appliedWear ?? 0
+			appliedWear: input.appliedWear ?? 0,
+			partModifiers: input.partModifiers
 		},
 		eventWindows,
 		responses: input.responses,

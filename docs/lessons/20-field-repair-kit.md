@@ -163,4 +163,4 @@ pnpm --filter web build
 - [x] Dynamic `fieldRepairKitCount` in respond/load
 - [ ] Equippable thumper parts as repair targets (Lesson 6.3)
 
-**Next exercise:** Thumper parts as equippable wearing items — wear lands on parts, repair targets equipped hull (Lesson 6.3).
+**Next exercise:** Thumper parts as equippable wearing items — `docs/lessons/21-thumper-parts-equip-wear.md` (Lesson 6.3).

@@ -29,6 +29,11 @@
 	const scannerItems = $derived(form?.scannerItems ?? data.scannerItems ?? []);
 	const equippedScanner = $derived(form?.equippedScanner ?? data.equippedScanner ?? null);
 	const equipOutcome = $derived(form?.equipOutcome ?? null);
+	const equippedThumperParts = $derived(
+		form?.equippedThumperParts ?? data.equippedThumperParts ?? null
+	);
+	const thumperPartItems = $derived(form?.thumperPartItems ?? data.thumperPartItems ?? []);
+	const equipThumperOutcome = $derived(form?.equipThumperOutcome ?? null);
 	const survey = $derived(form?.survey ?? data.survey);
 
 	function stacksForFamily(family: string) {
@@ -49,7 +54,50 @@
 			const keth = stacks.find((stack) => stack.resourceSlug === 'keth_iron');
 			if (keth) return keth.resourceInstanceId;
 		}
+		if (
+			slotId === 'intake_manifold' ||
+			slotId === 'conductive_coil' ||
+			slotId === 'conductive_core'
+		) {
+			const veyrith = stacks.find((stack) => stack.resourceSlug === 'veyrith_copper');
+			if (veyrith) return veyrith.resourceInstanceId;
+		}
+		if (
+			slotId === 'flexible_housing' ||
+			slotId === 'cutting_bit' ||
+			slotId === 'outer_plate' ||
+			slotId === 'bracing_layer'
+		) {
+			const keth = stacks.find((stack) => stack.resourceSlug === 'keth_iron');
+			if (keth) return keth.resourceInstanceId;
+		}
+		if (
+			slotId === 'flow_crystal' ||
+			slotId === 'resonance_crystal' ||
+			slotId === 'bonding_matrix' ||
+			slotId === 'crystal_lens'
+		) {
+			const pale = stacks.find((stack) => stack.resourceSlug === 'pale_ember_crystal');
+			if (pale) return pale.resourceInstanceId;
+		}
 		return stacks[0]?.resourceInstanceId ?? '';
+	}
+
+	function thumperPartsForSlot(slot: 'drill' | 'pump' | 'hull') {
+		return thumperPartItems.filter((item) => item.slot === slot);
+	}
+
+	function isEquippedThumperPart(itemId: string): boolean {
+		if (!equippedThumperParts) return false;
+		return (
+			equippedThumperParts.drill?.itemId === itemId ||
+			equippedThumperParts.pump?.itemId === itemId ||
+			equippedThumperParts.hull?.itemId === itemId
+		);
+	}
+
+	function suggestedTuningForSchematic(schematicId: string): Record<string, number> {
+		return craftContext?.thumperPartSuggestedTuning?.[schematicId] ?? {};
 	}
 	const thumperSource = $derived(
 		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
@@ -225,7 +273,7 @@
 {/if}
 
 {#if craftContext && !thumperDemo}
-	<h2>Craft {craftContext.schematic.displayName}</h2>
+	<h2>Crafting workshop</h2>
 	<p>
 		<small>
 			Fill each slot from owned stacks, spend exactly 3 tuning points, then Safe Craft or Careful
@@ -242,10 +290,11 @@
 		</ul>
 	{/if}
 
+	<h3>Craft {craftContext.scannerSchematic.displayName}</h3>
 	<form method="POST" action="?/craftScanner">
 		<input type="hidden" name="idempotencyKey" value={craftIdempotencyKey} />
 
-		{#each craftContext.schematic.slots as slot}
+		{#each craftContext.scannerSchematic.slots as slot}
 			<fieldset>
 				<legend>{slot.displayName} ({slot.requiredFamily})</legend>
 				<select name="slot_{slot.id}" required>
@@ -266,7 +315,7 @@
 
 		<fieldset>
 			<legend>Tuning (3 points total)</legend>
-			{#each craftContext.schematic.properties as property}
+			{#each craftContext.scannerSchematic.properties as property}
 				<label>
 					{property.displayName}
 					<input
@@ -274,7 +323,7 @@
 						name="tuning_{property.id}"
 						min="0"
 						max="3"
-						value={craftContext.suggestedTuning[property.id] ?? 0}
+						value={craftContext.scannerSuggestedTuning[property.id] ?? 0}
 					/>
 				</label>
 			{/each}
@@ -294,6 +343,136 @@
 
 		<button type="submit">Craft scanner</button>
 	</form>
+
+	{#each craftContext.thumperPartSchematics as partSchematic}
+		<h3>Craft {partSchematic.displayName}</h3>
+		<form method="POST" action="?/craftThumperPart">
+			<input type="hidden" name="schematicId" value={partSchematic.id} />
+			<input
+				type="hidden"
+				name="idempotencyKey"
+				value="{craftIdempotencyKey}-{partSchematic.id}"
+			/>
+
+			{#each partSchematic.slots as slot}
+				<fieldset>
+					<legend>{slot.displayName} ({slot.requiredFamily})</legend>
+					<select name="slot_{slot.id}" required>
+						<option value="" disabled selected={stacksForFamily(slot.requiredFamily).length === 0}>
+							Choose stack
+						</option>
+						{#each stacksForFamily(slot.requiredFamily) as stack}
+							<option
+								value={stack.resourceInstanceId}
+								selected={stack.resourceInstanceId ===
+									defaultStackForSlot(slot.id, slot.requiredFamily)}
+							>
+								{stack.displayName} × {stack.quantity}
+							</option>
+						{/each}
+					</select>
+				</fieldset>
+			{/each}
+
+			<fieldset>
+				<legend>Tuning (3 points total)</legend>
+				{#each partSchematic.properties as property}
+					<label>
+						{property.displayName}
+						<input
+							type="number"
+							name="tuning_{property.id}"
+							min="0"
+							max="3"
+							value={suggestedTuningForSchematic(partSchematic.id)[property.id] ?? 0}
+						/>
+					</label>
+				{/each}
+			</fieldset>
+
+			<fieldset>
+				<legend>Craft mode</legend>
+				<label>
+					<input type="radio" name="craftMode" value="safe_craft" checked />
+					Safe Craft
+				</label>
+				<label>
+					<input type="radio" name="craftMode" value="careful_experiment" />
+					Careful Experiment
+				</label>
+			</fieldset>
+
+			<button type="submit">Craft {partSchematic.displayName}</button>
+		</form>
+	{/each}
+{/if}
+
+{#if equippedThumperParts}
+	<h3>Equipped thumper parts</h3>
+	<ul>
+		<li>
+			Drill:
+			{#if equippedThumperParts.drill}
+				{equippedThumperParts.drill.displayName} — condition
+				{equippedThumperParts.drill.condition}, integrity {equippedThumperParts.drill.integrity}
+			{:else}
+				none
+			{/if}
+		</li>
+		<li>
+			Pump:
+			{#if equippedThumperParts.pump}
+				{equippedThumperParts.pump.displayName} — recovery
+				{equippedThumperParts.pump.recoveryEfficiency}, condition
+				{equippedThumperParts.pump.condition}
+			{:else}
+				none
+			{/if}
+		</li>
+		<li>
+			Hull:
+			{#if equippedThumperParts.hull}
+				{equippedThumperParts.hull.displayName} — condition
+				{equippedThumperParts.hull.condition}, integrity {equippedThumperParts.hull.integrity}
+			{:else}
+				none
+			{/if}
+		</li>
+	</ul>
+{/if}
+
+{#if thumperPartItems.length > 0}
+	<h3>Thumper parts inventory</h3>
+	<ul>
+		{#each thumperPartItems as part}
+			<li>
+				{part.displayName} ({part.slot}) — condition {part.condition}, integrity {part.integrity}
+				{#if part.recoveryEfficiency !== null}
+					— recovery {part.recoveryEfficiency}
+				{/if}
+				{#if isEquippedThumperPart(part.id)}
+					<strong>(equipped)</strong>
+				{:else if part.slot}
+					<form method="POST" action="?/equipThumperPart" style="display: inline">
+						<input type="hidden" name="slot" value={part.slot} />
+						<input type="hidden" name="itemId" value={part.id} />
+						<button type="submit">Equip</button>
+					</form>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/if}
+
+{#if equipThumperOutcome}
+	<p>
+		{#if equipThumperOutcome.action === 'unequipped'}
+			<strong>Unequipped {equipThumperOutcome.slot} slot.</strong>
+		{:else}
+			<strong>Equipped {equipThumperOutcome.displayName}</strong> in {equipThumperOutcome.slot}
+			slot — condition {equipThumperOutcome.condition}, integrity {equipThumperOutcome.integrity}.
+		{/if}
+	</p>
 {/if}
 
 {#if scannerItems.length > 0}

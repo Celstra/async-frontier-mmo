@@ -151,6 +151,29 @@ export {
 	resolveFirstSessionThumperRunResult
 } from './thumper/resolveFirstSessionThumperRunResult';
 export {
+	STARTER_WORN_THUMPER_PARTS,
+	THUMPER_PART_SCHEMATIC_IDS,
+	WORN_BASIC_DRILL,
+	WORN_BASIC_HULL,
+	WORN_BASIC_PUMP,
+	isThumperPartSchematic,
+	thumperPartSlotForSchematic
+} from './thumper/starterWornParts.js';
+export {
+	applyWearToRunParts,
+	computeRunPartWearDeltas,
+	computeThumperPartRunModifiers,
+	partConditionPerformanceMultiplier,
+	pumpRecoveryBonusFromEfficiency
+} from './thumper/thumperPartModifiers.js';
+export {
+	THUMPER_PART_SLOTS,
+	type ThumperPartRunModifiers,
+	type ThumperPartSnapshot,
+	type ThumperPartSlot,
+	type ThumperPartWearDelta
+} from './thumper/thumperPartTypes.js';
+export {
 	resolveThumperRunResult,
 	type ThumperEventWindowResponse,
 	type ThumperEventWindowSnapshot,

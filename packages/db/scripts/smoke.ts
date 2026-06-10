@@ -13,7 +13,10 @@ import {
 	deployThumperRunWithEventWindows,
 	ensureBloomOneResourceInstances,
 	ensureDemoPilot,
+	ensureStarterThumperPartsForPilot,
 	getOpenThumperRunForPilot,
+	getThumperRunPartSnapshots,
+	partModifiersFromRunSnapshots,
 	getPilotFrame,
 	getResourceInstanceByBloomSlug,
 	getResourceStackForPilotInstance,
@@ -89,10 +92,12 @@ async function claimTutorialRun(now: Date) {
 				assertVeyrithTutorialWindowsReady(windows);
 			}
 		},
-		buildResult: (run, windows) =>
-			resolveFirstSessionThumperRunResult({
+		buildResult: async (tx, run, windows) => {
+			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
+			return resolveFirstSessionThumperRunResult({
 				targetResourceId: 'veyrith_copper',
 				pilotFrame: parseFrameId(run.pilotFrameId),
+				partModifiers: partModifiersFromRunSnapshots(snapshots),
 				eventWindows: windows.map((window) => ({
 					windowIndex: window.windowIndex,
 					complication: window.complication as 'signal_drift' | 'pump_strain',
@@ -108,12 +113,14 @@ async function claimTutorialRun(now: Date) {
 							| 'clear_pump_problem'
 							| 'recall_early'
 					}))
-			}),
+			});
+		},
 		grantResourceReward: { bloomId: BLOOM_ONE_ID }
 	});
 }
 
 await ensureDemoPilot(db);
+await ensureStarterThumperPartsForPilot(db, DEMO_PILOT_ID);
 
 const bloomOne = await ensureBloomOneResourceInstances(db);
 if (bloomOne.length !== 9) {

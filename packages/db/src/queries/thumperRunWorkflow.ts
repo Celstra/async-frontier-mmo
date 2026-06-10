@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
+import { snapshotEquippedPartsForRun } from './thumperRunParts.js';
 import { grantResourceToPilotTx } from './resourceGrants.js';
 import { getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import {
@@ -85,6 +86,22 @@ export async function deployThumperRunWithEventWindows(
 			});
 		}
 
+		const partSnapshots = await snapshotEquippedPartsForRun(tx, {
+			thumperRunId: run.id,
+			pilotId: input.pilotId
+		});
+
+		const hull = partSnapshots.find((part) => part.slot === 'hull');
+		if (hull) {
+			await tx
+				.update(thumperRuns)
+				.set({
+					runHullCondition: hull.condition,
+					runHullIntegrity: hull.integrity
+				})
+				.where(eq(thumperRuns.id, run.id));
+		}
+
 		return run;
 	});
 }
@@ -109,11 +126,21 @@ export async function claimOpenThumperRunForPilot(
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => void;
 		buildResult: (
-			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string },
+			tx: DbExecutor,
+			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string; isPushRun: boolean },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
-		) => ThumperRunResultPayload;
+		) => ThumperRunResultPayload | Promise<ThumperRunResultPayload>;
 		/** When set, grants recovered quantity to the bloom resource instance in the same transaction. */
 		grantResourceReward?: { bloomId: number };
+		/** After result row is inserted — e.g. apply part wear to item rows. */
+		afterResultInserted?: (
+			tx: DbExecutor,
+			ctx: {
+				run: typeof thumperRuns.$inferSelect;
+				windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>;
+				claimResult: NonNullable<Awaited<ReturnType<typeof insertThumperRunResult>>>;
+			}
+		) => Promise<void>;
 	}
 ): Promise<ClaimThumperRunOutcome> {
 	return db.transaction(async (tx: DbExecutor) => {
@@ -168,7 +195,7 @@ export async function claimOpenThumperRunForPilot(
 			return { status: 'no_open_run' };
 		}
 
-		const resultPayload = input.buildResult(run, windows);
+		const resultPayload = await input.buildResult(tx, run, windows);
 		const claimResult = await insertThumperRunResult(tx, {
 			thumperRunId: run.id,
 			targetResourceId: resultPayload.targetResourceId,
@@ -181,6 +208,10 @@ export async function claimOpenThumperRunForPilot(
 			explanation: resultPayload.explanation,
 			resolvedAt: input.now
 		});
+
+		if (input.afterResultInserted) {
+			await input.afterResultInserted(tx, { run, windows, claimResult });
+		}
 
 		let reward: ClaimResourceReward | null = null;
 		if (input.grantResourceReward && resultPayload.recoveredQuantity > 0) {

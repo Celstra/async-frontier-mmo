@@ -5,6 +5,7 @@ import type { Db, DbExecutor } from '../client.js';
 import { pilots } from '../schema/pilots.js';
 import { ensureBloomOneResourceInstances } from './resourceInstances.js';
 import { ensureStarterStockpileForPilot } from './starterStockpile.js';
+import { ensureStarterThumperPartsForPilot } from './thumperPartEquipment.js';
 
 export async function getPilotById(db: DbExecutor, pilotId: string) {
 	const [pilot] = await db.select().from(pilots).where(eq(pilots.id, pilotId)).limit(1);
@@ -45,4 +46,5 @@ export async function ensureDemoPilotReady(db: Db) {
 	await ensureDemoPilot(db);
 	await ensureBloomOneResourceInstances(db);
 	await ensureStarterStockpileForPilot(db, DEMO_PILOT_ID);
+	await ensureStarterThumperPartsForPilot(db, DEMO_PILOT_ID);
 }

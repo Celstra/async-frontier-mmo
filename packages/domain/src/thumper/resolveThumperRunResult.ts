@@ -2,6 +2,7 @@ import type { FrameId } from 'shared';
 import type { NamedResourceId } from '../resources/types.js';
 import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
 import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
+import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
 
 export type ThumperRunResolutionType = 'completed' | 'recalled';
@@ -15,6 +16,8 @@ export type ThumperRunConfig = {
 	runSeed?: string;
 	/** Wear already applied before resolution — recall must not erase it (MVP pass-through). */
 	appliedWear?: number;
+	/** From snapshotted thumper parts at deploy (Lesson 6.3). */
+	partModifiers?: ThumperPartRunModifiers;
 };
 
 export type ThumperEventWindowSnapshot = {
@@ -151,9 +154,26 @@ function resolveAnsweredWindows(input: {
 		);
 	}
 
+	const partModifiers = runConfig.partModifiers;
 	const rawRecovered = projectedRecovery - wasteQuantity + frameBonusRecovery;
+	const adjustedRecovered =
+		partModifiers === undefined
+			? rawRecovered
+			: Math.round(rawRecovered * partModifiers.performanceMultiplier) +
+				partModifiers.pumpRecoveryBonus;
 	const floor = applyRecoveryFloor ? (runConfig.recoveryFloor ?? 0) : 0;
-	const recoveredQuantity = Math.max(floor, rawRecovered);
+	const recoveredQuantity = Math.max(floor, adjustedRecovered);
+
+	if (partModifiers && partModifiers.pumpRecoveryBonus > 0) {
+		explanationParts.push(
+			`Pump recovery efficiency bonus +${partModifiers.pumpRecoveryBonus}.`
+		);
+	}
+	if (partModifiers && partModifiers.performanceMultiplier < 1) {
+		explanationParts.push(
+			`Part condition reduced effective recovery (${Math.round(partModifiers.performanceMultiplier * 100)}%).`
+		);
+	}
 
 	if (applyRecoveryFloor && runConfig.recoveryFloor !== undefined && rawRecovered < runConfig.recoveryFloor) {
 		explanationParts.push(

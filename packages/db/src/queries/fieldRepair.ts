@@ -4,17 +4,27 @@ import {
 	applyHullDamageWithoutFieldRepair,
 	applyFieldRepairWithKit,
 	FIELD_REPAIR_KIT,
+	SURVEY_SCANNER_MK_I,
+	isThumperPartSchematic,
 	type FieldRepairOutcome
 } from '@async-frontier-mmo/domain';
 import type { Db, DbExecutor } from '../client.js';
-import { appendEconomyLedgerEntry } from './economyLedger.js';
+import { appendEconomyLedgerEntry, appendItemConditionChangedLedger } from './economyLedger.js';
 import { craftSchematicForPilot, type CraftSchematicInput } from './crafting.js';
 import { items } from '../schema/items.js';
 import { repairActions } from '../schema/repairActions.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
 import { recordThumperEventWindowResponse } from './thumperEventWindows.js';
+import { getRunHullItemForRepair } from './thumperRunParts.js';
 
 const FIELD_REPAIR_KIT_SCHEMATIC_ID = FIELD_REPAIR_KIT.id;
+
+function isRepairKitTargetSchematic(schematicId: string): boolean {
+	if (schematicId === FIELD_REPAIR_KIT_SCHEMATIC_ID) {
+		return false;
+	}
+	return isThumperPartSchematic(schematicId) || schematicId === SURVEY_SCANNER_MK_I.id;
+}
 
 function kitScoresFromItem(propertyScores: Record<string, number>) {
 	return {
@@ -89,8 +99,9 @@ async function insertRepairActionAudit(
 	input: {
 		pilotId: string;
 		repairKitItemId: string;
-		thumperRunId: string;
-		thumperEventWindowIndex: number;
+		targetItemId: string;
+		thumperRunId?: string | null;
+		thumperEventWindowIndex?: number | null;
 		context: string;
 		outcome: FieldRepairOutcome;
 		kitConditionRestoredScore: number;
@@ -102,8 +113,8 @@ async function insertRepairActionAudit(
 		.values({
 			pilotId: input.pilotId,
 			repairKitItemId: input.repairKitItemId,
-			thumperRunId: input.thumperRunId,
-			thumperEventWindowIndex: input.thumperEventWindowIndex,
+			thumperRunId: input.thumperRunId ?? null,
+			thumperEventWindowIndex: input.thumperEventWindowIndex ?? null,
 			context: input.context,
 			conditionBefore: input.outcome.conditionBefore,
 			conditionAfter: input.outcome.conditionAfter,
@@ -122,8 +133,9 @@ async function insertRepairActionAudit(
 			source_type: 'repair_action',
 			source_id: row!.id,
 			repair_kit_item_id: input.repairKitItemId,
-			thumper_run_id: input.thumperRunId,
-			thumper_event_window_index: input.thumperEventWindowIndex,
+			target_item_id: input.targetItemId,
+			thumper_run_id: input.thumperRunId ?? null,
+			thumper_event_window_index: input.thumperEventWindowIndex ?? null,
 			context: input.context
 		}
 	});
@@ -134,7 +146,8 @@ async function insertRepairActionAudit(
 		payload: {
 			source_type: 'repair_action',
 			source_id: row!.id,
-			thumper_run_id: input.thumperRunId,
+			target_item_id: input.targetItemId,
+			thumper_run_id: input.thumperRunId ?? null,
 			condition_before: input.outcome.conditionBefore,
 			condition_after: input.outcome.conditionAfter,
 			integrity_before: input.outcome.integrityBefore,
@@ -143,16 +156,16 @@ async function insertRepairActionAudit(
 		}
 	});
 
-	await appendEconomyLedgerEntry(db, {
-		eventType: 'item_condition_changed',
+	await appendItemConditionChangedLedger(db, {
 		pilotId: input.pilotId,
-		payload: {
-			source_type: 'repair_action',
-			source_id: row!.id,
-			thumper_run_id: input.thumperRunId,
-			condition_delta: input.outcome.conditionAfter - input.outcome.conditionBefore,
-			integrity_delta: input.outcome.integrityAfter - input.outcome.integrityBefore
-		}
+		targetItemId: input.targetItemId,
+		conditionBefore: input.outcome.conditionBefore,
+		conditionAfter: input.outcome.conditionAfter,
+		integrityBefore: input.outcome.integrityBefore,
+		integrityAfter: input.outcome.integrityAfter,
+		sourceType: 'repair_action',
+		sourceId: row!.id,
+		extraPayload: { thumper_run_id: input.thumperRunId ?? null }
 	});
 
 	return row!;
@@ -206,6 +219,11 @@ export async function recordThumperEventWindowResponseForPilot(
 		}
 
 		if (input.chosenResponse === 'field_repair') {
+			const hullItem = await getRunHullItemForRepair(tx, input.thumperRunId);
+			if (!hullItem) {
+				throw new Error('Run hull part snapshot missing for field repair');
+			}
+
 			const kit = await getOldestFieldRepairKitForPilot(tx, input.pilotId);
 			if (!kit) {
 				throw new FieldRepairKitUnavailableError();
@@ -213,8 +231,8 @@ export async function recordThumperEventWindowResponseForPilot(
 
 			const kitScores = kitScoresFromItem(kit.propertyScores);
 			const before = {
-				condition: input.runHullCondition,
-				integrity: input.runHullIntegrity
+				condition: hullItem.condition,
+				integrity: hullItem.integrity
 			};
 			const outcome =
 				input.complication === 'hull_damage'
@@ -226,10 +244,19 @@ export async function recordThumperEventWindowResponseForPilot(
 				throw new FieldRepairKitUnavailableError();
 			}
 
+			await tx
+				.update(items)
+				.set({
+					condition: outcome.conditionAfter,
+					integrity: outcome.integrityAfter
+				})
+				.where(eq(items.id, hullItem.id));
+
 			await updateRunHullDurability(tx, input.thumperRunId, outcome);
 			await insertRepairActionAudit(tx, {
 				pilotId: input.pilotId,
 				repairKitItemId: kit.id,
+				targetItemId: hullItem.id,
 				thumperRunId: input.thumperRunId,
 				thumperEventWindowIndex: input.windowIndex,
 				context: 'field_repair_during_run',
@@ -238,10 +265,43 @@ export async function recordThumperEventWindowResponseForPilot(
 				kitIntegritySafetyScore: kitScores.integritySafety
 			});
 		} else if (input.complication === 'hull_damage' && input.chosenResponse === 'hold') {
-			const afterHold = applyHullDamageWithoutFieldRepair({
-				condition: input.runHullCondition,
-				integrity: input.runHullIntegrity
+			const hullItem = await getRunHullItemForRepair(tx, input.thumperRunId);
+			if (!hullItem) {
+				throw new Error('Run hull part snapshot missing for hull damage');
+			}
+
+			const beforeHold = {
+				condition: hullItem.condition,
+				integrity: hullItem.integrity
+			};
+			const afterHold = applyHullDamageWithoutFieldRepair(beforeHold);
+
+			await tx
+				.update(items)
+				.set({
+					condition: afterHold.condition,
+					integrity: afterHold.integrity
+				})
+				.where(eq(items.id, hullItem.id));
+
+			await appendItemConditionChangedLedger(tx, {
+				pilotId: input.pilotId,
+				targetItemId: hullItem.id,
+				conditionBefore: beforeHold.condition,
+				conditionAfter: afterHold.condition,
+				integrityBefore: beforeHold.integrity,
+				integrityAfter: afterHold.integrity,
+				sourceType: 'thumper_event_response',
+				sourceId: input.thumperRunId,
+				extraPayload: {
+					thumper_run_id: input.thumperRunId,
+					thumper_event_window_index: input.windowIndex,
+					context: 'hull_damage_hold',
+					complication: input.complication,
+					chosen_response: input.chosenResponse
+				}
 			});
+
 			await tx
 				.update(thumperRuns)
 				.set({
@@ -253,6 +313,66 @@ export async function recordThumperEventWindowResponseForPilot(
 
 		const fieldRepairKitCount = await countFieldRepairKitsForPilot(tx, input.pilotId);
 		return { status: 'recorded', fieldRepairKitCount };
+	});
+}
+
+/** Workshop/field repair targeting a thumper part or scanner item. */
+export async function applyRepairKitToItemForPilot(
+	db: Db,
+	input: { pilotId: string; targetItemId: string }
+) {
+	return db.transaction(async (tx) => {
+		const kit = await getOldestFieldRepairKitForPilot(tx, input.pilotId);
+		if (!kit) {
+			return { status: 'no_repair_kit' as const };
+		}
+
+		const [target] = await tx.select().from(items).where(eq(items.id, input.targetItemId)).limit(1);
+		if (!target || target.pilotId !== input.pilotId || target.consumedAt) {
+			return { status: 'invalid_target' as const, reason: 'Repair target not found' };
+		}
+		if (!isRepairKitTargetSchematic(target.schematicId)) {
+			return {
+				status: 'invalid_target' as const,
+				reason: 'Repair kits can only target thumper parts or survey scanners'
+			};
+		}
+
+		const kitScores = kitScoresFromItem(kit.propertyScores);
+		const outcome = applyFieldRepairWithKit(
+			{ condition: target.condition, integrity: target.integrity },
+			kitScores
+		);
+
+		const consumed = await consumeRepairKit(tx, kit.id);
+		if (!consumed) {
+			throw new FieldRepairKitUnavailableError();
+		}
+
+		const [updated] = await tx
+			.update(items)
+			.set({
+				condition: outcome.conditionAfter,
+				integrity: outcome.integrityAfter
+			})
+			.where(eq(items.id, target.id))
+			.returning();
+
+		await insertRepairActionAudit(tx, {
+			pilotId: input.pilotId,
+			repairKitItemId: kit.id,
+			targetItemId: target.id,
+			context: 'workshop_repair',
+			outcome,
+			kitConditionRestoredScore: kitScores.conditionRestored,
+			kitIntegritySafetyScore: kitScores.integritySafety
+		});
+
+		return {
+			status: 'repaired' as const,
+			item: updated!,
+			fieldRepairKitCount: await countFieldRepairKitsForPilot(tx, input.pilotId)
+		};
 	});
 }
 

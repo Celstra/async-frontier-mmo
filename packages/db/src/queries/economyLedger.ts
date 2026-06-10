@@ -37,6 +37,35 @@ export async function appendEconomyLedgerEntry(
 	return entry!;
 }
 
+/** Decision 012 — every condition/integrity mutation is ledger-visible. */
+export async function appendItemConditionChangedLedger(
+	db: DbExecutor,
+	input: {
+		pilotId: string;
+		targetItemId: string;
+		conditionBefore: number;
+		conditionAfter: number;
+		integrityBefore: number;
+		integrityAfter: number;
+		sourceType: string;
+		sourceId?: string | null;
+		extraPayload?: Record<string, unknown>;
+	}
+) {
+	await appendEconomyLedgerEntry(db, {
+		eventType: 'item_condition_changed',
+		pilotId: input.pilotId,
+		payload: {
+			source_type: input.sourceType,
+			source_id: input.sourceId ?? null,
+			target_item_id: input.targetItemId,
+			condition_delta: input.conditionAfter - input.conditionBefore,
+			integrity_delta: input.integrityAfter - input.integrityBefore,
+			...input.extraPayload
+		}
+	});
+}
+
 export async function listEconomyLedgerEntriesForPilot(db: DbExecutor, pilotId: string) {
 	return db
 		.select()
