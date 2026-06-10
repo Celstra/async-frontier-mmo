@@ -92,6 +92,13 @@
       "when": 1782000000000,
       "tag": "0012_pilot_starter_stockpile_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0013_pilot_equipped_scanner",
+      "breakpoints": true
     }
   ]
 }

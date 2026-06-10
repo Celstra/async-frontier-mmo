@@ -10,6 +10,13 @@ export {
 export { ensureDemoPilot, ensureDemoPilotReady, getPilotById, getPilotFrame } from './queries/pilots.js';
 export { listPilotResourceStacksWithInstances } from './queries/pilotInventory.js';
 export { consumeResourceFromPilotTx, InsufficientResourceError } from './queries/resourceConsumes.js';
+export {
+	equipScannerItemForPilot,
+	EquipValidationError,
+	getEquippedScannerForPilot,
+	listScannerItemsForPilot,
+	type EquipScannerOutcome
+} from './queries/scannerEquipment.js';
 export { ensureStarterStockpileForPilot, hasStarterStockpileGrant } from './queries/starterStockpile.js';
 export { craftingAttempts, type CraftSlotSelection } from './schema/craftingAttempts.js';
 export { items, type CraftSlotProvenance } from './schema/items.js';

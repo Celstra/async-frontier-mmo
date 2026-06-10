@@ -2,6 +2,7 @@ import type { ResourceStatCode } from 'shared';
 import { getRedMesaResource } from '../resources/redMesaBloom.js';
 import type { NamedResourceId } from '../resources/types.js';
 import { getStatBand } from './statBand.js';
+import { applySurveyClarityToResult, type SurveyScannerEquipment } from './surveyClarity.js';
 import type { RedMesaSurveyResult, SurveySignal, SurveyStatHint } from './types.js';
 
 const FIRST_SESSION_SIGNAL_IDS = [
@@ -48,11 +49,25 @@ function buildSignal(resourceId: (typeof FIRST_SESSION_SIGNAL_IDS)[number]): Sur
 	};
 }
 
-/** First-session onboarding survey — deterministic, Decision 011. */
-export function surveyRedMesaFirstSession(): RedMesaSurveyResult {
+function buildFirstSessionSurveyBase(): RedMesaSurveyResult {
 	return {
 		regionId: 'red_mesa',
 		signals: FIRST_SESSION_SIGNAL_IDS.map(buildSignal),
 		recommendedResourceId: RECOMMENDED_RESOURCE_ID
 	};
+}
+
+/**
+ * First-session onboarding survey — deterministic, Decision 011.
+ * Optional equipped scanner improves information quality (bands → exact values), not resource stats.
+ */
+export function surveyRedMesaFirstSession(
+	equipment?: SurveyScannerEquipment | null
+): RedMesaSurveyResult {
+	const base = buildFirstSessionSurveyBase();
+	if (!equipment || equipment.surveyClarityScore <= 0) {
+		return base;
+	}
+
+	return applySurveyClarityToResult(base, equipment.surveyClarityScore);
 }

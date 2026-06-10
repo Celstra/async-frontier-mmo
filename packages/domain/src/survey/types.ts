@@ -5,6 +5,8 @@ import type { StatBand } from './statBand.js';
 export type SurveyStatHint = {
 	stat: ResourceStatCode;
 	band: StatBand;
+	/** Present when an equipped scanner's Survey Clarity reveals exact internal values. */
+	exactValue?: number;
 };
 
 export type SurveySignal = {

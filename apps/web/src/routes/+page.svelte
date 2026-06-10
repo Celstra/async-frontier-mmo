@@ -26,6 +26,10 @@
 	const claimReward = $derived(form?.reward ?? null);
 	const craftContext = $derived(form?.craftContext ?? data.craftContext);
 	const craftOutcome = $derived(form?.craftOutcome ?? null);
+	const scannerItems = $derived(form?.scannerItems ?? data.scannerItems ?? []);
+	const equippedScanner = $derived(form?.equippedScanner ?? data.equippedScanner ?? null);
+	const equipOutcome = $derived(form?.equipOutcome ?? null);
+	const survey = $derived(form?.survey ?? data.survey);
 
 	function stacksForFamily(family: string) {
 		return craftContext?.inventory.filter((stack) => stack.family === family) ?? [];
@@ -101,14 +105,34 @@
 <h1>Welcome to SvelteKit</h1>
 <p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
 
-{#if data.survey && !thumperDemo}
+{#if survey && !thumperDemo}
 	<h2>Red Mesa survey (first session)</h2>
+	{#if equippedScanner}
+		<p>
+			<small>
+				Equipped: {equippedScanner.displayName} — Survey Clarity {equippedScanner.surveyClarityScore}
+				(clearer stat readouts)
+			</small>
+		</p>
+	{:else}
+		<p><small>Basic Scanner Mk 0 — stat bands only until you equip a crafted scanner.</small></p>
+	{/if}
 	<ul>
-		{#each data.survey.signals as signal}
+		{#each survey.signals as signal}
 			<li>
 				<strong>{signal.displayName}</strong>
 				{#if signal.recommended}(recommended){/if}
 				— {signal.teachingNote}
+				<ul>
+					{#each signal.statHints as hint}
+						<li>
+							{hint.stat}: {hint.band}
+							{#if hint.exactValue !== undefined}
+								(exact {hint.exactValue})
+							{/if}
+						</li>
+					{/each}
+				</ul>
 			</li>
 		{/each}
 	</ul>
@@ -116,7 +140,7 @@
 	<form method="POST" action="?/deploy">
 		<fieldset>
 			<legend>Deploy thumper on signal</legend>
-			{#each data.survey.signals as signal}
+			{#each survey.signals as signal}
 				<label>
 					<input
 						type="radio"
@@ -270,6 +294,32 @@
 
 		<button type="submit">Craft scanner</button>
 	</form>
+{/if}
+
+{#if scannerItems.length > 0}
+	<h3>Survey scanners</h3>
+	<ul>
+		{#each scannerItems as scanner}
+			<li>
+				{scanner.displayName} — Survey Clarity {scanner.surveyClarity}
+				{#if scanner.equipped}
+					<strong>(equipped)</strong>
+				{:else}
+					<form method="POST" action="?/equipScanner" style="display: inline">
+						<input type="hidden" name="itemId" value={scanner.id} />
+						<button type="submit">Equip</button>
+					</form>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/if}
+
+{#if equipOutcome}
+	<p>
+		<strong>Equipped {equipOutcome.displayName}</strong> — Survey Clarity {equipOutcome.surveyClarity}.
+		Re-read the survey above for clearer hints.
+	</p>
 {/if}
 
 {#if craftOutcome}

@@ -58,6 +58,11 @@ export {
 	RED_MESA_BLOOM_RESOURCES
 } from './resources/redMesaBloom';
 export { surveyRedMesaFirstSession } from './survey/redMesaSurvey';
+export {
+	applySurveyClarityToResult,
+	exactStatHintCountForSurveyClarity
+} from './survey/surveyClarity.js';
+export type { SurveyScannerEquipment } from './survey/surveyClarity.js';
 export { getStatBand } from './survey/statBand';
 export type { RedMesaSurveyResult, SurveySignal, SurveyStatHint } from './survey/types';
 export type { StatBand } from './survey/statBand';

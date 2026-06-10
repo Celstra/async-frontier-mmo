@@ -5,7 +5,10 @@ import {
 	createDb,
 	deployThumperRunWithEventWindows,
 	ensureDemoPilotReady,
+	equipScannerItemForPilot,
+	getEquippedScannerForPilot,
 	getLatestThumperRunForPilot,
+	listScannerItemsForPilot,
 	getOpenThumperRunForPilot,
 	getPilotFrame,
 	getThumperEventWindowsForRun,
@@ -196,6 +199,32 @@ function parseSlotInstanceId(
 	return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+async function loadSurveyContext(db: ReturnType<typeof getDb>, pilotId: string) {
+	const equippedScanner = await getEquippedScannerForPilot(db, pilotId);
+	const surveyClarityScore = equippedScanner?.propertyScores.survey_clarity ?? 0;
+	const survey = surveyRedMesaFirstSession(
+		surveyClarityScore > 0 ? { surveyClarityScore } : undefined
+	);
+	const scannerItems = await listScannerItemsForPilot(db, pilotId);
+
+	return {
+		survey,
+		scannerItems: scannerItems.map((item) => ({
+			id: item.id,
+			displayName: item.displayName,
+			surveyClarity: item.propertyScores.survey_clarity ?? 0,
+			equipped: equippedScanner?.id === item.id
+		})),
+		equippedScanner: equippedScanner
+			? {
+					itemId: equippedScanner.id,
+					displayName: equippedScanner.displayName,
+					surveyClarityScore
+				}
+			: null
+	};
+}
+
 async function loadCraftContext(db: ReturnType<typeof getDb>, pilotId: string) {
 	const inventory = await listPilotResourceStacksWithInstances(db, pilotId);
 
@@ -232,10 +261,10 @@ async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
 }
 
 export const load: PageServerLoad = async () => {
-	const survey = surveyRedMesaFirstSession();
 	const db = getDb();
 	await ensureDemoPilotReady(db);
 	const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
+	const surveyContext = await loadSurveyContext(db, DEMO_PILOT_ID);
 	const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
 	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 		db,
@@ -248,18 +277,18 @@ export const load: PageServerLoad = async () => {
 		return {
 			thumperDemo: null,
 			loadedAt: null,
-			survey,
 			openRun: null,
 			eventWindows: [],
 			runReadyToResolve: false,
 			pilotFrame,
 			hasCompletedTutorial,
-			craftContext
+			craftContext,
+			...surveyContext
 		};
 	}
 
 	const state = await loadOpenRunState(db, run);
-	return { survey, pilotFrame, hasCompletedTutorial, craftContext, ...state };
+	return { pilotFrame, hasCompletedTutorial, craftContext, ...surveyContext, ...state };
 };
 
 export const actions: Actions = {
@@ -464,6 +493,7 @@ export const actions: Actions = {
 		}
 
 		const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
+		const surveyContext = await loadSurveyContext(db, DEMO_PILOT_ID);
 
 		return {
 			craftOutcome: {
@@ -471,7 +501,39 @@ export const actions: Actions = {
 				item: outcome.item,
 				explanation: outcome.explanation
 			},
-			craftContext
+			craftContext,
+			...surveyContext
+		};
+	},
+
+	equipScanner: async ({ request }) => {
+		const db = getDb();
+		await ensureDemoPilotReady(db);
+
+		const formData = await request.formData();
+		const itemId = formData.get('itemId');
+		if (typeof itemId !== 'string' || itemId.length === 0) {
+			return fail(400, { message: 'Missing scanner item' });
+		}
+
+		const outcome = await equipScannerItemForPilot(db, {
+			pilotId: DEMO_PILOT_ID,
+			itemId
+		});
+
+		if (outcome.status === 'invalid') {
+			return fail(400, { message: outcome.reason });
+		}
+
+		const surveyContext = await loadSurveyContext(db, DEMO_PILOT_ID);
+
+		return {
+			equipOutcome: {
+				itemId: outcome.item.id,
+				displayName: outcome.item.displayName,
+				surveyClarity: outcome.item.propertyScores.survey_clarity ?? 0
+			},
+			...surveyContext
 		};
 	}
 };
