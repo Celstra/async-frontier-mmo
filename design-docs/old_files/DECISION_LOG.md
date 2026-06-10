@@ -55,7 +55,7 @@ The MVP exists to answer one question:
 
 **Status:** Locked.
 
-`PLAYER_FACING_ROADMAP.md` is no longer treated as a player-facing promise document. It becomes an internal layered feature backlog/test bed.
+`PLAYER_FACING_ROADMAP.md` is no longer treated as a player-facing promise document. It becomes an internal layered feature backlog/test bed. In this reviewed package, the legacy alias is preserved as `legacy/PLAYER_FACING_ROADMAP_LEGACY_ALIAS.md`.
 
 Every candidate feature must answer:
 
@@ -756,8 +756,6 @@ Those are future layers. The MVP data model exists to prove the toy and protect 
 
 ---
 
----
-
 ## Decision 013 — MVP Success Metrics and Playtest Instrumentation
 
 **Status:** Locked.
@@ -1117,284 +1115,86 @@ No broad MMO infrastructure until the tiny toy proves itself.
 
 ---
 
----
-
 
 ## Decision 015 — MVP Definition of Done and Scope Freeze
 
 **Status:** Locked.
 
-Decision 015 is the final MVP seal.
+Decisions 001–014 define the MVP content. Decision 015 freezes that scope and defines what counts as MVP completion.
 
-Decisions 001–014 now define the MVP. The MVP is not everything the game may become; it is the smallest playable extraction-crafting toy that can prove whether the design deserves expansion.
+The MVP is not everything the game may become. The MVP is complete when a tiny prototype proves that the core toy is understandable, repeatable, auditable, and worth expanding.
 
-### Definition of Done
+### MVP completion checklist
 
-The MVP is complete when all of the following are true:
+The MVP is complete only when all of the following are true:
 
 1. **Playable loop complete.** A player can choose a frame, survey Red Mesa, compare named resources, deploy a personal thumper, resolve event windows, claim a named resource, craft through named-resource slots + property preview + 3 tuning points, equip or repair, and run a clearer second survey.
-2. **Locked content exists.** The prototype includes 1 region, 3 frames, 3 resource families, 6 named resources, 5 stats, 3 thumper component slots, 4 event actions, 4 complication types, 5 recipes, and 6 primary screens.
-3. **Crafting proves actual thinking.** The player sees resource stats, schematic weights, output property preview, 3 tuning points, craft mode, and result explanation.
-4. **Resource primacy holds.** Resource stat fit sets the base value and practical ceiling; tuning expresses and prioritizes that value but never upgrades or mutates the resource.
-5. **Economy is auditable.** Every resource, craft, item, wear event, and repair action can be explained afterward through the Decision 012 records and economy ledger.
-6. **Playtest evidence exists.** Decision 013 evidence is collected for first-session funnel, comprehension, voluntary repeat behavior, event-action comprehension, durability/repair trust, ledger correctness, and friction/confusion notes.
-7. **Prototype ladder has been followed.** The project follows Decision 014 before broader MMO implementation.
+2. **Locked content exists.** The prototype includes the locked Red Mesa region, 3 frames, 3 resource families, 6 named resources, 5 stats, 3 thumper component slots, 4 event actions, 4 complication types, 5 recipes, and 6 primary screens.
+3. **Crafting proves actual thinking.** The player can see resource stats → schematic weights → output property preview → 3 tuning points → Safe Craft / Careful Experiment → result explanation.
+4. **Resource primacy holds.** Resource quality/stat fit remains the primary power source and practical ceiling; tuning expresses and prioritizes that potential but does not upgrade, mutate, or launder the underlying named resource.
+5. **Economy is auditable.** Every resource grant/consume, crafted item, thumper result, condition/integrity change, and repair action can be explained after the fact through the Decision 012 records and economy ledger.
+6. **Playtest evidence exists.** The prototype produces Decision 013 evidence for first-session funnel, resource/crafting comprehension, voluntary repeat behavior, event-action comprehension, durability/repair trust, economy-ledger correctness, and friction/confusion points.
+7. **Prototype ladder has been followed.** The project progresses through the Decision 014 ladder before broader MMO implementation: paper/spreadsheet economy prototype → text-only loop → clickable single-player vertical slice → instrumented playtest → presentation pass → production-point review.
+
+The strongest MVP success signal is:
+
+```text
+The player crafts Survey Scanner Module Mk I,
+sees the second survey improve,
+and wants to continue planning the next survey/thumper/craft loop.
+```
 
 ### Scope-freeze rule
 
-New ideas do not enter MVP scope unless they:
+New ideas do not enter MVP scope unless they meet at least one of these criteria:
 
-1. fix a contradiction in a locked decision;
-2. unblock the prototype ladder;
-3. improve comprehension of the locked toy;
-4. protect resource/crafting/economy trust;
-5. are required for Decision 013 playtest evidence.
+1. They fix a contradiction in a locked decision.
+2. They unblock the Decision 014 prototype ladder.
+3. They improve comprehension of the locked toy.
+4. They protect resource/crafting/economy trust.
+5. They are required for Decision 013 playtest evidence.
 
-Otherwise, they go to the Layered Feature Backlog.
+Otherwise, new ideas go to `LAYERED_FEATURE_BACKLOG.md`.
 
-### Explicit MVP exclusions
+### MVP exclusions remain locked
 
-The MVP still excludes marketplace, player-to-player trade, chat, guilds, settlements, public helper boards, group thumpers, contracts, multiple regions, advanced refining, Chemical Purity, separators, factories, batch crafting, weapons, armor suits, PvP, realtime combat, monetization, mobile wrapper, broad MMO infrastructure, and a large content pipeline.
+The following remain outside MVP scope:
+
+- marketplace;
+- player-to-player trade;
+- chat;
+- guilds;
+- settlements;
+- public helper boards;
+- group thumpers;
+- contracts;
+- multiple regions;
+- advanced refining;
+- Chemical Purity;
+- separators;
+- factories;
+- batch crafting;
+- weapons;
+- armor suits;
+- PvP;
+- realtime combat;
+- monetization;
+- mobile app wrapper;
+- broad MMO infrastructure;
+- large content pipeline.
 
 ### Final MVP state
 
-The MVP is defined. Further work should move into the Decision 014 prototype ladder unless a proposed change satisfies the scope-freeze rule.
-
----
-
-## Decision 016 — Stage 1 Paper-Test Amendments to Decision 010 Weights
-
-**Status:** Locked (2026-06-09, at Ryan's direction following Stage 1 review: "items need different stats"). Qualified under scope-change rule #1 (fixed a contradiction between locked decisions).
-
-The Decision 014 Stage 1 paper/spreadsheet prototype was executed (see `BUILD_PLAN.md`, Part C). All five recipes were run against all valid combinations of the six locked Red Mesa Bloom resources.
-
-### Contradiction found
-
-Decision 006 locks Thornwake Crystal's identity as "one great stat and one terrible stat; tempting but risky." Under Decision 010's locked weights, **Thornwake never wins**: in 60 of 60 property comparisons, swapping Thornwake for Pale Ember Crystal produces an equal or better result. The cause is structural: Thornwake's great stat is Conductivity (910), but no Reactive Crystal slot in any recipe reads Conductivity — every RC slot reads Heat Resistance or OQ, Thornwake's weak stats. Thornwake is strictly dominated, contradicting Decision 006's locked stat personality.
-
-A second weakness: Field Repair Kit's "Condition Restored" and "Integrity Safety" are computed from the same three stats in near-identical proportions (correlation +1.00 across all combos), so the Control Filament and Reactive Binder slots have no effect on Integrity Safety and tuning between those two lines is a non-choice.
-
-### Proposed amendments
-
-**Amendment A — Survey Scanner Module Mk I, Survey Clarity:**
-
-```text
-WAS: 60% Conductive Core Conductivity + 25% Crystal Lens OQ              + 15% average OQ
-NOW: 60% Conductive Core Conductivity + 25% Crystal Lens Conductivity   + 15% average OQ
-```
-
-Paper-verified effect: Thornwake becomes the best Survey Clarity lens (89.0 Exceptional vs 79.8 Strong with Pale Ember) while remaining clearly worse on Stat Hint Accuracy (66.8 vs 87.5) and Signal Range (70.4 vs 87.8). Thornwake is now genuinely tempting but risky — exactly the Decision 006 intent — and the choice appears in the first survey's teaching set (Keth Iron / Veyrith Copper / Thornwake Crystal).
-
-**Amendment B — Field Repair Kit, Integrity Safety:**
-
-```text
-WAS: 40% Patch Alloy Malleability + 30% Patch Alloy Hardness        + 30% average OQ
-NOW: 40% Patch Alloy Hardness     + 30% Reactive Binder Heat Resist. + 30% average OQ
-```
-
-Paper-verified effect: Condition Restored ↔ Integrity Safety correlation drops from +1.00 to +0.51, and the Reactive Binder slot now matters for Integrity Safety, making binder choice and tuning allocation real decisions.
-
-Decision 003's MVP substitution formulas update accordingly if locked. All other Decision 010 weights are unchanged; all other Stage 1 checks passed without amendment.
-
----
-## Decision 017 (REVISED) — MVP Time Model: Hybrid Active-Phase + Chosen Extraction Tail
-
-**Status:** Locked (2026-06-10, per Ryan: "Yeah I think this sounds good. For an MVP."). Reward-curve note: active players SHOULD out-earn casuals — the target band is **~2–3:1 net, never ~10:1** — and the edge must come from prospecting skill and attention, not raw repetition. Retuned simulation lands at 2.3:1 (casual 1.5 crafts/day, active 3.5).
-
-### The problem, quantified
-
-`run_duration_sim.py` modeled three time models across three player archetypes (Casual 12 min/day, Regular 35, Active 100) over 14 days, with wear sinks, prospecting, and deposit depletion:
-
-| Model | Active:Casual net ratio | Casual crafts/day | Active time usable | Verdict |
-|---|---|---|---|---|
-| A — short runs only (4 min, unlimited) | **8.8 : 1** | 0.61 | 99% | Inflationary: active players out-earn casuals ~9× — exactly the "timers too short" risk |
-| B — Farm RPG long timer only (4 h) | 2.5 : 1 | 1.04 | **10%** | Economy healthy but an active player's hour has nothing in it — the tedium risk |
-| C — hybrid (below, retuned) | **2.3 : 1** | 1.52 | ~70% | In the target reward band; decision-dense active play; self-balancing sink (9%→20% with run frequency) |
-
-### Proposed model (C)
-
-```text
-A thumper run = short ACTIVE PHASE + player-chosen PASSIVE EXTRACTION TAIL.
-
-Active phase (~3–5 min, foreground, no mandatory waiting):
-  prospect the signal (0–3 sample cycles) → deploy → resolve event windows.
-
-Extraction tail (player picks at deploy): 15 min / 1 h / 4 h / 8 h.
-  Yield is sublinear in tail length (≈ duration^0.5), so:
-  short tails = best units/hour but more wear per unit (active replay style);
-  long tails = best units/login (Farm RPG crop style).
-
-One pilot = one thumper = one concurrent run. Claim on return; absence
-resolves on return via Decision 005 conservative defaults. No jobs.
-```
-
-There is deliberately **no single run length**: the active phase is fixed-short for everyone; the tail is the player's time-budget statement. Active players replay short tails and pay a rising wear share (sink grows from 12% of gross at casual pace to 31% at spam pace — the anti-inflation valve is the repair economy itself, which also feeds crafting demand). Casual players get Farm RPG check-in satisfaction without being out-earned 9:1.
-
-### Costing rule for 1-player-1-thumper
-
-SWG balanced around fleets of harvesters; we balance around one thumper. Recipe input quantities are expressed in **claims, not units: ~2 typical casual claims ≈ 1 craft** (prototype: recipe ≈ 120 units, repair kit ≈ 60, 1 h tail ≈ 45 units at concentration 1.0). At these numbers a casual player affords ~1.2 crafts/day and an active player ~2.1 — progression every session for everyone, surplus for nobody. All values are knobs in `run_duration_sim.py`.
-
----
-
-## Decision 018 — Seeded Random Bloom Variance in MVP
-
-**Status:** Locked (2026-06-09, at Ryan's direction: "rotating resources are where the fun is... we need to change it"). Qualifies under scope-change rules #3 (improves comprehension of the locked toy) and #4 (protects resource/crafting/economy trust).
-
-### Verified SWG grounding
-
-Research confirmed the scarcity mechanics Ryan described: SWG resource stats were selected at random per spawn within class-specific lower/upper caps; resource lifetimes were random within fixed ranges (6–11 days inorganic, 6–22 organic); each resource carried a forever-unique name; and once despawned, a resource never returned. High-quality spawns were therefore rare events by construction, many rotations were mediocre, and that variance powered stockpiling, speculation, and the crafting market. Schematic pickiness ("a schematic is king") meant a resource's value depended on stat *fit*, not raw numbers.
-
-### What enters the MVP
-
-The MVP gains a **seeded random bloom generator** — a pure domain function, not a scheduler:
-
-1. **Family stat caps.** Each resource family defines min/max caps per stat (prototype values in `BUILD_PLAN.md` Part C; the locked Decision 006 bloom must be a valid roll within them). Stats roll uniformly within caps; the distribution is a tuning knob.
-2. **Bloom = 6 rolled resources** (2 per family), each with a generated unique name and immutable stats, stamped with a bloom id.
-3. **Manual rotation only.** Rotating the bloom is an explicit action (admin/dev button or playtest reset), replacing Decision 006's "manually reset between tests." No jobs, timers, or 7-day scheduler in MVP — the timed rotation remains a deferred layer that becomes trivial once this generator exists.
-4. **Extinction and provenance.** When a bloom rotates, its resources stop spawning forever. Already-claimed stacks persist with full provenance, so stockpiling across rotations works from day one.
-5. **First-session bloom stays seeded.** The locked Decision 006/010 bloom is bloom #1, preserving the Decision 011 onboarding script exactly. Random blooms begin at the first rotation.
-6. **No orphan signature stats.** Every family's signature stat (CM Conductivity, SA Hardness, RC Heat Resistance) must be readable by at least one live schematic (true after Decision 016). Display stats with zero weight in every schematic are visually de-emphasized in survey/crafting UI so big-but-unreadable numbers cannot mislead (the Thornwake lesson, generalized).
-
-### Monte Carlo evidence (10,000 random blooms, Decision 016 weights)
-
-- Best achievable craft per bloom: median 82.7 (Strong), p10 73.0, p90 89.9 — a natural quality gradient.
-- Exciting blooms (an Excellent craft possible): 35.3%. Mediocre blooms (nothing above Solid): 5.4%. Floor blooms (nothing above Basic): 0.03% — no bad-session risk requiring artificial floors.
-- "Veyrith-tier" Conductive Metal (Cond ≥900 and OQ ≥800): ~1 in 17 blooms — at a future 7-day cadence, roughly three appearances per year, matching the SWG scarcity feel.
-- Resource choice survives mediocrity: best-vs-worst combo gap averages 15.4 points (a full output band) even on mediocre blooms.
-- The locked first bloom ranks in the top ~17% of scanner blooms: a generous but honest tutorial.
-
-### Why this strengthens the toy
-
-The bloom question — "is this bloom worth thumping hard, or do I save kits and stockpile for the next one?" — is the core SWG decision, and it now exists in the MVP at near-zero infrastructure cost. It also lets Stage 4 playtests answer whether mediocre-bloom sessions stay fun, which a single fixed bloom can never test.
-
----
-
-## Decision 019 — Prospecting and Concentration (the SWG survey hunt)
-
-**Status:** Locked (2026-06-10, per Ryan, with his refined flow below). Qualifies under scope-change rule #3 (the MVP question is "is surveying fun," and without this, survey is a menu read, not a hunt).
-
-### Verified SWG grounding
-
-The SWG survey loop was iterative: the survey tool showed a grid of concentration percentages with a waypoint toward the highest; players moved, rescanned, and sampled, and concentration directly multiplied extraction rate (~66–67% concentration = base rate). Sample yields scaled with skill and concentration, and samples were how crafters first obtained and inspected a resource. Critically, concentration topology was itself random: each spawn had a random number of concentration peaks, each with a random maximum — and ceilings varied widely by class (some spawns peaked in the 90s, others never exceeded the 60s–70s). Finding the spot was the gameplay.
-
-### Locked MVP flow (Ryan, 2026-06-10)
-
-```text
-1. I need a metal for a recipe → scan by FAMILY → list of this rotation's
-   resources in that family (two in MVP).
-2. Pick one → concentration scan → candidate deposit spots appear.
-3. Move to a spot and SAMPLE. The first sample on a resource:
-   (a) yields a small amount of the resource itself, and
-   (b) reveals its five stats for the first time.
-   Stats are HIDDEN until first sample — surveying tells you what exists;
-   sampling tells you what it's made of.
-4. If I like it, keep hunting toward the ceiling — or take a mid-grade
-   spot and just get started. My call, with tradeoffs.
-5. Deploy on the chosen spot: concentration multiplies extraction rate
-   (~0.5×–1.5×). Spots hold finite units.
-```
-
-### Guardrails and tradeoffs
-
-- **No infinite surveying.** Scans and samples spend regenerating survey energy (the Farm RPG "explore" pattern), so hunting the ceiling is an active-time investment, not a free reroll loop.
-- **Searching degrades gear.** Sampling and scanning wear the Survey Scanner's Condition — time spent hunting is paid for in the repair economy, which feeds crafting demand.
-- **The rotation's range is hinted, the ceiling is earned.** Each resource rolls a concentration range at spawn (per Decision 018's generator, e.g. "30–67% this cycle"); the UI shows the rolled range so players can judge whether hunting is worth it, but the actual peak spot must be found by sampling, never read off a screen.
-- **Scanner value deepens.** Survey Clarity tightens concentration estimates and reduces sampling energy waste, so the crafted-gear payoff improves both what you see and where you dig.
-- Sampling's micro-yield is real but small — enough to feel like SWG hand-sampling, never a substitute for thumping.
-
-Learning-path impact: one domain lesson (spots, sampling, energy, stat-reveal) plus extensions to the Survey and Signal Detail screens; stats-hidden-until-sampled also changes the tutorial's first-survey script (the three teaching signals start as family + concentration hints, and sampling Veyrith Copper is the first "wow" moment).
-
----
-
-## Decision 020 — Staggered Random Resource Lifetimes (no predictable rotation)
-
-**Status:** Locked (2026-06-10, per Ryan: a fixed global rotation is "too predictable"). Refines Decision 018; MVP impact is two generator fields (`lifespan_days`, `concentration_range`).
-
-Verified SWG grounding: resource lifetimes were random within fixed ranges (6–11 days inorganic, 6–22 organic), shifts rolled continuously through the day rather than on a global schedule, and despawned resources never returned. A fixed 7-day all-at-once rotation is therefore both un-SWG and, as Ryan notes, too predictable — players would time the market around it.
-
-Locked: each resource rolls an independent hidden lifespan (e.g., uniform 3–9 days) at spawn; resources expire and are replaced individually, so the bloom is a **rolling window** — always partly fresh, never wholly predictable, and "this Veyrith-tier copper could vanish tomorrow" becomes real stockpiling pressure. Each resource also rolls its **concentration range** at spawn (SWG-verified: random peaks with random maxima, ceilings varying widely by class) — consumed by Decision 019's range hint. In MVP, manual rotation stays (Decision 018), but the generator stamps both fields now so the future scheduler is a data read, not a migration.
-
----
-
----
-
-## Decision 021 — Class-Call Slots, Family Read Diversity, and the Nine-Resource Bloom
-
-**Status:** Locked (2026-06-10, per Ryan's pre-authorization: "Feel free to unlock earlier decisions... if 5 resources is not enough to truly test toy then we need to up the resources slightly... Then lock and update docs."). Amends Decisions 006, 010, and 011.
-
-### Verified SWG grounding
-
-Schematics specified resources at mixed generality — a real example, the Manufacturing Mechanism, required 100 Low-Grade Ore + 100 Chemical + 100 Non-Ferrous Metal + 150 Steel, and a resource satisfied any slot that listed it specifically or any of its containing categories (Lubricating Oil ⊂ Inert Petrochemical ⊂ Chemical ⊂ Inorganic). Quality-insensitivity was also explicit ("Low Quality Schematic — any resource quality works"); bulk professions like Architect ran on high-concentration low-quality resources, and recyclers existed to mass-combine scraps. Survey hardware: separate devices per category plus a Complete Resource Survey Tool that did all of them, with the resource chosen from a tree inside the tool.
-
-Ryan's description of the fun is therefore exact: you didn't hunt "Verlan metal" — you read the schematic's class call, scanned that category, found 3–4 live candidates, and decided **which resource to spend on which recipe** based on stat fit. That allocation decision is the crafting game.
-
-### The gap this fixes
-
-Our slots already call families (the right generality), but the audit showed the allocation decision could not exist: every Conductive Metal slot in all five recipes read **Conductivity** — one best copper for everything, forever. And the locked SA pair was strictly dominated (Asterion ≥ Keth on every read stat).
-
-### A. Family read diversification (amends Decision 010)
-
-```text
-Pump — Field Stability:
-  WAS: 45% Flow Crystal HR + 35% Intake CONDUCTIVITY + 20% avg OQ
-  NOW: 45% Flow Crystal HR + 35% Intake MALLEABILITY + 20% avg OQ
-
-Field Repair Kit — Field Reliability:
-  WAS: 45% Binder HR + 35% Filament CONDUCTIVITY + 20% avg OQ
-  NOW: 45% Binder HR + 35% Filament HEAT RESISTANCE + 20% avg OQ
-```
-
-CM now reads Conductivity, Malleability, and Heat Resistance across the recipe set (orphan stats drop from 7 to 5 family-stat combinations; every family has ≥2 direct reads). A high-Cond/low-Mall copper is now a scanner copper, not a pump copper.
-
-### B. Nine-resource seed bloom (amends Decision 006)
-
-Three resources per family, alive simultaneously, rotating individually per Decision 020. Three new locked seed resources:
-
-| Resource | Family | OQ | Cond | Hard | HR | Mall | Role |
-|---|---|---|---|---|---|---|---|
-| Sorrel Vein Copper | CM | 560 | 640 | 210 | 430 | 760 | the pump copper (Malleability) |
-| Bendrel Ridge Alloy | SA | 610 | 150 | 430 | 330 | 880 | the flexible alloy (Malleability slots) |
-| Glimmerfall Shard | RC | 800 | 680 | 300 | 640 | 210 | the OQ-filler crystal (lifts every avg-OQ term; cheap) |
-
-Slot-winner check on the seed bloom: Veyrith wins scanner/drill/recovery contexts, Sorrel wins stability intakes, Slag wins repair filaments (HR 720), Asterion wins hardness slots, Bendrel wins malleability slots, Pale Ember wins HR slots, Thornwake wins the clarity lens. **Keth Iron and Glimmerfall Shard intentionally win no stat contest** — they are the bulk archetypes (below).
-
-### C. Quantity/quality axis (per-resource concentration ranges + per-recipe input quantities)
-
-Each seed resource's rolled concentration range expresses scarcity — bulk resources are easy to mass, prizes are not:
-
-```text
-Keth Iron 55–95% · Slag 50–90% · Glimmerfall 45–80% · Sorrel 40–75% ·
-Bendrel 35–70% · Pale Ember 30–65% · Asterion 25–55% · Thornwake 25–55% ·
-Veyrith 20–50%
-```
-
-Recipe input quantities differ (prototype, in Decision 017 claim-units): Hull Plate is bulk-heavy (60 Outer + 40 Bracing + 20 Bonding); Drill and Pump are 40/40/40; Scanner is quality-light (30/30/30); Repair Kit 25/20/15. "Do I spend scarce Asterion on a hull, or accept a Keth hull at Solid?" is now a real decision even where Asterion is stat-better — the SWG Architect lesson.
-
-### D. One scanner, choose family
-
-MVP uses a single survey scanner with a family selector (the Complete Tool model). Family-specialized scanner variants are a backlog layer.
-
-### Amendment to Decision 011 (tutorial)
-
-With Decision 019's stats-hidden-until-sampled and family scanning, the first session becomes: the scanner recipe calls for a Conductive Metal core → scan the CM family → three signals (Slag / Sorrel / Veyrith) with concentration hints → sample two → Veyrith's stat reveal is the "wow" moment → deploy on Veyrith. The within-family comparison is now taught directly; Thornwake's tempting-trap lesson moves to the Crystal Lens slot choice at the crafting screen.
-
-### Simulation evidence
-
-Monte Carlo (8,000 random blooms, 3 per family, 016+021 weights): median best craft 86.1; exciting blooms 58.2%; mediocre 0.8%; floor 0.00%; and **a CM allocation decision (different coppers winning scanner vs pump vs repair contexts) exists in 87.8% of blooms**. Note: richer pools soften whole-bloom scarcity (exciting rose from 35%→58%); per-rotation drama now comes from individual resource churn (020) and concentration scarcity (C) rather than whole-bloom quality — if Stage 4 wants rarer peaks, skew the roll distribution low (a data knob).
-
----
-
-## Production-point question added by these decisions
-
-**Is the loop complete without a combat minigame for the frames?** For the MVP test: yes by design — the active-mastery layer is prospecting (019) + event-window risk choices + push runs, and Vanguard expresses as choice strength, not reflexes. Firefall's lesson is that combat-class systems are the most expensive and churn-prone thing a small team can build. But the event-window system is deliberately a socket: a bounded tactical mini-encounter could later replace the Threat Surge menu choice without touching the economy. Lesson 8.2 must therefore ask testers directly: *did Threat Surge feel hollow as a menu choice — did you want a kinetic layer?* If yes, that is a backlog layer behind the production point, never a pre-playtest addition.
+The MVP is now defined. The next work is implementation through the prototype ladder, not further design expansion.
 
 ---
 
 ## Current next decision candidates
 
-Decisions 001–021 are locked (017–021 locked 2026-06-10 per Ryan). Remaining:
+No further MVP design decision is required before implementation begins.
 
-1. **MVP Presentation Slice Detail, if Stage 5 needs it.**
-2. **Post-MVP Layer Gate**, including the combat-socket question above and the timed rotation scheduler.
-3. **Scope-change review** only per the Decision 015 rule.
----
+Optional later decisions, only when triggered by prototype evidence:
+
+1. **MVP Presentation Slice Detail, if Stage 5 needs it.** Tighten art/audio/menu requirements only after the text/clickable loop has proven understandable.
+2. **Post-MVP Layer Gate.** Decide the evidence required before adding public helper boards, group thumpers, marketplace, refining, contracts, more regions, or broader MMO systems.
+3. **Scope-change review.** Reopen MVP scope only if a new issue fixes a contradiction, unblocks the prototype ladder, improves comprehension, protects economy trust, or is required for playtest evidence.

@@ -1,12 +1,12 @@
 # Layered Feature Backlog — Async Frontier MMO
 
-> Formerly `PLAYER_FACING_ROADMAP.md` (that file is now retired — this backlog is its sole successor). This is an **internal layered backlog/test bed**, not a player-facing promise document. No dates. No promises. Every feature here is a candidate hypothesis that must strengthen the core toy before it graduates into committed scope.
+> Formerly `PLAYER_FACING_ROADMAP.md`. This is now an **internal layered backlog/test bed**, not a player-facing promise document. No dates. No promises. Every feature here is a candidate hypothesis that must strengthen the core toy before it graduates into committed scope.
 
 ---
 
 ## Locked MVP snapshot
 
-The current committed MVP layer is defined by Decisions 001–014. Older candidate language below is preserved only as backlog context when it does not conflict with the locked decisions.
+The current committed MVP content is defined by Decisions 001–014 and frozen by Decision 015. Older candidate language below is preserved only as backlog context when it does not conflict with the locked decisions.
 
 Locked first playable frontier:
 
@@ -26,7 +26,7 @@ Locked first playable frontier:
 - MVP data/economy ledger: server-authoritative records for Pilot, Resource Instance, Resource Stack, Item, Schematic Definition, Crafting Attempt, Thumper Run, Thumper Event Window, Thumper Run Result, Repair Action, and Economy Ledger. Every economy-relevant change must be explainable after the fact.
 - MVP success metrics/playtest instrumentation: first-session funnel, resource/crafting comprehension, voluntary repeat behavior, event-action comprehension, durability/repair trust, economy-ledger correctness, and friction/confusion notes.
 - MVP prototype ladder/build order: paper/spreadsheet economy prototype → text-only loop prototype → clickable single-player vertical slice → instrumented playtest build → presentation pass → production-point review. No broad MMO infrastructure until the toy proves itself.
-- MVP definition of done/scope freeze: Decisions 001–014 define the MVP; new ideas go to backlog unless they satisfy the Decision 015 scope-change rule.
+- MVP definition of done/scope freeze: Decisions 001–014 define the MVP content; Decision 015 freezes scope and sends new ideas to backlog unless they satisfy the scope-change rule.
 
 Future direction if the toy is fun: preserve the SWG-inspired long-term loop of finding the right named resource with the right stats before it disappears, then using it intelligently in schematics. Tuning should amplify and direct good resources, not replace the need for them. Add refining, separators, Chemical Purity, factories, marketplaces, resource archives, group thumpers, contracts, and deeper economy systems only after they strengthen the core toy.
 
@@ -75,6 +75,31 @@ Every candidate feature should strengthen at least one part of that loop:
 - **World/faction progression**
 
 If a feature does not connect back to those, it belongs in the Parking Lot or not at all.
+
+---
+
+## Locked MVP Snapshot
+
+The current MVP content is locked by Decisions 001–014 and frozen by Decision 015:
+
+- 1 starting region: **Red Mesa**.
+- 3 starting frames: **Recon**, **Engineer**, **Vanguard**.
+- 3 resource families: **Conductive Metal**, **Structural Alloy**, **Reactive Crystal**.
+- 5 resource stats: **OQ**, **Conductivity**, **Hardness**, **Heat Resistance**, **Malleability**.
+- 6 named resources in the first **Red Mesa Bloom**: **Keth Iron**, **Red Mesa Conductive Slag**, **Asterion Frame Alloy**, **Pale Ember Crystal**, **Veyrith Copper**, and **Thornwake Crystal**.
+- 3 thumper component slots: **Drill**, **Pump**, **Hull**.
+- 4 event actions: **Signal Tune**, **Field Repair**, **Suppress Threat**, **Clear Pump Problem**.
+- Default thumper runs have **2 event windows**; high-risk/push runs can have up to **3**.
+- 5 crafting recipes: **Basic Drill Head**, **Efficient Pump**, **Reinforced Hull Plate**, **Survey Scanner Module Mk I**, and **Field Repair Kit**.
+- MVP crafting is a thinking step: choose schematic, fill named-resource slots, preview properties, spend **3 tuning points**, choose **Safe Craft** or **Careful Experiment**, craft, and read the result explanation. Resource stats set the base/ceiling; tuning only allocates and risks that potential.
+- MVP UI uses six primary screens: **Pilot Home**, **Red Mesa Survey**, **Signal Detail / Deploy Thumper**, **Thumper Run / Event Window**, **Claim Results**, and **Crafting + Gear / Repair**.
+- MVP stat/crafting math uses **1–1000 resource stats**, **0–100 crafted property scores**, transparent recipe weights, **3 tuning points** as 5% relative boosts, and bounded **Safe Craft / Careful Experiment** output variance.
+- MVP onboarding guides the first full loop: choose frame, survey Keth Iron / Veyrith Copper / Thornwake Crystal, target Veyrith Copper, resolve Signal Drift and Pump Strain, craft Survey Scanner Module Mk I, equip it, and see a clearer second survey.
+- MVP data/economy ledger: server-authoritative records for Pilot, Resource Instance, Resource Stack, Item, Schematic Definition, Crafting Attempt, Thumper Run, Thumper Event Window, Thumper Run Result, Repair Action, and Economy Ledger. Every economy-relevant change must be explainable after the fact.
+- MVP success metrics/playtest instrumentation: first-session funnel, resource/crafting comprehension, voluntary repeat behavior, event-action comprehension, durability/repair trust, economy-ledger correctness, and friction/confusion notes.
+- MVP prototype ladder/build order: paper/spreadsheet economy prototype → text-only loop prototype → clickable single-player vertical slice → instrumented playtest build → presentation pass → production-point review. No broad MMO infrastructure until the toy proves itself.
+- MVP definition of done/scope freeze: Decisions 001–014 define the MVP content; Decision 015 freezes scope and sends new ideas to backlog unless they satisfy the scope-change rule.
+
 
 # 1. Layer 0 — Locked MVP: First Playable Frontier
 
@@ -182,7 +207,7 @@ This backlog does not graduate new feature layers until the tiny toy has produce
 
 ### MVP definition of done and scope freeze
 
-Decision 015 freezes MVP scope. Decisions 001–014 define the MVP; new ideas do not enter MVP scope unless they fix a contradiction, unblock the prototype ladder, improve comprehension of the locked toy, protect resource/crafting/economy trust, or are required for Decision 013 playtest evidence.
+Decision 015 freezes MVP scope. Decisions 001–014 define the MVP content; new ideas do not enter MVP scope unless they fix a contradiction, unblock the prototype ladder, improve comprehension of the locked toy, protect resource/crafting/economy trust, or are required for Decision 013 playtest evidence.
 
 The MVP is complete when the tiny loop is playable, understandable, auditable, and supported by playtest evidence:
 
@@ -810,8 +835,8 @@ A crafting screen can show:
 ```text
 1. Add named resources
 2. Preview weighted item properties
-3. Spend a few tuning points
-4. Choose safe craft or risky experiment
+3. Spend exactly 3 MVP tuning points (future systems may add more)
+4. Choose Safe Craft or Careful Experiment
 5. Create item / kit / batch recipe
 ```
 
@@ -2154,7 +2179,7 @@ Use this as the developer checklist when deciding where a small idea belongs. Pa
 
 # 13. Durability and frame-module research reference
 
-Detailed notes: `DURABILITY_AND_FRAME_MODULE_RESEARCH.md`.
+Detailed notes: `research/RESEARCH_DURABILITY_AND_FRAME_MODULES.md`.
 
 Recommended durability rule:
 

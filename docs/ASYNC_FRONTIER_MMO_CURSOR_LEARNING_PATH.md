@@ -1,5 +1,7 @@
 # Async Frontier MMO — Cursor Learning Path and Prompt Pack
 
+> **Superseded from Lesson 3.4 onward** by `docs/ASYNC_FRONTIER_MMO_LEARNING_PATH_V2.md` (unified design docs, Decisions 016–021, frame-aware resolution). Lessons 0.1–3.3 in this file remain valid as completed history.
+
 Last reviewed: 2026-06-09
 Reviewer: Hermes using GPT-5.5 / OpenAI Codex with xHigh-style review depth
 Project: `/home/ryanh/development/async-frontier-mmo`

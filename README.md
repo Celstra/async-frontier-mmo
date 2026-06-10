@@ -4,7 +4,8 @@ Working-title home for the Farm RPG / Firefall / SWG-inspired async frontier MMO
 
 ## Contents
 
-- `design-docs/` — design bible, roadmap, MVP/production-point plan, and research notes for the Farm RPG / Firefall / SWG-inspired async multiplayer resource-extraction game.
+- `design-docs/` — four source-of-truth files (`DECISION_LOG.md`, `DESIGN_BIBLE.md`, `BUILD_PLAN.md`, `LAYERED_FEATURE_BACKLOG.md`) plus paper-test sims (`stage1_sim.py`, `bloom_variance_sim.py`, etc.). Retired pre-unification docs are in `design-docs/old_files/`.
+- `docs/ASYNC_FRONTIER_MMO_LEARNING_PATH_V2.md` — current lesson path from Lesson 3.4 through production point.
 
 ## Current core toy
 

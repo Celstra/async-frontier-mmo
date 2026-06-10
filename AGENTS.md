@@ -4,11 +4,14 @@ Design-first learning project for a web/PWA async frontier MMO. **Not Godot.**
 
 ## Before you build
 
-Read these when making architecture or gameplay decisions:
+Read these when making architecture or gameplay decisions (four source-of-truth files in `design-docs/`):
 
-- `design-docs/TECH_STACK_AND_INFRA_COST_PLAN.md` — stack and infra
-- `design-docs/DESIGN_BIBLE.md` — game design and economy
-- `design-docs/MVP_VERTICAL_SLICE_PRODUCTION_POINT_PLAN.md` — MVP scope and production-point gate
+- `design-docs/DECISION_LOG.md` — locked decisions (canonical wording only here)
+- `design-docs/DESIGN_BIBLE.md` — game systems, economy, thumpers, decay
+- `design-docs/BUILD_PLAN.md` — MVP vertical slice, tech stack, production-point gate, Stage 1 results
+- `design-docs/LAYERED_FEATURE_BACKLOG.md` — deferred features and scope-change backlog
+
+Lesson order from Lesson 3.4 onward: `docs/ASYNC_FRONTIER_MMO_LEARNING_PATH_V2.md`. Older paths and retired doc names (`MVP_SCOPE_REFERENCE.md`, `TECH_STACK_AND_INFRA_COST_PLAN.md`, etc.) live under `design-docs/old_files/` for reference only.
 
 ## Stack
 

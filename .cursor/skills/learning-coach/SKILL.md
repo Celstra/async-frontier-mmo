@@ -8,7 +8,7 @@ Use this skill when Ryan asks to learn, practice, understand, or build features 
 
 ## Project stack
 
-Default to the stack documented in `design-docs/TECH_STACK_AND_INFRA_COST_PLAN.md`:
+Default to the stack documented in `design-docs/BUILD_PLAN.md` (Part B — Tech Stack):
 
 ```text
 TypeScript + SvelteKit + PostgreSQL + Drizzle + Docker
@@ -39,7 +39,8 @@ Do not assume Godot is the client for this project. Godot is a separate learning
 - If editing directly, keep changes small and narrate what changed and why.
 - Show the relevant files and symbols rather than hiding work in broad automated sweeps.
 - Use short exercises with immediate feedback.
-- Preserve the project design intent in `design-docs/`: async-by-default frontier MMO, thumpers with optional active moments, public combat distress board later, owner controls equipment-risk choices.
+- Preserve the project design intent from `design-docs/DECISION_LOG.md`, `DESIGN_BIBLE.md`, `BUILD_PLAN.md`, and `LAYERED_FEATURE_BACKLOG.md`: async-by-default frontier MMO, thumpers with optional active moments, public combat distress board later, owner controls equipment-risk choices.
+- For lesson order after 3.3, follow `docs/ASYNC_FRONTIER_MMO_LEARNING_PATH_V2.md` (Decisions 001–021 scope).
 
 ## Learning path
 

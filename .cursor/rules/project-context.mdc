@@ -21,11 +21,16 @@ Stay in **pre-production** until a tiny vertical slice proves the loop is fun. D
 
 ## Design docs (read before major decisions)
 
+Four source-of-truth files in `design-docs/` (retired names are in `design-docs/old_files/`):
+
 | Doc | Use for |
 |-----|---------|
+| `design-docs/DECISION_LOG.md` | Locked decisions — canonical wording only here |
 | `design-docs/DESIGN_BIBLE.md` | Game systems, economy, thumpers, decay |
-| `design-docs/MVP_VERTICAL_SLICE_PRODUCTION_POINT_PLAN.md` | MVP scope, production-point gate |
-| `design-docs/TECH_STACK_AND_INFRA_COST_PLAN.md` | Stack, hosting, cost guardrails |
+| `design-docs/BUILD_PLAN.md` | MVP slice ladder, tech stack, hosting/cost guardrails, Stage 1 results |
+| `design-docs/LAYERED_FEATURE_BACKLOG.md` | Deferred features; scope-change gate |
+
+Lesson path from 3.4 onward: `docs/ASYNC_FRONTIER_MMO_LEARNING_PATH_V2.md`.
 
 ## MVP content ceiling
 

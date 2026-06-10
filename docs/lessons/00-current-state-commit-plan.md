@@ -12,46 +12,36 @@ After each commit, run `pnpm check` before moving on (except commit 1, which is 
 
 ---
 
-## Commit 1 — design-doc final review / reorganization
+## Commit 1 — design-doc unification (four source-of-truth files)
 
 **Why first:** Pure documentation. No code or lockfile coupling. Easy to review or revert in isolation.
 
 ### `git add`
 
 ```bash
-git add design-docs/DESIGN_BIBLE.md
-git add design-docs/MVP_VERTICAL_SLICE_PRODUCTION_POINT_PLAN.md
-git add design-docs/TECH_STACK_AND_INFRA_COST_PLAN.md
 git add design-docs/DECISION_LOG.md
-git add design-docs/FINAL_REVIEW_NOTES.md
+git add design-docs/DESIGN_BIBLE.md
+git add design-docs/BUILD_PLAN.md
 git add design-docs/LAYERED_FEATURE_BACKLOG.md
-git add design-docs/MANIFEST.md
-git add design-docs/MVP_SCOPE_REFERENCE.md
-git add design-docs/README.md
+git add design-docs/stage1_sim.py
+git add design-docs/bloom_variance_sim.py
+git add design-docs/run_duration_sim.py
+git add design-docs/old_files/
 git add design-docs/legacy/
-git add design-docs/research/
-git add design-docs/DURABILITY_AND_FRAME_MODULE_RESEARCH.md
-git add design-docs/FIREFALL_FAILURE_AND_THUMPER_COMPONENT_RESEARCH.md
-git add design-docs/FIREFALL_THUMPER_GROUP_VS_PERSONAL_RESEARCH.md
-git add design-docs/PLAYER_FACING_ROADMAP.md
-git add design-docs/SWG_CRAFTING_REPAIR_ACTIVE_EVENTS_RESEARCH.md
-git add design-docs/SWG_RESOURCE_CRAFTING_FEEDBACK_RESEARCH.md
-git add design-docs/production-point.md
-git add design-docs-old-reference/
 ```
 
 **Notes:**
 
-- The `git add` lines for deleted root-level research files record the **deletions** (moved into `design-docs/research/` with renamed `RESEARCH_*` filenames).
-- `design-docs-old-reference/` is a frozen copy of the pre-reorganization tree — include if you want history in-repo; omit that line if you prefer not to archive it in git.
+- Canon is now four files at `design-docs/` root. Retired names (`MVP_SCOPE_REFERENCE.md`, `TECH_STACK_AND_INFRA_COST_PLAN.md`, `MVP_VERTICAL_SLICE_PRODUCTION_POINT_PLAN.md`, etc.) moved under `design-docs/old_files/`.
+- `research/` content is folded into the unified docs; research markdown remains under `design-docs/research/` as non-canonical reference only.
 
 ### Commit message
 
 ```text
-Reorganize design docs after MVP final review.
+Unify design docs into four source-of-truth files.
 
-Consolidate canon docs, add manifest and decision log, move research into
-design-docs/research/, and archive the pre-reorganization snapshot for reference.
+Merge vertical-slice and tech-stack plans into BUILD_PLAN.md, archive retired
+doc names under design-docs/old_files/, and extend DECISION_LOG through 021.
 ```
 
 ### Verify

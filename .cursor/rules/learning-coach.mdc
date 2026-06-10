@@ -24,6 +24,8 @@ Ryan is learning while building. Prefer **visible tutoring** over autonomous com
 
 ## Learning path for this project
 
+For scoped lessons and MVP build order after Lesson 3.3, use `docs/ASYNC_FRONTIER_MMO_LEARNING_PATH_V2.md`. The foundational scaffold order below still applies for early wiring:
+
 Use this order unless Ryan explicitly changes it:
 
 1. Prove the workspace is healthy with `pnpm check`.
