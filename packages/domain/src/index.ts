@@ -4,6 +4,43 @@ import type { ResourceStatCode } from 'shared';
 export type ResourceStatMap = Partial<Record<ResourceStatCode, number>>;
 
 export {
+	CAREFUL_EXPERIMENT_BOOST,
+	CAREFUL_EXPERIMENT_BOOST_CHANCE,
+	CAREFUL_EXPERIMENT_FLAW_CHANCE,
+	CAREFUL_EXPERIMENT_UNCHANGED_CHANCE,
+	computePropertyBaseScore,
+	computeTunedPropertyScore,
+	getResourcePropertyCeiling,
+	previewCraftProperties,
+	PROPERTY_SCORE_CAP,
+	resolveCraft,
+	SchematicSlotValidationError,
+	TUNING_BOOST_PER_POINT,
+	TUNING_POINTS_TOTAL,
+	TuningValidationError,
+	validateCraftTuningAllocation,
+	validateSchematicSlotFills,
+	validateTuningAllocation,
+	type ResolveCraftInput
+} from './crafting/schematicEngine.js';
+export { getPropertyOutputBand } from './crafting/propertyBand.js';
+export { SURVEY_SCANNER_MK_I } from './crafting/schematics/surveyScannerMkI.js';
+export type {
+	CarefulExperimentOutcome,
+	CraftMode,
+	CraftPropertyPreview,
+	CraftResolution,
+	PropertyOutputBand,
+	PropertyPreviewLine,
+	ResolvedPropertyLine,
+	SchematicDefinition,
+	SchematicPropertyLine,
+	SchematicSlotDefinition,
+	SchematicSlotFill,
+	SchematicWeightTerm,
+	TuningAllocation
+} from './crafting/types.js';
+export {
 	getRedMesaResource,
 	listRedMesaResources,
 	MVP_RESOURCE_STAT_CODES,

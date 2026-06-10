@@ -47,7 +47,7 @@ Frames must change at least one meaningful decision (Decision 015 gate). Frame b
 Cursor prompt:
 
 ```text
-Use the learning-coach skill.
+Use the /learning-coach skill.
 
 Lesson: store thumper event choices and resolve the run result with frame input.
 
