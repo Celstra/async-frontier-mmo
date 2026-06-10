@@ -1,7 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import {
 	buildCraftResultExplanation,
-	CRAFT_QUANTITY_PER_SLOT,
 	previewCraftProperties,
 	resolveCraft,
 	SchematicSlotValidationError,
@@ -104,7 +103,7 @@ async function resolveSlotFills(
 		}
 
 		const stack = await getResourceStackForPilotInstance(db, pilotId, instance.id);
-		if (!stack || stack.quantity < CRAFT_QUANTITY_PER_SLOT) {
+		if (!stack || stack.quantity < slot.inputQuantity) {
 			throw new InsufficientResourceError(
 				`Insufficient ${instance.displayName} for slot "${slot.id}"`
 			);
@@ -125,13 +124,13 @@ async function resolveSlotFills(
 			resourceSlug: instance.resourceSlug,
 			resourceDisplayName: instance.displayName,
 			family: instance.family,
-			quantityConsumed: CRAFT_QUANTITY_PER_SLOT
+			quantityConsumed: slot.inputQuantity
 		});
 
 		selections.push({
 			slotId: slot.id,
 			resourceInstanceId: instance.id,
-			quantity: CRAFT_QUANTITY_PER_SLOT
+			quantity: slot.inputQuantity
 		});
 	}
 

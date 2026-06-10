@@ -3,23 +3,26 @@ import type { SchematicDefinition } from '../types.js';
 /** Basic Drill Head — Decision 010 slots and weights (Drill thumper slot). */
 export const BASIC_DRILL_HEAD: SchematicDefinition = {
 	id: 'basic_drill_head',
-	version: 1,
+	version: 2,
 	displayName: 'Basic Drill Head',
 	slots: [
 		{
 			id: 'cutting_bit',
 			displayName: 'Cutting Bit',
-			requiredFamily: 'structural_alloy'
+			requiredFamily: 'structural_alloy',
+			inputQuantity: 40
 		},
 		{
 			id: 'conductive_coil',
 			displayName: 'Conductive Coil',
-			requiredFamily: 'conductive_metal'
+			requiredFamily: 'conductive_metal',
+			inputQuantity: 40
 		},
 		{
 			id: 'resonance_crystal',
 			displayName: 'Resonance Crystal',
-			requiredFamily: 'reactive_crystal'
+			requiredFamily: 'reactive_crystal',
+			inputQuantity: 40
 		}
 	],
 	properties: [

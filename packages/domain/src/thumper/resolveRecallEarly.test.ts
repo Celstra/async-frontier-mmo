@@ -30,8 +30,8 @@ describe('Recall Early resolution', () => {
 		});
 
 		expect(result.resolutionType).toBe('recalled');
-		expect(result.recoveredQuantity).toBe(35);
-		expect(result.forfeitedRecovery).toBe(30);
+		expect(result.recoveredQuantity).toBe(61);
+		expect(result.forfeitedRecovery).toBe(57);
 		expect(result.wasteQuantity).toBe(0);
 		expect(result.explanation).toContain('Recall Early');
 		expect(result.explanation).not.toContain('pump_strain');
@@ -63,7 +63,7 @@ describe('Recall Early resolution', () => {
 		});
 
 		expect(result.resolutionType).toBe('completed');
-		expect(result.recoveredQuantity).toBe(65);
+		expect(result.recoveredQuantity).toBe(118);
 		expect(result.forfeitedRecovery).toBe(0);
 	});
 });

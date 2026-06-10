@@ -3,23 +3,26 @@ import type { SchematicDefinition } from '../types.js';
 /** Reinforced Hull Plate — Decision 010 slots and weights (Hull thumper slot). */
 export const REINFORCED_HULL_PLATE: SchematicDefinition = {
 	id: 'reinforced_hull_plate',
-	version: 1,
+	version: 2,
 	displayName: 'Reinforced Hull Plate',
 	slots: [
 		{
 			id: 'outer_plate',
 			displayName: 'Outer Plate',
-			requiredFamily: 'structural_alloy'
+			requiredFamily: 'structural_alloy',
+			inputQuantity: 60
 		},
 		{
 			id: 'bracing_layer',
 			displayName: 'Bracing Layer',
-			requiredFamily: 'structural_alloy'
+			requiredFamily: 'structural_alloy',
+			inputQuantity: 40
 		},
 		{
 			id: 'bonding_matrix',
 			displayName: 'Bonding Matrix',
-			requiredFamily: 'reactive_crystal'
+			requiredFamily: 'reactive_crystal',
+			inputQuantity: 20
 		}
 	],
 	properties: [

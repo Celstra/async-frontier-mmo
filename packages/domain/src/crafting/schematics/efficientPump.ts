@@ -6,23 +6,26 @@ import type { SchematicDefinition } from '../types.js';
  */
 export const EFFICIENT_PUMP: SchematicDefinition = {
 	id: 'efficient_pump',
-	version: 2,
+	version: 3,
 	displayName: 'Efficient Pump',
 	slots: [
 		{
 			id: 'intake_manifold',
 			displayName: 'Intake Manifold',
-			requiredFamily: 'conductive_metal'
+			requiredFamily: 'conductive_metal',
+			inputQuantity: 40
 		},
 		{
 			id: 'flexible_housing',
 			displayName: 'Flexible Housing',
-			requiredFamily: 'structural_alloy'
+			requiredFamily: 'structural_alloy',
+			inputQuantity: 40
 		},
 		{
 			id: 'flow_crystal',
 			displayName: 'Flow Crystal',
-			requiredFamily: 'reactive_crystal'
+			requiredFamily: 'reactive_crystal',
+			inputQuantity: 40
 		}
 	],
 	properties: [

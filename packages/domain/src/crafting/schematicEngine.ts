@@ -201,9 +201,11 @@ function rollCarefulExperimentOutcome(random: () => number): 'boost' | 'unchange
 	return 'minor_flaw';
 }
 
-/** Decision 010: +3% to tuned score, final cap 100 only (not resourceCeiling). */
-function resolveCarefulExperimentScore(tunedScore: number): number {
-	return capPropertyScore(tunedScore * (1 + CAREFUL_EXPERIMENT_BOOST));
+/** Decision 009/010: +3% to tuned score, capped at resourceCeiling and 100. */
+function resolveCarefulExperimentScore(tunedScore: number, resourceCeiling: number): number {
+	return capPropertyScore(
+		Math.min(tunedScore * (1 + CAREFUL_EXPERIMENT_BOOST), resourceCeiling)
+	);
 }
 
 export type ResolveCraftInput = {
@@ -242,7 +244,7 @@ export function resolveCraft(input: ResolveCraftInput): CraftResolution {
 	const lines: ResolvedPropertyLine[] = preview.lines.map((line) => {
 		const finalScore =
 			experimentOutcome === 'boost'
-				? resolveCarefulExperimentScore(line.tunedScore)
+				? resolveCarefulExperimentScore(line.tunedScore, line.resourceCeiling)
 				: line.tunedScore;
 
 		return {

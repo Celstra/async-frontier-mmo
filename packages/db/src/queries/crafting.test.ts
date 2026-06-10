@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-	CRAFT_QUANTITY_PER_SLOT,
 	FIRST_SCANNER_SUGGESTED_TUNING,
 	SURVEY_SCANNER_MK_I
 } from '@async-frontier-mmo/domain';
@@ -32,6 +31,14 @@ function scannerSlotInputs(instances: {
 	];
 }
 
+function scannerSlotQuantity(slotId: string): number {
+	const slot = SURVEY_SCANNER_MK_I.slots.find((candidate) => candidate.id === slotId);
+	if (!slot) {
+		throw new Error(`Unknown scanner slot: ${slotId}`);
+	}
+	return slot.inputQuantity;
+}
+
 describeDb('transactional scanner craft', () => {
 	const db = createDb(databaseUrl!);
 	const testPilotId = `lesson-16-craft-${Date.now()}`;
@@ -60,11 +67,24 @@ describeDb('transactional scanner craft', () => {
 		paleInstanceId = pale!.id;
 		asterionInstanceId = asterion!.id;
 
+		const craftSetup = { type: 'test_grant' as const, id: 'scanner-craft-setup' };
 		await grantResourceToPilot(db, {
 			pilotId: testPilotId,
 			resourceInstanceId: veyrithInstanceId,
-			quantity: 40,
-			source: { type: 'test_grant', id: 'scanner-craft-setup' }
+			quantity: 60,
+			source: craftSetup
+		});
+		await grantResourceToPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: kethInstanceId,
+			quantity: 60,
+			source: craftSetup
+		});
+		await grantResourceToPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: paleInstanceId,
+			quantity: 60,
+			source: craftSetup
 		});
 	});
 
@@ -156,12 +176,14 @@ describeDb('transactional scanner craft', () => {
 
 		for (const stackBefore of stacksBefore) {
 			const stackAfter = stacksAfter.find((row) => row.id === stackBefore.id);
-			const expectedDelta =
-				stackBefore.resourceInstanceId === veyrithInstanceId ||
-				stackBefore.resourceInstanceId === paleInstanceId ||
-				stackBefore.resourceInstanceId === kethInstanceId
-					? CRAFT_QUANTITY_PER_SLOT
-					: 0;
+			let expectedDelta = 0;
+			if (stackBefore.resourceInstanceId === veyrithInstanceId) {
+				expectedDelta = scannerSlotQuantity('conductive_core');
+			} else if (stackBefore.resourceInstanceId === paleInstanceId) {
+				expectedDelta = scannerSlotQuantity('crystal_lens');
+			} else if (stackBefore.resourceInstanceId === kethInstanceId) {
+				expectedDelta = scannerSlotQuantity('frame_mount');
+			}
 			expect(stackAfter?.quantity).toBe(stackBefore.quantity - expectedDelta);
 		}
 
@@ -199,17 +221,17 @@ describeDb('transactional scanner craft', () => {
 			expect.objectContaining({
 				slotId: 'conductive_core',
 				resourceInstanceId: veyrithInstanceId,
-				quantityConsumed: CRAFT_QUANTITY_PER_SLOT
+				quantityConsumed: scannerSlotQuantity('conductive_core')
 			}),
 			expect.objectContaining({
 				slotId: 'crystal_lens',
 				resourceInstanceId: paleInstanceId,
-				quantityConsumed: CRAFT_QUANTITY_PER_SLOT
+				quantityConsumed: scannerSlotQuantity('crystal_lens')
 			}),
 			expect.objectContaining({
 				slotId: 'frame_mount',
 				resourceInstanceId: kethInstanceId,
-				quantityConsumed: CRAFT_QUANTITY_PER_SLOT
+				quantityConsumed: scannerSlotQuantity('frame_mount')
 			})
 		]);
 	});

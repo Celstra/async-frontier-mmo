@@ -22,8 +22,8 @@ describe('resolveFirstSessionThumperRunResult', () => {
 		});
 
 		expect(result.targetResourceId).toBe('veyrith_copper');
-		expect(result.projectedRecovery).toBe(60);
-		expect(result.recoveredQuantity).toBe(65);
+		expect(result.projectedRecovery).toBe(113);
+		expect(result.recoveredQuantity).toBe(118);
 		expect(result.wasteQuantity).toBe(0);
 		expect(result.explanation).toContain('signal_tune');
 		expect(result.explanation).toContain('clear_pump_problem');
@@ -41,11 +41,11 @@ describe('resolveFirstSessionThumperRunResult', () => {
 
 		expect(result.targetResourceId).toBe('veyrith_copper');
 		expect(result.wasteQuantity).toBeGreaterThan(0);
-		expect(result.recoveredQuantity).toBeLessThan(65);
+		expect(result.recoveredQuantity).toBeLessThan(118);
 		expect(result).not.toHaveProperty('stats');
 	});
 
-	it('applies first-session scanner floor when penalties would recover too little', () => {
+	it('double-hold still recovers enough Veyrith for scanner conductive_core', () => {
 		const result = resolveFirstSessionThumperRunResult({
 			targetResourceId: 'veyrith_copper',
 			pilotFrame: 'recon',
@@ -56,6 +56,5 @@ describe('resolveFirstSessionThumperRunResult', () => {
 		});
 
 		expect(result.recoveredQuantity).toBeGreaterThanOrEqual(FIRST_SESSION_SCANNER_MINIMUM);
-		expect(result.explanation).toContain('Recovery floor');
 	});
 });

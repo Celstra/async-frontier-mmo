@@ -6,23 +6,26 @@ import type { SchematicDefinition } from '../types.js';
  */
 export const FIELD_REPAIR_KIT: SchematicDefinition = {
 	id: 'field_repair_kit',
-	version: 2,
+	version: 3,
 	displayName: 'Field Repair Kit',
 	slots: [
 		{
 			id: 'patch_alloy',
 			displayName: 'Patch Alloy',
-			requiredFamily: 'structural_alloy'
+			requiredFamily: 'structural_alloy',
+			inputQuantity: 25
 		},
 		{
 			id: 'control_filament',
 			displayName: 'Control Filament',
-			requiredFamily: 'conductive_metal'
+			requiredFamily: 'conductive_metal',
+			inputQuantity: 20
 		},
 		{
 			id: 'reactive_binder',
 			displayName: 'Reactive Binder',
-			requiredFamily: 'reactive_crystal'
+			requiredFamily: 'reactive_crystal',
+			inputQuantity: 15
 		}
 	],
 	properties: [

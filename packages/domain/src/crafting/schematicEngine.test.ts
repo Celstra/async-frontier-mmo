@@ -152,8 +152,10 @@ describe('Survey Scanner Module Mk I schematic engine', () => {
 
 			for (const line of result.lines) {
 				if (result.experimentOutcome === 'boost') {
-					const expectedBoost = Math.min(100, Math.round(line.tunedScore * 1.03 * 1000) / 1000);
+					const boosted = Math.round(line.tunedScore * 1.03 * 1000) / 1000;
+					const expectedBoost = Math.min(line.resourceCeiling, 100, boosted);
 					expect(line.finalScore).toBe(expectedBoost);
+					expect(line.finalScore).toBeLessThanOrEqual(line.resourceCeiling);
 					expect(line.finalScore).toBeLessThanOrEqual(100);
 				} else {
 					expect(line.finalScore).toBe(line.tunedScore);
@@ -162,11 +164,11 @@ describe('Survey Scanner Module Mk I schematic engine', () => {
 		}
 	});
 
-	it('Careful Experiment boost can exceed resourceCeiling up to the 100 cap', () => {
+	it('Careful Experiment boost is clamped to resourceCeiling', () => {
 		const fills = scannerFills('veyrith_copper', 'pale_ember_crystal');
 		const tuning = { survey_clarity: 3, stat_hint_accuracy: 0, signal_range: 0 };
 
-		let sawBoostAboveCeiling = false;
+		let sawBoostOutcome = false;
 
 		for (let seedIndex = 0; seedIndex < 500; seedIndex += 1) {
 			const result = resolveCraft({
@@ -182,13 +184,42 @@ describe('Survey Scanner Module Mk I schematic engine', () => {
 				continue;
 			}
 
+			sawBoostOutcome = true;
+			expect(clarity.finalScore).toBeLessThanOrEqual(clarity.resourceCeiling);
 			expect(clarity.finalScore).toBeLessThanOrEqual(100);
-			if (clarity.finalScore > clarity.resourceCeiling) {
-				sawBoostAboveCeiling = true;
+		}
+
+		expect(sawBoostOutcome).toBe(true);
+	});
+
+	it('Careful Experiment boost is a no-op when tunedScore already equals resourceCeiling', () => {
+		const fills = scannerFills('veyrith_copper', 'pale_ember_crystal');
+		const tuning = { survey_clarity: 3, stat_hint_accuracy: 0, signal_range: 0 };
+		const preview = previewCraftProperties(SURVEY_SCANNER_MK_I, fills, tuning);
+		const clarityPreview = preview.lines.find((line) => line.propertyId === 'survey_clarity');
+		expect(clarityPreview?.tunedScore).toBe(clarityPreview?.resourceCeiling);
+
+		let boostResult: ReturnType<typeof resolveCraft> | null = null;
+
+		for (let seedIndex = 0; seedIndex < 500; seedIndex += 1) {
+			const result = resolveCraft({
+				schematic: SURVEY_SCANNER_MK_I,
+				slotFills: fills,
+				tuning,
+				mode: 'careful_experiment',
+				experimentSeed: `careful-noop-${seedIndex}`
+			});
+
+			if (result.experimentOutcome === 'boost') {
+				boostResult = result;
+				break;
 			}
 		}
 
-		expect(sawBoostAboveCeiling).toBe(true);
+		expect(boostResult).not.toBeNull();
+		const clarity = boostResult!.lines.find((line) => line.propertyId === 'survey_clarity');
+		expect(clarity?.finalScore).toBe(clarity?.tunedScore);
+		expect(clarity?.finalScore).toBe(clarity?.resourceCeiling);
 	});
 });
 

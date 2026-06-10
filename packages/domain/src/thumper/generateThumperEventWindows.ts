@@ -1,10 +1,10 @@
 import type { NamedResourceId } from '../resources/types.js';
 import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
 import {
-	DEFAULT_PROJECTED_RECOVERY,
 	generateSeededThumperEventWindows,
 	type SeededThumperRunPlan
 } from './generateSeededThumperEventWindows.js';
+import { FIRST_SESSION_PROJECTED_RECOVERY } from './resolveFirstSessionThumperRunResult.js';
 
 export const TUTORIAL_RUN_SEED = 'first-session-scripted';
 
@@ -33,7 +33,7 @@ export function generateThumperEventWindows(input: {
 			runSeed: TUTORIAL_RUN_SEED,
 			isPushRun: false,
 			windowCount: tutorial.windows.length,
-			projectedRecovery: DEFAULT_PROJECTED_RECOVERY
+			projectedRecovery: FIRST_SESSION_PROJECTED_RECOVERY
 		};
 	}
 

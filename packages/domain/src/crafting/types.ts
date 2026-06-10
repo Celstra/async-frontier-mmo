@@ -6,6 +6,8 @@ export type SchematicSlotDefinition = {
 	id: string;
 	displayName: string;
 	requiredFamily: ResourceFamily;
+	/** Claim-units consumed from the chosen stack (Decision 021-C). */
+	inputQuantity: number;
 };
 
 /** One weighted term in a property line formula (Decision 010). */

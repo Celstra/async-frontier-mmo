@@ -122,7 +122,7 @@ describe('resolveThumperRunResult', () => {
 		expect(result.recoveredQuantity).toBe(66);
 	});
 
-	it('applies recovery floor when penalties would recover too little', () => {
+	it('first-session double-hold still recovers enough for scanner conductive_core', () => {
 		const result = resolveFirstSession(
 			[
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
@@ -132,6 +132,24 @@ describe('resolveThumperRunResult', () => {
 		);
 
 		expect(result.recoveredQuantity).toBeGreaterThanOrEqual(FIRST_SESSION_SCANNER_MINIMUM);
+	});
+
+	it('applies recovery floor when penalties would recover too little', () => {
+		const result = resolveThumperRunResult({
+			runConfig: {
+				targetResourceId: 'veyrith_copper',
+				projectedRecovery: 40,
+				recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
+			},
+			eventWindows: firstSessionWindows,
+			responses: [
+				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
+				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
+			],
+			pilotFrame: 'vanguard'
+		});
+
+		expect(result.recoveredQuantity).toBe(FIRST_SESSION_SCANNER_MINIMUM);
 		expect(result.explanation).toContain('Recovery floor');
 	});
 });

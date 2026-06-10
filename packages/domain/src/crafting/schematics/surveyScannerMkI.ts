@@ -6,23 +6,26 @@ import type { SchematicDefinition } from '../types.js';
  */
 export const SURVEY_SCANNER_MK_I: SchematicDefinition = {
 	id: 'survey_scanner_mk_i',
-	version: 2,
+	version: 3,
 	displayName: 'Survey Scanner Module Mk I',
 	slots: [
 		{
 			id: 'conductive_core',
 			displayName: 'Conductive Core',
-			requiredFamily: 'conductive_metal'
+			requiredFamily: 'conductive_metal',
+			inputQuantity: 30
 		},
 		{
 			id: 'crystal_lens',
 			displayName: 'Crystal Lens',
-			requiredFamily: 'reactive_crystal'
+			requiredFamily: 'reactive_crystal',
+			inputQuantity: 30
 		},
 		{
 			id: 'frame_mount',
 			displayName: 'Frame Mount',
-			requiredFamily: 'structural_alloy'
+			requiredFamily: 'structural_alloy',
+			inputQuantity: 30
 		}
 	],
 	properties: [

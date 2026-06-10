@@ -10,7 +10,6 @@ export type {
 	CraftResultExplanation
 } from './crafting/buildCraftResultExplanation.js';
 export {
-	CRAFT_QUANTITY_PER_SLOT,
 	FIRST_SCANNER_SUGGESTED_TUNING,
 	STARTER_STOCKPILE_GRANTS
 } from './crafting/starterStockpile.js';

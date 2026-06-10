@@ -16,11 +16,11 @@ export {
 	type ThumperWindowChosenResponse
 };
 
-/** Base tutorial extraction before event penalties (Decision 011). */
-export const FIRST_SESSION_PROJECTED_RECOVERY = 60;
+/** Base tutorial extraction before event penalties (Decision 011; BUILD_PLAN example ≈118 claimed). */
+export const FIRST_SESSION_PROJECTED_RECOVERY = 113;
 
-/** Minimum recovered Veyrith Copper to craft Survey Scanner Module Mk I on first claim. */
-export const FIRST_SESSION_SCANNER_MINIMUM = 40;
+/** Minimum recovered Veyrith Copper for conductive_core (Decision 021-C: 30 units). */
+export const FIRST_SESSION_SCANNER_MINIMUM = 30;
 
 const FIRST_SESSION_TARGET: NamedResourceId = 'veyrith_copper';
 
