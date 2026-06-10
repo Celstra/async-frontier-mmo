@@ -8,17 +8,23 @@ import {
 	getPilotFrame,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
+	hasPilotCompletedTutorialThumper,
 	recordThumperEventWindowResponse
 } from '@async-frontier-mmo/db';
 import {
 	assertVeyrithTutorialWindowsReady,
-	generateFirstSessionEventWindows,
+	generateThumperEventWindows,
+	getEventWindowResponseOptions,
 	getRedMesaResource,
+	isTutorialThumperDeploy,
+	TUTORIAL_RUN_SEED,
 	RED_MESA_BLOOM_RESOURCES,
 	resolveFirstSessionThumperRunResult,
 	surveyRedMesaFirstSession,
 	THUMPER_EVENT_ACTIONS,
+	validateEventWindowResponse,
 	type NamedResourceId,
+	type ThumperComplicationId,
 	type ThumperEventActionId,
 	type ThumperWindowChosenResponse,
 	resolveThumperState
@@ -27,6 +33,12 @@ import { DEMO_PILOT_ID, parseFrameId } from 'shared';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { Actions, PageServerLoad } from './$types';
+
+/** Until Lesson 6.2 inventory exists, demo pilot owns zero repair kits. */
+const DEMO_FIELD_REPAIR_KIT_COUNT = 0;
+
+const SEEDED_RUN_NOT_RESOLVABLE_MESSAGE =
+	'Seeded run claim resolution is not available yet. Complete the tutorial run first, or wait for the non-tutorial resolver lesson.';
 
 function getDb() {
 	const databaseUrl = env.DATABASE_URL;
@@ -71,6 +83,23 @@ function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now:
 	);
 }
 
+function mapEventWindowsForUi(
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+) {
+	return windows.map((window) => ({
+		windowIndex: window.windowIndex,
+		complication: window.complication,
+		matchingAction: window.matchingAction,
+		chosenResponse: window.chosenResponse,
+		responded: window.chosenResponse !== null,
+		responseOptions: getEventWindowResponseOptions({
+			complication: window.complication as ThumperComplicationId,
+			matchingAction: window.matchingAction as ThumperEventActionId,
+			fieldRepairKitCount: DEMO_FIELD_REPAIR_KIT_COUNT
+		}).filter((option) => option.kind !== 'safety_choice')
+	}));
+}
+
 async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<Awaited<ReturnType<typeof getOpenThumperRunForPilot>>>) {
 	const now = new Date();
 	const thumperDemo = resolveThumperState({
@@ -88,15 +117,12 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 			id: run.id,
 			targetResourceId: run.targetResourceId,
 			targetDisplayName: target.displayName,
-			pilotFrameId: parseFrameId(run.pilotFrameId)
+			pilotFrameId: parseFrameId(run.pilotFrameId),
+			runSeed: run.runSeed,
+			isPushRun: run.isPushRun,
+			claimResolutionAvailable: run.runSeed === TUTORIAL_RUN_SEED
 		},
-		eventWindows: eventWindows.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication,
-			matchingAction: window.matchingAction,
-			chosenResponse: window.chosenResponse,
-			responded: window.chosenResponse !== null
-		}))
+		eventWindows: mapEventWindowsForUi(eventWindows)
 	};
 }
 
@@ -125,8 +151,10 @@ async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
 		pilotId: DEMO_PILOT_ID,
 		now,
 		isClaimable: (run) => isRunClaimable(run, now),
+		isResolvableRun: (run) => run.runSeed === TUTORIAL_RUN_SEED,
+		notResolvableMessage: SEEDED_RUN_NOT_RESOLVABLE_MESSAGE,
 		validateWindows: (run, windows) => {
-			if (run.targetResourceId === 'veyrith_copper') {
+			if (run.runSeed === TUTORIAL_RUN_SEED) {
 				assertVeyrithTutorialWindowsReady(windows);
 			}
 		},
@@ -139,6 +167,11 @@ export const load: PageServerLoad = async () => {
 	const db = getDb();
 	await ensureDemoPilot(db);
 	const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
+	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
+		db,
+		DEMO_PILOT_ID,
+		TUTORIAL_RUN_SEED
+	);
 	const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 	if (!run) {
@@ -148,12 +181,13 @@ export const load: PageServerLoad = async () => {
 			survey,
 			openRun: null,
 			eventWindows: [],
-			pilotFrame
+			pilotFrame,
+			hasCompletedTutorial
 		};
 	}
 
 	const state = await loadOpenRunState(db, run);
-	return { survey, pilotFrame, ...state };
+	return { survey, pilotFrame, hasCompletedTutorial, ...state };
 };
 
 export const actions: Actions = {
@@ -161,6 +195,11 @@ export const actions: Actions = {
 		const db = getDb();
 		await ensureDemoPilot(db);
 		const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
+		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
+			db,
+			DEMO_PILOT_ID,
+			TUTORIAL_RUN_SEED
+		);
 		const open = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 		if (open) {
@@ -173,28 +212,36 @@ export const actions: Actions = {
 			return fail(400, { message: 'Invalid or missing target resource' });
 		}
 
+		const isTutorialRun = isTutorialThumperDeploy({ targetResourceId, hasCompletedTutorial });
+		const isPushRun = !isTutorialRun && formData.get('isPushRun') === 'true';
+		const runSeed = isTutorialRun ? TUTORIAL_RUN_SEED : crypto.randomUUID();
+		const plan = generateThumperEventWindows({
+			targetResourceId,
+			runSeed,
+			isPushRun,
+			isTutorialRun
+		});
+
 		const deployedAt = new Date();
 		const durationSeconds = 60;
-		const windows =
-			targetResourceId === 'veyrith_copper'
-				? generateFirstSessionEventWindows({ targetResourceId }).windows.map((window) => ({
-						windowIndex: window.windowIndex,
-						complication: window.complication,
-						matchingAction: window.matchingAction
-					}))
-				: [];
 
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: DEMO_PILOT_ID,
 			pilotFrameId: pilotFrame,
 			targetResourceId,
+			runSeed: plan.runSeed,
+			isPushRun: plan.isPushRun,
 			deployedAt,
 			durationSeconds,
-			windows
+			windows: plan.windows.map((window) => ({
+				windowIndex: window.windowIndex,
+				complication: window.complication,
+				matchingAction: window.matchingAction
+			}))
 		});
 
 		const state = await loadOpenRunState(db, run);
-		return state;
+		return { hasCompletedTutorial, ...state };
 	},
 
 	respond: async ({ request }) => {
@@ -217,6 +264,16 @@ export const actions: Actions = {
 		const window = windows.find((row) => row.windowIndex === windowIndex);
 		if (!window) {
 			return fail(400, { message: 'Event window not found' });
+		}
+
+		const validation = validateEventWindowResponse({
+			complication: window.complication as ThumperComplicationId,
+			matchingAction: window.matchingAction as ThumperEventActionId,
+			chosenResponse,
+			fieldRepairKitCount: DEMO_FIELD_REPAIR_KIT_COUNT
+		});
+		if (!validation.ok) {
+			return fail(400, { message: validation.reason });
 		}
 
 		if (window.chosenResponse === null) {
@@ -253,6 +310,10 @@ export const actions: Actions = {
 					})
 				: null;
 			return fail(400, { message: 'Thumper is not claimable yet', thumperDemo });
+		}
+
+		if (outcome.status === 'not_resolvable') {
+			return fail(400, { message: outcome.message });
 		}
 
 		if (outcome.status === 'invalid_windows') {

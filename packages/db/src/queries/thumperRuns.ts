@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
 
@@ -8,6 +8,8 @@ export async function insertThumperRun(
 		pilotId: string;
 		pilotFrameId: string;
 		targetResourceId: string;
+		runSeed: string;
+		isPushRun: boolean;
 		deployedAt: Date;
 		durationSeconds: number;
 	}
@@ -18,6 +20,8 @@ export async function insertThumperRun(
 			pilotId: input.pilotId,
 			pilotFrameId: input.pilotFrameId,
 			targetResourceId: input.targetResourceId,
+			runSeed: input.runSeed,
+			isPushRun: input.isPushRun,
 			deployedAt: input.deployedAt,
 			durationSeconds: input.durationSeconds
 		})
@@ -45,6 +49,26 @@ export async function getOpenThumperRunForPilot(db: DbExecutor, pilotId: string)
 		.limit(1);
 
 	return row ?? null;
+}
+
+export async function hasPilotCompletedTutorialThumper(
+	db: DbExecutor,
+	pilotId: string,
+	tutorialRunSeed: string
+) {
+	const [row] = await db
+		.select({ id: thumperRuns.id })
+		.from(thumperRuns)
+		.where(
+			and(
+				eq(thumperRuns.pilotId, pilotId),
+				eq(thumperRuns.runSeed, tutorialRunSeed),
+				isNotNull(thumperRuns.claimedAt)
+			)
+		)
+		.limit(1);
+
+	return row !== undefined;
 }
 
 export async function claimThumperRun(db: DbExecutor, id: string) {

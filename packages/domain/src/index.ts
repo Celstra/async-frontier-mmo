@@ -27,7 +27,36 @@ export {
 	THUMPER_EVENT_ACTIONS,
 	THUMPER_SAFETY_CHOICES
 } from './thumper/complicationActions';
+export {
+	THUMPER_COMPLICATIONS,
+	THUMPER_COMPLICATION_TABLE
+} from './thumper/complicationTable';
 export { generateFirstSessionEventWindows } from './thumper/generateFirstSessionEventWindows';
+export {
+	DEFAULT_PROJECTED_RECOVERY,
+	DEFAULT_RUN_WINDOW_COUNT,
+	generateSeededThumperEventWindows,
+	PUSH_RUN_PROJECTED_RECOVERY,
+	PUSH_RUN_WINDOW_COUNT,
+	type SeededThumperRunPlan
+} from './thumper/generateSeededThumperEventWindows';
+export {
+	generateThumperEventWindows,
+	TUTORIAL_RUN_SEED,
+	type ThumperRunWindowPlan
+} from './thumper/generateThumperEventWindows';
+export {
+	FIELD_REPAIR_REQUIRES_KIT_REASON,
+	getEventWindowResponseOptions,
+	type ThumperWindowResponseOption,
+	type ThumperWindowResponseOptionId
+} from './thumper/getEventWindowResponseOptions';
+export { isTutorialThumperDeploy } from './thumper/isTutorialThumperDeploy';
+export {
+	validateEventWindowResponse,
+	type EventWindowResponseValidation
+} from './thumper/validateEventWindowResponse';
+export { createSeededRng, hashSeedToUint32 } from './thumper/seededRng';
 export { getFrameMatchingBonusRecovery, FRAME_MATCHING_BONUS_RECOVERY } from './thumper/frameActionEffects';
 export {
 	FIRST_SESSION_PROJECTED_RECOVERY,

@@ -56,8 +56,9 @@ async function claimTutorialRun(now: Date) {
 		pilotId: DEMO_PILOT_ID,
 		now,
 		isClaimable: (run) => isRunClaimable(run, now),
+		isResolvableRun: (run) => run.runSeed === 'first-session-scripted',
 		validateWindows: (run, windows) => {
-			if (run.targetResourceId === 'veyrith_copper') {
+			if (run.runSeed === 'first-session-scripted') {
 				assertVeyrithTutorialWindowsReady(windows);
 			}
 		},
@@ -95,6 +96,8 @@ const run = await deployThumperRunWithEventWindows(db, {
 	pilotId: DEMO_PILOT_ID,
 	pilotFrameId: pilotFrame,
 	targetResourceId,
+	runSeed: 'first-session-scripted',
+	isPushRun: false,
 	deployedAt,
 	durationSeconds,
 	windows: [
@@ -158,6 +161,8 @@ const runWithoutWindows = await insertThumperRun(db, {
 	pilotId: DEMO_PILOT_ID,
 	pilotFrameId: pilotFrame,
 	targetResourceId,
+	runSeed: 'first-session-scripted',
+	isPushRun: false,
 	deployedAt: new Date(Date.now() - 120_000),
 	durationSeconds: 60
 });

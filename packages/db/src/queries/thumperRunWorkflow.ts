@@ -29,6 +29,7 @@ export type ClaimThumperRunOutcome =
 	  }
 	| { status: 'no_open_run' }
 	| { status: 'not_claimable' }
+	| { status: 'not_resolvable'; message: string }
 	| { status: 'invalid_windows'; message: string };
 
 type EventWindowSeed = {
@@ -44,6 +45,8 @@ export async function deployThumperRunWithEventWindows(
 		pilotId: string;
 		pilotFrameId: string;
 		targetResourceId: string;
+		runSeed: string;
+		isPushRun: boolean;
 		deployedAt: Date;
 		durationSeconds: number;
 		windows: EventWindowSeed[];
@@ -54,6 +57,8 @@ export async function deployThumperRunWithEventWindows(
 			pilotId: input.pilotId,
 			pilotFrameId: input.pilotFrameId,
 			targetResourceId: input.targetResourceId,
+			runSeed: input.runSeed,
+			isPushRun: input.isPushRun,
 			deployedAt: input.deployedAt,
 			durationSeconds: input.durationSeconds
 		});
@@ -79,12 +84,14 @@ export async function claimOpenThumperRunForPilot(
 		pilotId: string;
 		now: Date;
 		isClaimable: (run: { deployedAt: Date; durationSeconds: number }) => boolean;
+		isResolvableRun: (run: { runSeed: string }) => boolean;
+		notResolvableMessage?: string;
 		validateWindows: (
-			run: { id: string; targetResourceId: string; pilotFrameId: string },
+			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => void;
 		buildResult: (
-			run: { id: string; targetResourceId: string; pilotFrameId: string },
+			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => ThumperRunResultPayload;
 	}
@@ -103,6 +110,15 @@ export async function claimOpenThumperRunForPilot(
 
 		if (!input.isClaimable(run)) {
 			return { status: 'not_claimable' };
+		}
+
+		if (!input.isResolvableRun(run)) {
+			return {
+				status: 'not_resolvable',
+				message:
+					input.notResolvableMessage ??
+					'This run type cannot be resolved yet'
+			};
 		}
 
 		const windows = await getThumperEventWindowsForRun(tx, run.id);
@@ -132,21 +148,17 @@ export async function claimOpenThumperRunForPilot(
 			return { status: 'no_open_run' };
 		}
 
-		if (run.targetResourceId === 'veyrith_copper') {
-			const resultPayload = input.buildResult(run, windows);
-			const claimResult = await insertThumperRunResult(tx, {
-				thumperRunId: run.id,
-				targetResourceId: resultPayload.targetResourceId,
-				projectedRecovery: resultPayload.projectedRecovery,
-				recoveredQuantity: resultPayload.recoveredQuantity,
-				wasteQuantity: resultPayload.wasteQuantity,
-				explanation: resultPayload.explanation,
-				resolvedAt: input.now
-			});
+		const resultPayload = input.buildResult(run, windows);
+		const claimResult = await insertThumperRunResult(tx, {
+			thumperRunId: run.id,
+			targetResourceId: resultPayload.targetResourceId,
+			projectedRecovery: resultPayload.projectedRecovery,
+			recoveredQuantity: resultPayload.recoveredQuantity,
+			wasteQuantity: resultPayload.wasteQuantity,
+			explanation: resultPayload.explanation,
+			resolvedAt: input.now
+		});
 
-			return { status: 'claimed', claimResult };
-		}
-
-		return { status: 'claimed', claimResult: null };
+		return { status: 'claimed', claimResult };
 	});
 }

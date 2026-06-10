@@ -50,6 +50,13 @@
       "when": 1781400000000,
       "tag": "0006_thumper_runs_pilot_frame",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0007_thumper_runs_seed_push",
+      "breakpoints": true
     }
   ]
 }

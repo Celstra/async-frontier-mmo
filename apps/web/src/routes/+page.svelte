@@ -26,6 +26,7 @@
 	const allWindowsResponded = $derived(
 		eventWindows.length > 0 && eventWindows.every((window) => window.responded)
 	);
+	const canClaimRun = $derived(openRun?.claimResolutionAvailable === true);
 
 	let displaySeconds = $state<number | null>(null);
 
@@ -84,10 +85,23 @@
 				</label>
 			{/each}
 		</fieldset>
+		<label>
+			<input type="checkbox" name="isPushRun" value="true" />
+			Push run (3 event windows, higher projected recovery)
+		</label>
+		<p>
+			<small>
+				Push is ignored on your first scripted Veyrith tutorial deploy. Repeat and non-tutorial
+				deploys may use it.
+			</small>
+		</p>
 		<button type="submit">Deploy thumper</button>
 	</form>
 {:else if thumperDemo}
 	<p>Thumper running on <strong>{openRun?.targetDisplayName ?? 'unknown signal'}</strong>.</p>
+	{#if openRun?.isPushRun}
+		<p><small>Push run — {eventWindows.length} event windows</small></p>
+	{/if}
 
 	{#if eventWindows.length > 0}
 		<h2>Event windows</h2>
@@ -100,11 +114,23 @@
 					{:else}
 						<form method="POST" action="?/respond" style="display: inline">
 							<input type="hidden" name="windowIndex" value={window.windowIndex} />
-							<button type="submit" name="chosenResponse" value={window.matchingAction}>
-								{window.matchingAction}
-							</button>
-							<button type="submit" name="chosenResponse" value="hold">Hold</button>
+							{#each window.responseOptions as option}
+								<button
+									type="submit"
+									name="chosenResponse"
+									value={option.id}
+									disabled={!option.enabled}
+									title={option.disabledReason ?? ''}
+								>
+									{option.id}
+								</button>
+							{/each}
 						</form>
+						{#each window.responseOptions as option}
+							{#if !option.enabled && option.disabledReason}
+								<p><small>{option.disabledReason}</small></p>
+							{/if}
+						{/each}
 					{/if}
 				</li>
 			{/each}
@@ -112,10 +138,12 @@
 	{/if}
 {/if}
 
-{#if thumperDemo?.status === 'claimable' && (eventWindows.length === 0 || allWindowsResponded)}
+{#if thumperDemo?.status === 'claimable' && canClaimRun && (eventWindows.length === 0 || allWindowsResponded)}
 	<form method="POST" action="?/claim">
 		<button type="submit">Claim thumper</button>
 	</form>
+{:else if thumperDemo?.status === 'claimable' && !canClaimRun}
+	<p>Seeded run claim resolution is not available yet. Practice responding to event windows.</p>
 {:else if thumperDemo?.status === 'claimable' && eventWindows.length > 0}
 	<p>Resolve all event windows before claiming.</p>
 {/if}

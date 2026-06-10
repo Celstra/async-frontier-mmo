@@ -10,6 +10,7 @@ export {
 	claimThumperRun,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
+	hasPilotCompletedTutorialThumper,
 	insertThumperRun
 } from './queries/thumperRuns.js';
 export {
