@@ -1,5 +1,7 @@
 # Phase 0–6 Backend Review — pre-Phase-7 gate
 
+> CONTINUED: Phase 7–8.1 review appended below as CP7/CP8 (2026-06-10 evening).
+
 > Date: 2026-06-10. Goal: verify everything through Lesson 6.5 is hooked up backend-wise
 > and aligned with the MVP slice (Decisions 001–021) before the Phase 7 UI/UX pass.
 > This file is the running checkpoint log. Update statuses as the review progresses
@@ -15,6 +17,8 @@
 | CP4 | DB review: Decision 012 records, transactions, idempotency, ledger, migrations | DONE | No economy blockers; migration meta drift is the big one. |
 | CP5 | Web wiring: actions → domain → db, full-slice action coverage pre-Phase-7 | DONE | Build green. 1 real blocker (seeded-run claim), known Phase-7 gaps enumerated. |
 | CP6 | Consolidate findings, apply approved fixes, re-verify | DONE | All 5 pre-Phase-7 fixes + both canon decisions applied 2026-06-10; full suite green. |
+| CP7 | Phase 7–8.1 review: six screens + telemetry, UX findings | DONE | Health green (126 domain / 22 db tests). Findings below. |
+| CP8 | UX pass: run-screen consequence feedback + player-language sweep | DONE | All 3 batches applied 2026-06-10; suite green (131 domain / 23 db). |
 
 ## Review scope
 
@@ -224,3 +228,120 @@ resource-defined ceiling (Decision 009 as written); Decision 021-C quantities im
   repair action + repair-kit craft form; craft preview action.
 - Deferred from this review: Zod at the action boundary (9), workshop-repair idempotency key
   (10), CHECK constraints (11), test gaps (12), W-D5 concentration metadata in domain.
+
+---
+
+## CP7 — Phase 7–8.1 review (2026-06-10 evening)
+
+Health: `pnpm check` clean; domain 126/126; db 22/22. All six screens + Decision 013
+telemetry committed (5b2d70a..79bd015). Structure is right: screens load via server,
+domain/db boundaries respected. The problems are comprehension, not wiring.
+
+### UX-1 (the big one) — Event windows give zero consequence feedback
+
+`apps/web/src/routes/run/+page.svelte`: after responding, a window shows only
+"Responded: Signal Tune — sharpen the lock". Nothing tells the player:
+(a) what the response just did (no meter delta, no outcome line);
+(b) what would have happened on hold (stakes are invisible before choosing);
+(c) what each option costs/risks.
+Backend reality: `thumper_event_windows` stores only complication/response/timestamps —
+no before/after state (Decision 012 actually requires before/after on the window record).
+Resolution math runs at claim. The claim screen's explanation chain is good, but the
+comprehension moment is at the window, not 60s later.
+Decision 013's "event-action comprehension" gate cannot pass with this UI.
+
+### UX-2 — Dev/designer language leaks into player screens
+
+Player-facing copy cites decision numbers and internal jargon everywhere:
+"Run state (Decision 005)", "Decision 019 — family scan lists…", "Decision 013
+comprehension: every line below…", "Thinking-craft (Decision 008)", "Absent-player
+fallback (Decision 005): … Jobs/workers apply that later", "(client countdown; server
+timestamps are authoritative at claim)". A playtester should never see decision IDs,
+"jobs/workers", or architecture notes. These belong in code comments or dev-only blocks.
+
+### UX-3 — Dev debug blocks render inside the player flow
+
+Pilot Home bottom: "Dev: resource stat codes from shared: OQ, conductivity…" and
+"Dev: thumper state from server (none): no thumper deployed" sit directly under the
+main nav links. They are `import.meta.env.DEV`-gated but visually indistinguishable
+from game UI. Same for the claim screen dev audit (that one at least has a border).
+Dev output needs to be visually quarantined (collapsed details element) or removed.
+
+### UX-4 — No persistent navigation or loop orientation
+
+Each screen has ad-hoc links ("← Pilot Home", "Red Mesa Survey → · Crafting + Gear →").
+The loop (Survey → Deploy → Run → Claim → Craft) is never shown, so the player can't
+see where they are in it. A small persistent header nav in +layout.svelte showing the
+loop stages (with current stage highlighted and run-status badge) would orient every
+screen at once.
+
+### UX-5 — Raw internals shown to players
+
+- Deploy screen shows `Spot: veyrith_copper:spot:2` (raw spot id) instead of "Spot 3".
+- Family scan button text: "Scan conductive metal family (−8 energy)" via
+  `replaceAll('_',' ')` on an enum id.
+- Claim totals list "Resolution: completed" (raw enum).
+- Tail picker shows "~0.50× passive yield vs 1 h" — multiplier math without saying
+  what it means in units; preview doesn't update projected units per tail.
+
+### UX-6 — Confirmation/feedback states are thin
+
+Sample outcome is one small line; craft results exist but success states generally
+render as bare `<p><strong>{form.message}</strong></p>`. No visual differentiation
+between error and success anywhere (same markup for both).
+
+### CP8 — Proposed UX fix batches (composer-2.5)
+
+- Batch 1 (UX-1): per-window stakes + consequence feedback. Before responding: each
+  option shows its effect in plain language with real domain numbers (matching action:
+  what it protects + frame bonus if any; hold: the bounded penalty; recall: keep
+  secured / forfeit rest). After responding: an outcome line with meter deltas
+  ("Signal Lock 62% → 90%, projected recovery preserved"). Backend: compute window
+  outcome at respond time from existing domain math; store before/after snapshot on
+  the window row (closes the Decision 012 gap) and surface it in load/action returns.
+- Batch 2 (UX-2/3/5): player-language sweep across all six screens — strip decision
+  numbers and architecture notes from player copy (move to code comments), humanize
+  enums/ids (spot labels, resolution labels, family names), quarantine dev blocks in
+  collapsed <details class="dev"> styling.
+- Batch 3 (UX-4/6): persistent loop nav in layout (Survey → Deploy → Run → Claim →
+  Craft with active stage + run badge), distinct success/error message styling,
+  richer sample/craft confirmation lines.
+
+### Production-point question (Ryan): solo fun vs testers
+
+Decision 014 ladder: Stage 3 (clickable vertical slice — now) is tuned by RYAN ALONE
+until the loop feels worth repeating; Stage 4 (instrumented playtest, the build 8.1
+telemetry exists for) is when 2–5 outside testers come in. BUILD_PLAN §15/§19 quotes
+"playtesters" only at the gate review. If it isn't fun solo, testers only confirm
+that. Current verdict "flow is terrible" = correct Stage 3 signal; fix UX, self-tune,
+then recruit.
+
+### CP8 — Resolution (applied via composer-2.5 agents, all verified)
+
+- Batch 1 (UX-1): new domain module `eventWindowOutcome.ts` — `describeEventWindowStakes`
+  (per-option plain-language stakes with real numbers shared with claim math),
+  `resolveEventWindowOutcome` (deterministic before/after meter snapshot), consistency
+  test proving stakes preview == claim-time hold penalty. Migration 0023 adds
+  `before_state`/`after_state` jsonb to thumper_event_windows (closes the Decision 012
+  gap); respond stores the snapshot; run screen shows stakes under each button before,
+  and "Signal Tune — Signal Lock 62% → 90% (+5 Recon bonus)" style outcome lines after.
+  Run meters now chain from the latest after_state.
+- Batch 2 (UX-2/3/5): decision citations and architecture notes removed from all player
+  copy on Home/Survey/Deploy/Claim/Craft; `displayLabels.ts` helpers humanize families,
+  spots ("Spot 3"), resolution types, part slots, tails; dev blocks quarantined in
+  collapsed `details.dev-panel`; success/error messages use flash classes.
+- Batch 3 (UX-4/6): persistent loop nav in layout (Home · Survey → Deploy → Run → Claim
+  → Craft + Gear, active stage highlighted, one-query run badge), global flash/dev-panel
+  styles, text-first typographic baseline (~52rem container).
+- NOTE (process): migrations 0020–0022 from the Phase 7 lessons were hand-written again
+  without meta snapshots — the same drift fixed in CP6. Agent 1's 0023 snapshot re-synced
+  the chain (db:generate clean again). Future lessons: always use `db:generate`, never
+  hand-write journal entries.
+- Leftovers flagged, not blocking: claim `explanation.summary` prose may still contain a
+  raw resolution word; per-tail projected units not exposed server-side (tail options use
+  qualitative phrasing); stat codes (OQ etc.) intentionally kept as game vocabulary.
+
+### Next after CP8
+
+Stage 3 self-tuning: Ryan plays the loop solo until it earns repeats; then Lesson 8.2
+(production-point review prep) and a 2–5 tester instrumented playtest (Stage 4).
