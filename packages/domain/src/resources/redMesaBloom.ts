@@ -14,7 +14,7 @@ function stats(values: CompleteResourceStatMap): CompleteResourceStatMap {
 	return values;
 }
 
-/** First Red Mesa Bloom — Decision 006 roster, Decision 010 prototype values. */
+/** First Red Mesa Bloom — Decision 006 + 021 nine-resource roster, Decision 010/021 stats. */
 export const RED_MESA_BLOOM_RESOURCES: Record<NamedResourceId, NamedResourceDefinition> = {
 	keth_iron: {
 		id: 'keth_iron',
@@ -86,6 +86,42 @@ export const RED_MESA_BLOOM_RESOURCES: Record<NamedResourceId, NamedResourceDefi
 			hardness: 420,
 			heat_resistance: 210,
 			malleability: 160
+		})
+	},
+	sorrel_vein_copper: {
+		id: 'sorrel_vein_copper',
+		displayName: 'Sorrel Vein Copper',
+		family: 'conductive_metal',
+		stats: stats({
+			OQ: 560,
+			conductivity: 640,
+			hardness: 210,
+			heat_resistance: 430,
+			malleability: 760
+		})
+	},
+	bendrel_ridge_alloy: {
+		id: 'bendrel_ridge_alloy',
+		displayName: 'Bendrel Ridge Alloy',
+		family: 'structural_alloy',
+		stats: stats({
+			OQ: 610,
+			conductivity: 150,
+			hardness: 430,
+			heat_resistance: 330,
+			malleability: 880
+		})
+	},
+	glimmerfall_shard: {
+		id: 'glimmerfall_shard',
+		displayName: 'Glimmerfall Shard',
+		family: 'reactive_crystal',
+		stats: stats({
+			OQ: 800,
+			conductivity: 680,
+			hardness: 300,
+			heat_resistance: 640,
+			malleability: 210
 		})
 	}
 };

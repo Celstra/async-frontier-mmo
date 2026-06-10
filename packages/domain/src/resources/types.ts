@@ -15,7 +15,10 @@ export type NamedResourceId =
 	| 'asterion_frame_alloy'
 	| 'pale_ember_crystal'
 	| 'veyrith_copper'
-	| 'thornwake_crystal';
+	| 'thornwake_crystal'
+	| 'sorrel_vein_copper'
+	| 'bendrel_ridge_alloy'
+	| 'glimmerfall_shard';
 
 export type NamedResourceDefinition = {
 	id: NamedResourceId;

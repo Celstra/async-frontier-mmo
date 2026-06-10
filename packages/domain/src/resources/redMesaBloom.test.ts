@@ -9,8 +9,8 @@ import {
 const MVP_STATS: ResourceStatCode[] = [...MVP_RESOURCE_STAT_CODES];
 
 describe('Red Mesa bloom resources', () => {
-	it('defines exactly six Red Mesa bloom resources', () => {
-		expect(listRedMesaResources()).toHaveLength(6);
+	it('defines exactly nine Red Mesa bloom resources (Decision 021)', () => {
+		expect(listRedMesaResources()).toHaveLength(9);
 	});
 
 	it('gives every bloom resource all five MVP stats', () => {
@@ -33,11 +33,17 @@ describe('Red Mesa bloom resources', () => {
 		expect(veyrith.stats.hardness).toBe(260);
 	});
 
-	it('covers two resources per family', () => {
+	it('covers three resources per family (Decision 021)', () => {
 		const families = listRedMesaResources().map((resource) => resource.family);
 
-		expect(families.filter((family) => family === 'conductive_metal')).toHaveLength(2);
-		expect(families.filter((family) => family === 'structural_alloy')).toHaveLength(2);
-		expect(families.filter((family) => family === 'reactive_crystal')).toHaveLength(2);
+		expect(families.filter((family) => family === 'conductive_metal')).toHaveLength(3);
+		expect(families.filter((family) => family === 'structural_alloy')).toHaveLength(3);
+		expect(families.filter((family) => family === 'reactive_crystal')).toHaveLength(3);
+	});
+
+	it('locks Sorrel as the pump copper — high Malleability, modest Conductivity', () => {
+		const sorrel = getRedMesaResource('sorrel_vein_copper');
+		expect(sorrel.stats.malleability).toBeGreaterThan(sorrel.stats.conductivity);
+		expect(sorrel.stats.malleability).toBe(760);
 	});
 });

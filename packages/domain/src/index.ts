@@ -35,7 +35,14 @@ export {
 	type ResolveCraftInput
 } from './crafting/schematicEngine.js';
 export { getPropertyOutputBand } from './crafting/propertyBand.js';
-export { SURVEY_SCANNER_MK_I } from './crafting/schematics/surveyScannerMkI.js';
+export {
+	BASIC_DRILL_HEAD,
+	EFFICIENT_PUMP,
+	MVP_SCHEMATIC_BY_ID,
+	MVP_THUMPER_PART_SCHEMATICS,
+	REINFORCED_HULL_PLATE,
+	SURVEY_SCANNER_MK_I
+} from './crafting/schematics/index.js';
 export type {
 	CarefulExperimentOutcome,
 	CraftMode,
