@@ -345,3 +345,61 @@ then recruit.
 
 Stage 3 self-tuning: Ryan plays the loop solo until it earns repeats; then Lesson 8.2
 (production-point review prep) and a 2–5 tester instrumented playtest (Stage 4).
+
+---
+
+## CP9 — First solo-playtest findings + fixes (2026-06-10 night)
+
+Ryan's Stage 3 playtest surfaced: craft tuning/crafting reloads jump to page top with no
+feedback; nav badge stuck on "active" when claimable; equip 500 then "server dead"; event
+windows are a non-choice ("yeah why not tune"); resource slotting feels like accepting
+defaults; tuning feels bad.
+
+**Root cause of the 500/dead server: Postgres connection exhaustion.** `getGameDb()`
+created a NEW postgres.js pool on every load/action (and the new layout badge load made it
+every navigation) and never closed it → "FATAL: sorry, too many clients already" → every
+action 500s. Fixed: pool cached on `globalThis` (HMR-safe singleton) in
+`apps/web/src/lib/server/gameDb.ts`; Postgres container restarted to clear leaked
+connections. The dev server itself was never dead.
+
+**Event tension design (implemented as tunable domain data, numbers NOT locked — Ryan
+locks after play):** each window rolls a visible severity (minor/serious) from the run
+seed (tutorial always minor); hold penalty scales with severity; matching actions now cost
+small Condition wear on the related part (Signal Tune→Drill, Clear Pump→Pump, Suppress
+Threat→Hull; Field Repair burns the kit); frame bonus unchanged. The choice each window:
+"is this complication bad enough to spend gear condition on?" Stakes preview numbers are
+consistency-tested against claim math. Severity persisted on windows (migration 0024).
+
+**Craft screen rebuilt (kimi-k2.5):** client-side workbench (`lib/craft/`) — slot
+comparison cards with per-slot relevant stats and live what-if deltas ("Survey Clarity
+71 → 83"), +/- tuning steppers with remaining-of-3 and per-line ceilings, Safe/Careful as
+a stakes choice, craft result inline with fresh idempotency key per attempt, equip/repair
+flashes adjacent to item rows. Live preview runs the pure domain `previewCraftProperties`
+client-side; server remains authoritative.
+
+**Run screen rebuilt (kimi-k2.5):** severity-treated window cards, options as decision
+cards showing benefit AND cost, stored outcome lines after responding, status banner
+(active/ready-to-claim/recalled), Projected Recovery as the primary meter.
+
+**Also:** use:enhance on Home/Survey/Deploy/Claim forms (no more scroll-to-top), badge
+gains 'ready to claim' state.
+
+## CP10 — Deposit spot depletion (Decision 019 gap, Ryan: "it was always moving in SWG")
+
+Spots were infinite — re-deploying the same high spot forever at the same yield. Now:
+- `deposit_spot_yields` world-state table (migration 0025): deterministic capacity
+  150–400 units per spot (floor clears the ~118-unit tutorial claim), drained atomically
+  inside the claim transaction; payout capped at remaining units with an explanation line
+  ("The deposit ran dry…"); exhausted_at set at zero.
+- Survey shows sampled spots as Rich / Thinning / Nearly dry / Exhausted; exhausted spots
+  lose their deploy link; deploy rejects exhausted spots server-side and caps the preview.
+- Claim shows "This deposit is exhausted — survey for a new spot" when it empties.
+- Sampling trickle does not drain. Stockpiles/provenance untouched.
+- The SWG "it moved" feel = finite spots + hunt again + bloom lifespans/rotation.
+
+**Verification (combined):** pnpm check clean; domain 140/140; db 28/28; smoke ok;
+db:generate no drift; web build ok.
+
+**Open for Ryan's next playtest:** do severity frequencies/penalties feel right; is
+150–400 capacity the right hunt cadence; craft screen — does slotting now feel like a
+decision? All knobs are domain constants.
