@@ -3,8 +3,10 @@ import {
 	getActiveBloomId,
 	getEquippedScannerForPilot,
 	hasPilotCompletedTutorialThumper,
+	hasPilotFamilyScan,
 	pilotNeedsFrameChoice,
-	previewFamilyScanForPilot
+	previewFamilyScanForPilot,
+	getPilotProspectingProgress
 } from '@async-frontier-mmo/db';
 import { TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
 import type { ResourceFamily } from '@async-frontier-mmo/domain';
@@ -15,6 +17,15 @@ import {
 	surveyTeachingNote
 } from '$lib/surveyScreen';
 import type { getGameDb } from './gameDb.js';
+
+function enrichSurveyResources(
+	resources: Awaited<ReturnType<typeof previewFamilyScanForPilot>>['resources']
+) {
+	return resources.map((resource) => ({
+		...resource,
+		teachingNote: surveyTeachingNote(resource.resourceSlug)
+	}));
+}
 
 export async function loadSurveyScreenData(
 	db: ReturnType<typeof getGameDb>,
@@ -31,34 +42,42 @@ export async function loadSurveyScreenData(
 		activeBloomId,
 		hasCompletedTutorial
 	);
-	const preview = await previewFamilyScanForPilot(db, {
+	const prospectingProgress = await getPilotProspectingProgress(db, pilotId);
+	const hasFamilyScan = await hasPilotFamilyScan(db, {
 		pilotId,
-		family: selectedFamily,
-		recommendedResourceSlug
+		bloomId: activeBloomId,
+		family: selectedFamily
 	});
+
+	const preview = hasFamilyScan
+		? await previewFamilyScanForPilot(db, {
+				pilotId,
+				family: selectedFamily,
+				recommendedResourceSlug
+			})
+		: null;
+
 	const equippedScanner = await getEquippedScannerForPilot(db, pilotId);
 	const surveyClarityScore = equippedScanner?.propertyScores.survey_clarity ?? 0;
 
 	return {
 		regionId: 'red_mesa' as const,
-		activeBloomId: preview.activeBloomId,
-		activeBloomName: activeBloomDisplayName(preview.activeBloomId),
+		activeBloomId: preview?.activeBloomId ?? activeBloomId,
+		activeBloomName: activeBloomDisplayName(preview?.activeBloomId ?? activeBloomId),
 		hasCompletedTutorial,
 		isTutorialSurvey: activeBloomId === BLOOM_ONE_ID && !hasCompletedTutorial,
 		selectedFamily,
 		familyOptions: SURVEY_FAMILY_OPTIONS,
 		recommendedResourceSlug,
-		surveyEnergy: preview.surveyEnergy,
+		hasFamilyScan,
+		surveyEnergy: preview?.surveyEnergy ?? prospectingProgress.surveyEnergy,
 		equippedScanner: equippedScanner
 			? {
 					displayName: equippedScanner.displayName,
 					surveyClarityScore
 				}
 			: null,
-		resources: preview.resources.map((resource) => ({
-			...resource,
-			teachingNote: surveyTeachingNote(resource.resourceSlug)
-		}))
+		resources: preview ? enrichSurveyResources(preview.resources) : []
 	};
 }
 

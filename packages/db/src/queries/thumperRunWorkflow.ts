@@ -4,7 +4,7 @@ import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
 import { snapshotEquippedPartsForRun } from './thumperRunParts.js';
 import { grantResourceToPilotTx } from './resourceGrants.js';
-import { getActiveBloomId, getResourceInstanceByBloomSlug } from './resourceInstances.js';
+import { getActiveBloomId, getResourceInstanceByBloomSlug, getResourceInstanceById } from './resourceInstances.js';
 import {
 	claimThumperRun,
 	getLatestThumperRunForPilot,
@@ -74,6 +74,12 @@ export async function deployThumperRunWithEventWindows(
 	}
 ) {
 	return db.transaction(async (tx: DbExecutor) => {
+		const activeBloomId = await getActiveBloomId(tx);
+		const targetInstance = input.resourceInstanceId
+			? await getResourceInstanceById(tx, input.resourceInstanceId)
+			: await getResourceInstanceByBloomSlug(tx, activeBloomId, input.targetResourceId);
+		const resolvedResourceInstanceId = input.resourceInstanceId ?? targetInstance?.id ?? null;
+
 		const run = await insertThumperRun(tx, {
 			pilotId: input.pilotId,
 			pilotFrameId: input.pilotFrameId,
@@ -85,7 +91,7 @@ export async function deployThumperRunWithEventWindows(
 			depositSpotId: input.depositSpotId ?? null,
 			trueConcentrationPercent: input.trueConcentrationPercent ?? null,
 			extractionTailMinutes: input.extractionTailMinutes ?? 60,
-			resourceInstanceId: input.resourceInstanceId ?? null
+			resourceInstanceId: resolvedResourceInstanceId
 		});
 
 		if (input.windows.length > 0) {
@@ -111,13 +117,6 @@ export async function deployThumperRunWithEventWindows(
 				.where(eq(thumperRuns.id, run.id));
 		}
 
-		const activeBloomId = await getActiveBloomId(tx);
-		const targetInstance = await getResourceInstanceByBloomSlug(
-			tx,
-			activeBloomId,
-			input.targetResourceId
-		);
-
 		await appendEconomyLedgerEntry(tx, {
 			eventType: 'thumper_deployed',
 			pilotId: input.pilotId,
@@ -125,7 +124,7 @@ export async function deployThumperRunWithEventWindows(
 			payload: {
 				source_type: 'thumper_run',
 				source_id: run.id,
-				target_resource_instance_id: targetInstance?.id ?? null,
+				target_resource_instance_id: resolvedResourceInstanceId ?? targetInstance?.id ?? null,
 				deposit_spot_id: input.depositSpotId ?? null,
 				true_concentration_percent: input.trueConcentrationPercent ?? null,
 				extraction_tail_minutes: input.extractionTailMinutes ?? 60,
@@ -172,8 +171,8 @@ export async function claimOpenThumperRunForPilot(
 			},
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => ThumperRunResultPayload | Promise<ThumperRunResultPayload>;
-		/** When set, grants recovered quantity to the bloom resource instance in the same transaction. */
-		grantResourceReward?: { bloomId: number };
+		/** When true, grants recovered quantity to the run's deployed resource instance in the same transaction. */
+		grantResourceReward?: boolean;
 		/** After result row is inserted — e.g. apply part wear to item rows. */
 		afterResultInserted?: (
 			tx: DbExecutor,
@@ -276,14 +275,18 @@ export async function claimOpenThumperRunForPilot(
 				);
 			}
 
-			const resourceInstance = await getResourceInstanceByBloomSlug(
-				tx,
-				input.grantResourceReward.bloomId,
-				resultPayload.targetResourceId
-			);
+			if (!run.resourceInstanceId) {
+				throw new Error(`Thumper run ${run.id} has no deployed resource instance for claim reward`);
+			}
+
+			const resourceInstance = await getResourceInstanceById(tx, run.resourceInstanceId);
 			if (!resourceInstance) {
+				throw new Error(`Resource instance ${run.resourceInstanceId} not found for claim reward`);
+			}
+
+			if (resourceInstance.resourceSlug !== resultPayload.targetResourceId) {
 				throw new Error(
-					`No resource instance for bloom ${input.grantResourceReward.bloomId} slug ${resultPayload.targetResourceId}`
+					`Deployed instance slug ${resourceInstance.resourceSlug} does not match run target ${resultPayload.targetResourceId}`
 				);
 			}
 

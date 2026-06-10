@@ -1,4 +1,5 @@
 import {
+	applyRepairKitToItemForPilot,
 	craftFieldRepairKitForPilot,
 	craftSchematicForPilot,
 	craftSurveyScannerForPilot,
@@ -165,6 +166,38 @@ export const actions: Actions = {
 							integrity: outcome.item.integrity
 						}
 					: { slot: outcome.slot, action: 'unequipped' as const }
+		};
+	},
+
+	repairItem: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		const gate = await requireFrameChosenPilot(db, pilotId);
+		if (gate) return gate;
+
+		const formData = await event.request.formData();
+		const itemId = formData.get('itemId');
+		if (typeof itemId !== 'string' || itemId.length === 0) {
+			return fail(400, { message: 'Invalid repair target' });
+		}
+
+		const outcome = await applyRepairKitToItemForPilot(db, { pilotId, targetItemId: itemId });
+		if (outcome.status === 'no_repair_kit') {
+			return fail(400, { message: 'No Field Repair kits available' });
+		}
+		if (outcome.status === 'invalid_target') {
+			return fail(400, { message: outcome.reason });
+		}
+
+		const screen = await loadCraftScreen(db, pilotId, event.url);
+		return {
+			...screen,
+			repairOutcome: {
+				displayName: outcome.item.displayName,
+				condition: outcome.item.condition,
+				integrity: outcome.item.integrity,
+				fieldRepairKitCount: outcome.fieldRepairKitCount
+			}
 		};
 	}
 };

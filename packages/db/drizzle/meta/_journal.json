@@ -148,6 +148,13 @@
       "when": 1782800000000,
       "tag": "0020_thumper_run_deposit_tail",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782900000000,
+      "tag": "0021_pilot_family_scans",
+      "breakpoints": true
     }
   ]
 }

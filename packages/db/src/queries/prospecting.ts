@@ -17,6 +17,7 @@ import {
 import { and, eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
+import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
 import { pilotResourceStatReveals } from '../schema/pilotResourceStatReveals.js';
 import { pilotSurveyEnergy } from '../schema/pilotSurveyEnergy.js';
 import { items } from '../schema/items.js';
@@ -243,7 +244,43 @@ export type PreviewFamilyScanForPilotInput = {
 	recommendedResourceSlug?: string | null;
 };
 
-/** Read-only survey cards for UI load — regen applied for display; scan action still spends energy. */
+export async function hasPilotFamilyScan(
+	db: DbExecutor,
+	input: { pilotId: string; bloomId: number; family: ResourceFamily }
+): Promise<boolean> {
+	const [row] = await db
+		.select({ id: pilotFamilyScans.id })
+		.from(pilotFamilyScans)
+		.where(
+			and(
+				eq(pilotFamilyScans.pilotId, input.pilotId),
+				eq(pilotFamilyScans.bloomId, input.bloomId),
+				eq(pilotFamilyScans.family, input.family)
+			)
+		)
+		.limit(1);
+
+	return Boolean(row);
+}
+
+async function recordPilotFamilyScan(
+	tx: DbExecutor,
+	input: { pilotId: string; bloomId: number; family: ResourceFamily; scannedAt: Date }
+): Promise<void> {
+	await tx
+		.insert(pilotFamilyScans)
+		.values({
+			pilotId: input.pilotId,
+			bloomId: input.bloomId,
+			family: input.family,
+			scannedAt: input.scannedAt
+		})
+		.onConflictDoNothing({
+			target: [pilotFamilyScans.pilotId, pilotFamilyScans.bloomId, pilotFamilyScans.family]
+		});
+}
+
+/** Read-only survey cards for UI load — only after a paid family scan for this bloom. */
 export async function previewFamilyScanForPilot(
 	db: DbExecutor,
 	input: PreviewFamilyScanForPilotInput
@@ -411,6 +448,13 @@ export async function scanFamilyForPilot(
 			return { status: 'insufficient_energy' as const };
 		}
 
+		await recordPilotFamilyScan(tx, {
+			pilotId: input.pilotId,
+			bloomId,
+			family: input.family,
+			scannedAt: now
+		});
+
 		await applyEquippedScannerWear(tx, {
 			pilotId: input.pilotId,
 			conditionLoss: scanResult.scannerWear,
@@ -445,6 +489,7 @@ export type SampleSpotForPilotOutcome =
 			energyCost: number;
 	  }
 	| { status: 'insufficient_energy' }
+	| { status: 'family_scan_required' }
 	| { status: 'spot_already_sampled' }
 	| { status: 'spot_not_found' }
 	| { status: 'spot_resource_mismatch' }
@@ -464,6 +509,18 @@ export async function sampleSpotForPilot(
 		}
 
 		const bloomId = input.bloomId ?? resourceRow.bloomId;
+		const family = resourceRow.family as ResourceFamily;
+
+		if (
+			!(await hasPilotFamilyScan(tx, {
+				pilotId: input.pilotId,
+				bloomId,
+				family
+			}))
+		) {
+			return { status: 'family_scan_required' as const };
+		}
+
 		const bloomGenerationSeed = await getBloomGenerationSeed(tx, bloomId);
 		const resource = resourceInstanceToSurveyResource(resourceRow);
 		const spots = depositSpotsForResource(
@@ -497,6 +554,18 @@ export async function sampleSpotForPilot(
 			return { status: 'insufficient_energy' as const };
 		}
 
+		const persisted = await persistSurveyEnergySpend(tx, {
+			pilotId: input.pilotId,
+			expectedStoredEnergy: energyRow.surveyEnergy,
+			expectedLastUpdatedAt: energyRow.lastUpdatedAt,
+			nextEnergy: sampleResult.pilotProgress.surveyEnergy,
+			nextLastUpdatedAtMs: sampleResult.pilotProgress.lastEnergyUpdatedAtMs
+		});
+
+		if (!persisted) {
+			return { status: 'insufficient_energy' as const };
+		}
+
 		const [reservedSample] = await tx
 			.insert(pilotDepositSpotSamples)
 			.values({
@@ -513,18 +582,6 @@ export async function sampleSpotForPilot(
 
 		if (!reservedSample) {
 			return { status: 'spot_already_sampled' as const };
-		}
-
-		const persisted = await persistSurveyEnergySpend(tx, {
-			pilotId: input.pilotId,
-			expectedStoredEnergy: energyRow.surveyEnergy,
-			expectedLastUpdatedAt: energyRow.lastUpdatedAt,
-			nextEnergy: sampleResult.pilotProgress.surveyEnergy,
-			nextLastUpdatedAtMs: sampleResult.pilotProgress.lastEnergyUpdatedAtMs
-		});
-
-		if (!persisted) {
-			return { status: 'insufficient_energy' as const };
 		}
 
 		if (sampleResult.statsRevealedThisSample) {
@@ -587,6 +644,7 @@ export async function sampleSpotForPilot(
 export async function clearPilotProspectingState(db: DbExecutor, pilotId: string) {
 	await db.delete(pilotDepositSpotSamples).where(eq(pilotDepositSpotSamples.pilotId, pilotId));
 	await db.delete(pilotResourceStatReveals).where(eq(pilotResourceStatReveals.pilotId, pilotId));
+	await db.delete(pilotFamilyScans).where(eq(pilotFamilyScans.pilotId, pilotId));
 	await db.delete(pilotSurveyEnergy).where(eq(pilotSurveyEnergy.pilotId, pilotId));
 }
 

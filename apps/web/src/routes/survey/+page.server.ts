@@ -75,6 +75,7 @@ export const actions: Actions = {
 		if (outcome.status !== 'ok') {
 			const messages: Record<typeof outcome.status, string> = {
 				insufficient_energy: 'Not enough survey energy to sample this spot',
+				family_scan_required: 'Scan this resource family before sampling deposit spots',
 				spot_already_sampled: 'You already sampled this deposit spot',
 				spot_not_found: 'Deposit spot not found',
 				spot_resource_mismatch: 'Spot does not belong to this resource',

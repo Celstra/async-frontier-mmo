@@ -18,6 +18,8 @@ import { getBloomRecord } from './bloomRotation.js';
 import {
 	clearPilotProspectingState,
 	getPilotProspectingProgress,
+	hasPilotFamilyScan,
+	previewFamilyScanForPilot,
 	sampleSpotForPilot,
 	scanFamilyForPilot
 } from './prospecting.js';
@@ -63,12 +65,39 @@ describeDb('prospecting persistence', () => {
 		await db.delete(pilots).where(eq(pilots.id, testPilotId));
 	});
 
+	async function scanConductiveMetalFamily() {
+		const scan = await scanFamilyForPilot(db, {
+			pilotId: testPilotId,
+			family: 'conductive_metal',
+			bloomId: BLOOM_ONE_ID
+		});
+		expect(scan.status).toBe('ok');
+	}
+
+	it('rejects sample before paid family scan', async () => {
+		await clearPilotProspectingState(db, testPilotId);
+
+		const result = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			spotId: firstSpotId
+		});
+
+		expect(result.status).toBe('family_scan_required');
+
+		const progress = await getPilotProspectingProgress(db, testPilotId);
+		expect(progress.sampledSpotIds).toHaveLength(0);
+		expect(progress.surveyEnergy).toBe(SURVEY_ENERGY_CAP);
+	});
+
 	it('first sample reveals stats, grants trickle, and writes survey_completed ledger row', async () => {
 		await clearPilotProspectingState(db, testPilotId);
 
 		const beforeLedger = (await listEconomyLedgerEntriesForPilot(db, testPilotId)).filter(
 			(entry) => entry.eventType === 'survey_completed'
 		);
+
+		await scanConductiveMetalFamily();
 
 		const result = await sampleSpotForPilot(db, {
 			pilotId: testPilotId,
@@ -84,7 +113,9 @@ describeDb('prospecting persistence', () => {
 		expect(result.statsRevealedThisSample).toBe(true);
 		expect(result.trickleQuantity).toBe(SAMPLE_TRICKLE_UNITS);
 		expect(result.energyCost).toBe(SAMPLE_ENERGY_COST);
-		expect(result.surveyEnergy).toBe(SURVEY_ENERGY_CAP - SAMPLE_ENERGY_COST);
+		expect(result.surveyEnergy).toBe(
+			SURVEY_ENERGY_CAP - FAMILY_SCAN_ENERGY_COST - SAMPLE_ENERGY_COST
+		);
 
 		const stack = await getResourceStackForPilotInstance(db, testPilotId, veyrithInstanceId);
 		expect(stack?.quantity).toBe(SAMPLE_TRICKLE_UNITS);
@@ -93,17 +124,12 @@ describeDb('prospecting persistence', () => {
 		expect(progress.revealedResourceSlugs).toContain(veyrithSlug);
 		expect(progress.sampledSpotIds).toContain(firstSpotId);
 
-		const scan = await scanFamilyForPilot(db, {
+		const preview = await previewFamilyScanForPilot(db, {
 			pilotId: testPilotId,
 			family: 'conductive_metal',
 			bloomId: BLOOM_ONE_ID
 		});
-		expect(scan.status).toBe('ok');
-		if (scan.status !== 'ok') {
-			return;
-		}
-
-		const veyrithView = scan.resources.find((resource) => resource.resourceSlug === veyrithSlug);
+		const veyrithView = preview.resources.find((resource) => resource.resourceSlug === veyrithSlug);
 		expect(veyrithView?.statsVisible).toBe(true);
 		expect(veyrithView?.stats).not.toBeNull();
 
@@ -124,6 +150,7 @@ describeDb('prospecting persistence', () => {
 
 	it('re-sampling the same spot does not re-grant trickle or duplicate ledger rows', async () => {
 		await clearPilotProspectingState(db, testPilotId);
+		await scanConductiveMetalFamily();
 
 		const first = await sampleSpotForPilot(db, {
 			pilotId: testPilotId,
@@ -189,6 +216,7 @@ describeDb('prospecting persistence', () => {
 
 	it('stat reveal persists across calls', async () => {
 		await clearPilotProspectingState(db, testPilotId);
+		await scanConductiveMetalFamily();
 
 		const sample = await sampleSpotForPilot(db, {
 			pilotId: testPilotId,
@@ -222,18 +250,83 @@ describeDb('prospecting persistence', () => {
 		}
 		expect(secondSample.statsRevealedThisSample).toBe(false);
 
+		const preview = await previewFamilyScanForPilot(db, {
+			pilotId: testPilotId,
+			family: 'conductive_metal',
+			bloomId: BLOOM_ONE_ID
+		});
+		const veyrithView = preview.resources.find((resource) => resource.resourceSlug === veyrithSlug);
+		expect(veyrithView?.statsVisible).toBe(true);
+		expect(veyrithView?.stats?.conductivity).toBe(930);
+	});
+
+	it('records paid family scan for bloom gating', async () => {
+		await clearPilotProspectingState(db, testPilotId);
+
+		expect(
+			await hasPilotFamilyScan(db, {
+				pilotId: testPilotId,
+				bloomId: BLOOM_ONE_ID,
+				family: 'conductive_metal'
+			})
+		).toBe(false);
+
 		const scan = await scanFamilyForPilot(db, {
 			pilotId: testPilotId,
 			family: 'conductive_metal',
 			bloomId: BLOOM_ONE_ID
 		});
 		expect(scan.status).toBe('ok');
-		if (scan.status !== 'ok') {
-			return;
-		}
 
-		const veyrithView = scan.resources.find((resource) => resource.resourceSlug === veyrithSlug);
-		expect(veyrithView?.statsVisible).toBe(true);
-		expect(veyrithView?.stats?.conductivity).toBe(930);
+		expect(
+			await hasPilotFamilyScan(db, {
+				pilotId: testPilotId,
+				bloomId: BLOOM_ONE_ID,
+				family: 'conductive_metal'
+			})
+		).toBe(true);
+	});
+
+	it('does not persist sample when concurrent energy spend loses the race', async () => {
+		await clearPilotProspectingState(db, testPilotId);
+		await scanConductiveMetalFamily();
+
+		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
+		expect(bloom).not.toBeNull();
+		const spots = generateDepositSpots({
+			resourceSlug: veyrithSlug,
+			bloomGenerationSeed: bloom!.generationSeed,
+			concentrationMinPercent: 30,
+			concentrationMaxPercent: 67
+		});
+		expect(spots.length).toBeGreaterThan(1);
+
+		const lowEnergyAt = new Date();
+		await db
+			.update(pilotSurveyEnergy)
+			.set({ surveyEnergy: SAMPLE_ENERGY_COST, lastUpdatedAt: lowEnergyAt })
+			.where(eq(pilotSurveyEnergy.pilotId, testPilotId));
+
+		const [first, second] = await Promise.all([
+			sampleSpotForPilot(db, {
+				pilotId: testPilotId,
+				resourceInstanceId: veyrithInstanceId,
+				spotId: spots[0]!.spotId,
+				now: lowEnergyAt
+			}),
+			sampleSpotForPilot(db, {
+				pilotId: testPilotId,
+				resourceInstanceId: veyrithInstanceId,
+				spotId: spots[1]!.spotId,
+				now: lowEnergyAt
+			})
+		]);
+
+		const statuses = [first.status, second.status];
+		expect(statuses.filter((status) => status === 'ok')).toHaveLength(1);
+		expect(statuses.filter((status) => status === 'insufficient_energy')).toHaveLength(1);
+
+		const progress = await getPilotProspectingProgress(db, testPilotId);
+		expect(progress.sampledSpotIds).toHaveLength(1);
 	});
 });

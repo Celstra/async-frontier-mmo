@@ -102,6 +102,7 @@ export {
 	clearPilotProspectingState,
 	getPilotDepositSample,
 	getPilotProspectingProgress,
+	hasPilotFamilyScan,
 	previewFamilyScanForPilot,
 	sampleSpotForPilot,
 	scanFamilyForPilot,
@@ -130,5 +131,6 @@ export { repairActions } from './schema/repairActions.js';
 export { thumperRunPartSnapshots } from './schema/thumperRunPartSnapshots.js';
 export { thumperRuns } from './schema/thumperRuns.js';
 export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';
+export { pilotFamilyScans } from './schema/pilotFamilyScans.js';
 export { pilotResourceStatReveals } from './schema/pilotResourceStatReveals.js';
 export { pilotSurveyEnergy } from './schema/pilotSurveyEnergy.js';

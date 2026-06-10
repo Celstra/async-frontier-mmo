@@ -1,7 +1,6 @@
 import {
 	applyRunWearToPartItems,
 	claimOpenThumperRunForPilot,
-	getActiveBloomId,
 	getThumperEventWindowsForRun,
 	getThumperRunPartSnapshots,
 	partModifiersFromRunSnapshots
@@ -120,8 +119,6 @@ export async function claimOpenRun(
 	pilotId: string,
 	now: Date
 ) {
-	const activeBloomId = await getActiveBloomId(db);
-
 	return claimOpenThumperRunForPilot(db, {
 		pilotId,
 		now,
@@ -153,6 +150,6 @@ export async function claimOpenRun(
 				isPushRun: run.isPushRun
 			});
 		},
-		grantResourceReward: { bloomId: activeBloomId }
+		grantResourceReward: true
 	});
 }

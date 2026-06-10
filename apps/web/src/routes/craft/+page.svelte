@@ -40,6 +40,13 @@
 	const equipThumperOutcome = $derived(
 		form && 'equipThumperOutcome' in form ? form.equipThumperOutcome : undefined
 	);
+	const repairOutcome = $derived(
+		form && 'repairOutcome' in form ? form.repairOutcome : undefined
+	);
+
+	function canRepairItem(condition: number, integrity: number): boolean {
+		return data.fieldRepairKitCount > 0 && (condition < 100 || integrity < 100);
+	}
 </script>
 
 <p><a href="/">← Pilot Home</a></p>
@@ -264,6 +271,12 @@
 							<button type="submit">Equip</button>
 						</form>
 					{/if}
+					{#if canRepairItem(scanner.condition, scanner.integrity)}
+						<form method="POST" action="?/repairItem" style="display: inline">
+							<input type="hidden" name="itemId" value={scanner.id} />
+							<button type="submit">Repair with kit</button>
+						</form>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -305,6 +318,12 @@
 						<input type="hidden" name="itemId" value={part.id} />
 						<button type="submit">Equip</button>
 					</form>
+					{#if canRepairItem(part.condition, part.integrity)}
+						<form method="POST" action="?/repairItem" style="display: inline">
+							<input type="hidden" name="itemId" value={part.id} />
+							<button type="submit">Repair with kit</button>
+						</form>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -322,6 +341,13 @@
 	<p>
 		<strong>Equipped {equipThumperOutcome.displayName}</strong> ({equipThumperOutcome.slot}) —
 		condition {equipThumperOutcome.condition}, integrity {equipThumperOutcome.integrity}.
+	</p>
+{/if}
+
+{#if repairOutcome}
+	<p>
+		<strong>Repaired {repairOutcome.displayName}</strong> — condition {repairOutcome.condition},
+		integrity {repairOutcome.integrity}. Kits remaining: {repairOutcome.fieldRepairKitCount}.
 	</p>
 {/if}
 

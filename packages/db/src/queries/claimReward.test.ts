@@ -222,7 +222,7 @@ describeDb('transactional claim reward', () => {
 						}))
 				});
 			},
-			grantResourceReward: { bloomId: BLOOM_ONE_ID }
+			grantResourceReward: true
 		});
 
 		if (firstClaim.status !== 'claimed' || !firstClaim.claimResult) {
@@ -272,7 +272,7 @@ describeDb('transactional claim reward', () => {
 						}))
 				});
 			},
-			grantResourceReward: { bloomId: BLOOM_ONE_ID }
+			grantResourceReward: true
 		});
 
 		if (secondClaim.status !== 'already_claimed') {
@@ -341,7 +341,7 @@ describeDb('transactional claim reward', () => {
 			isResolvableRun: () => true,
 			validateWindows: () => undefined,
 			buildResult: buildSeededClaimResult,
-			grantResourceReward: { bloomId: BLOOM_ONE_ID }
+			grantResourceReward: true
 		});
 
 		if (firstClaim.status !== 'claimed' || !firstClaim.claimResult) {
@@ -372,7 +372,7 @@ describeDb('transactional claim reward', () => {
 			isResolvableRun: () => true,
 			validateWindows: () => undefined,
 			buildResult: buildSeededClaimResult,
-			grantResourceReward: { bloomId: BLOOM_ONE_ID }
+			grantResourceReward: true
 		});
 
 		if (secondClaim.status !== 'already_claimed') {

@@ -115,7 +115,7 @@ async function claimTutorialRun(now: Date) {
 					}))
 			});
 		},
-		grantResourceReward: { bloomId: BLOOM_ONE_ID }
+		grantResourceReward: true
 	});
 }
 

@@ -70,14 +70,18 @@
 	<button type="submit">Scan {selectedFamily.replaceAll('_', ' ')} family (−8 energy)</button>
 </form>
 
-<p>
-	<small>
-		Decision 019 — family scan lists resources and deposit spots. Stats stay hidden until you sample that
-		resource once. Zero-weight craft stats are de-emphasized after reveal.
-	</small>
-</p>
+{#if !data.hasFamilyScan}
+	<p><em>Scan a family to reveal resources and deposit spots (−8 survey energy).</em></p>
+{:else}
+	<p>
+		<small>
+			Decision 019 — family scan lists resources and deposit spots. Stats stay hidden until you sample that
+			resource once. Zero-weight craft stats are de-emphasized after reveal.
+		</small>
+	</p>
+{/if}
 
-{#if resources.length === 0}
+{#if resources.length === 0 && data.hasFamilyScan}
 	<p>No spawnable resources in this family for the active bloom.</p>
 {:else}
 	<ul class="resource-cards">
