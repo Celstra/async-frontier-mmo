@@ -81,7 +81,8 @@ export function buildSuggestedNextAction(input: {
 	) {
 		return {
 			label: 'Claim thumper run',
-			detail: `Secure recovered ${input.openRun.targetDisplayName} into inventory.`
+			detail: `Secure recovered ${input.openRun.targetDisplayName} into inventory.`,
+			href: '/claim'
 		};
 	}
 

@@ -1,6 +1,5 @@
 import {
 	BLOOM_ONE_ID,
-	claimOpenThumperRunForPilot,
 	getActiveBloomId,
 	getResourceInstanceByBloomSlug,
 	rotateActiveBloom,
@@ -13,55 +12,36 @@ import {
 	ensureSessionPilot,
 	equipScannerItemForPilot,
 	getEquippedScannerForPilot,
-	getLatestThumperRunForPilot,
 	listScannerItemsForPilot,
 	getOpenThumperRunForPilot,
 	getPilotById,
 	getPilotFrame,
 	pilotNeedsFrameChoice,
 	setPilotFrame,
-	getThumperEventWindowsForRun,
-	getThumperRunResultForRun,
 	hasPilotCompletedTutorialThumper,
 	listPilotResourceStacksWithInstances,
-	applyRunWearToPartItems,
 	getEquippedThumperPartsForPilot,
-	getThumperRunPartSnapshots,
 	listThumperPartItemsForPilot,
-	partModifiersFromRunSnapshots,
 	equipThumperPartForPilot
 } from '@async-frontier-mmo/db';
 import {
-	assertVeyrithTutorialWindowsReady,
-	BASIC_DRILL_HEAD,
-	DEFAULT_PROJECTED_RECOVERY,
 	deemphasizedStatsForSlotFamily,
 	EFFICIENT_PUMP,
 	FIELD_REPAIR_KIT,
 	MVP_CRAFT_SCHEMATICS,
 	FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 	FIRST_SCANNER_SUGGESTED_TUNING,
-	FIRST_SESSION_SCANNER_MINIMUM,
-	PUSH_RUN_PROJECTED_RECOVERY,
-	projectedRecoveryForStoredRun,
 	REINFORCED_HULL_PLATE,
 	thumperPartSlotForSchematic,
 	getRedMesaResource,
-	isThumperRunClaimable,
-	isThumperRunReadyToResolve,
 	SURVEY_SCANNER_MK_I,
 	TUTORIAL_RUN_SEED,
 	RED_MESA_BLOOM_RESOURCES,
-	resolveFirstSessionThumperRunResult,
-	resolveThumperRunResult,
+	BASIC_DRILL_HEAD,
 	type CraftMode,
 	type NamedResourceId,
 	type SchematicDefinition,
-	type TuningAllocation,
-	type ThumperComplicationId,
-	type ThumperEventActionId,
-	type ThumperWindowChosenResponse,
-	resolveThumperState
+	type TuningAllocation
 } from '@async-frontier-mmo/domain';
 import { parseFrameId, isFrameId } from 'shared';
 import { dev } from '$app/environment';
@@ -96,99 +76,6 @@ async function requireFrameChosenPilot(db: ReturnType<typeof getDb>, pilotId: st
 	}
 	await ensurePilotGameReady(db, pilotId);
 	return null;
-}
-
-async function buildTutorialClaimResult(
-	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
-	run: {
-		id: string;
-		targetResourceId: string;
-		pilotFrameId: string;
-		isPushRun: boolean;
-		trueConcentrationPercent: number | null;
-		extractionTailMinutes: number;
-	},
-	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
-) {
-	const responses = windows
-		.filter((window) => window.chosenResponse !== null)
-		.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication as 'signal_drift' | 'pump_strain',
-			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
-		}));
-
-	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
-	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
-	const projectedRecovery = projectedRecoveryForStoredRun({
-		isPushRun: run.isPushRun,
-		trueConcentrationPercent: run.trueConcentrationPercent,
-		extractionTailMinutes: run.extractionTailMinutes,
-		partModifiers,
-		recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
-	});
-
-	return resolveFirstSessionThumperRunResult({
-		targetResourceId: run.targetResourceId as NamedResourceId,
-		pilotFrame: parseFrameId(run.pilotFrameId),
-		appliedWear: 0,
-		partModifiers,
-		projectedRecovery,
-		eventWindows: windows.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication as 'signal_drift' | 'pump_strain',
-			matchingAction: window.matchingAction as ThumperEventActionId
-		})),
-		responses
-	});
-}
-
-async function buildSeededClaimResult(
-	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
-	run: {
-		id: string;
-		targetResourceId: string;
-		pilotFrameId: string;
-		runSeed: string;
-		isPushRun: boolean;
-		trueConcentrationPercent: number | null;
-		extractionTailMinutes: number;
-	},
-	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
-) {
-	const responses = windows
-		.filter((window) => window.chosenResponse !== null)
-		.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication as ThumperComplicationId,
-			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
-		}));
-
-	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
-	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
-	const projectedRecovery = projectedRecoveryForStoredRun({
-		isPushRun: run.isPushRun,
-		trueConcentrationPercent: run.trueConcentrationPercent,
-		extractionTailMinutes: run.extractionTailMinutes,
-		partModifiers
-	});
-
-	return resolveThumperRunResult({
-		runConfig: {
-			targetResourceId: run.targetResourceId as NamedResourceId,
-			projectedRecovery,
-			runSeed: run.runSeed,
-			appliedWear: 0,
-			partModifiers
-		},
-		eventWindows: windows.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication as ThumperComplicationId,
-			matchingAction: window.matchingAction as ThumperEventActionId
-		})),
-		responses,
-		pilotFrame: parseFrameId(run.pilotFrameId)
-	});
 }
 
 function parseCraftMode(value: FormDataEntryValue | null): CraftMode | null {
@@ -410,44 +297,6 @@ async function loadCraftContext(db: ReturnType<typeof getDb>, pilotId: string) {
 	};
 }
 
-async function claimOpenRun(db: ReturnType<typeof getDb>, pilotId: string, now: Date) {
-	const activeBloomId = await getActiveBloomId(db);
-
-	return claimOpenThumperRunForPilot(db, {
-		pilotId,
-		now,
-		isClaimable: (run, windows) => isThumperRunClaimable({ run, windows, now }),
-		isResolvableRun: () => true,
-		validateWindows: (run, windows) => {
-			if (run.runSeed === TUTORIAL_RUN_SEED) {
-				assertVeyrithTutorialWindowsReady(windows);
-			}
-		},
-		buildResult: (tx, run, windows) =>
-			run.runSeed === TUTORIAL_RUN_SEED
-				? buildTutorialClaimResult(tx, run, windows)
-				: buildSeededClaimResult(tx, run, windows),
-		afterResultInserted: async (tx, { run, windows }) => {
-			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
-			const responses = windows
-				.filter((window) => window.chosenResponse !== null)
-				.map((window) => ({
-					windowIndex: window.windowIndex,
-					complication: window.complication,
-					chosenResponse: window.chosenResponse!
-				}));
-			await applyRunWearToPartItems(tx, {
-				pilotId: run.pilotId,
-				thumperRunId: run.id,
-				snapshots,
-				responses,
-				isPushRun: run.isPushRun
-			});
-		},
-		grantResourceReward: { bloomId: activeBloomId }
-	});
-}
-
 async function loadPilotHomeContext(
 	db: ReturnType<typeof getDb>,
 	pilotId: string,
@@ -641,58 +490,6 @@ export const actions: Actions = {
 		}
 
 		await setPilotFrame(db, pilotId, frameIdRaw);
-	},
-
-	claim: async (event) => {
-		const db = getDb();
-		const pilotId = resolvePilotId(event);
-		const now = new Date();
-
-		let outcome;
-		try {
-			outcome = await claimOpenRun(db, pilotId, now);
-		} catch (error) {
-			return fail(500, {
-				message: error instanceof Error ? error.message : 'Claim failed unexpectedly'
-			});
-		}
-
-		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
-			return {
-				thumperDemo: null,
-				claimed: true,
-				claimResult: outcome.claimResult,
-				reward: outcome.status === 'claimed' ? outcome.reward : null
-			};
-		}
-
-		if (outcome.status === 'not_claimable') {
-			const run = await getOpenThumperRunForPilot(db, pilotId);
-			const thumperDemo = run
-				? resolveThumperState({
-						deployedAt: run.deployedAt,
-						durationSeconds: run.durationSeconds,
-						now
-					})
-				: null;
-			return fail(400, { message: 'Thumper is not claimable yet', thumperDemo });
-		}
-
-		if (outcome.status === 'not_resolvable') {
-			return fail(400, { message: outcome.message });
-		}
-
-		if (outcome.status === 'invalid_windows') {
-			return fail(400, { message: outcome.message });
-		}
-
-		const latest = await getLatestThumperRunForPilot(db, pilotId);
-		if (latest?.claimedAt) {
-			const existingResult = await getThumperRunResultForRun(db, latest.id);
-			return { thumperDemo: null, claimed: true, claimResult: existingResult };
-		}
-
-		return fail(400, { message: 'No thumper to claim' });
 	},
 
 	craftScanner: async (event) => {

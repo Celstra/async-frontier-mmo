@@ -175,7 +175,7 @@ $effect(() => {
 </section>
 
 {#if runReadyToResolve && (openRun.recalled || thumperDemo.status === 'claimable')}
-	<p><a href="/">Claim thumper on Pilot Home →</a></p>
+	<p><a href="/claim">Claim thumper on Claim Results →</a></p>
 {:else if !openRun.recalled && thumperDemo.status === 'active'}
 	<p>
 		<small>

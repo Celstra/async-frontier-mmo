@@ -4,6 +4,11 @@ import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
 import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
 import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
+import {
+	describeWindowResponse,
+	penaltyWasteForResponse,
+	RECALL_EXPLANATION_PREFIX
+} from './thumperWindowResolution.js';
 
 export type ThumperRunResolutionType = 'completed' | 'recalled';
 
@@ -45,47 +50,6 @@ export type ThumperRunResult = {
 	appliedWear: number;
 	explanation: string;
 };
-
-const COMPLICATION_PENALTY_WASTE: Record<ThumperComplicationId, number> = {
-	signal_drift: 10,
-	hull_damage: 12,
-	threat_surge: 12,
-	pump_strain: 15
-};
-
-const RECALL_EXPLANATION_PREFIX =
-	'Recall Early: secured progress kept; remaining projected recovery was not extracted.';
-
-function penaltyWasteForResponse(
-	complication: ThumperComplicationId,
-	matchingAction: ThumperEventActionId,
-	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>
-): number {
-	if (chosenResponse === matchingAction) {
-		return 0;
-	}
-
-	return COMPLICATION_PENALTY_WASTE[complication];
-}
-
-function describeResponse(
-	complication: ThumperComplicationId,
-	matchingAction: ThumperEventActionId,
-	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>,
-	frameBonus: number,
-	pilotFrame: FrameId
-): string {
-	if (chosenResponse === matchingAction) {
-		if (frameBonus > 0) {
-			return `${complication}: used ${matchingAction} — ${pilotFrame} frame bonus +${frameBonus} recovery.`;
-		}
-		return `${complication}: used ${matchingAction} — no waste from this window.`;
-	}
-	if (chosenResponse === 'hold') {
-		return `${complication}: held/ignored — extraction loss converted to waste.`;
-	}
-	return `${complication}: used ${chosenResponse} instead of ${matchingAction} — partial recovery loss.`;
-}
 
 function findRecallWindowIndex(responses: ThumperEventWindowResponse[]): number | null {
 	const recalls = responses.filter((response) => response.chosenResponse === 'recall_early');
@@ -144,7 +108,7 @@ function resolveAnsweredWindows(input: {
 		}
 
 		explanationParts.push(
-			describeResponse(
+			describeWindowResponse(
 				response.complication,
 				matchingAction,
 				response.chosenResponse,

@@ -1,0 +1,153 @@
+import {
+	getLatestThumperRunForPilot,
+	getOpenThumperRunForPilot,
+	getThumperEventWindowsForRun,
+	getThumperRunPartSnapshots,
+	getThumperRunResultForRun,
+	listEconomyLedgerEntriesForPilot
+} from '@async-frontier-mmo/db';
+import {
+	buildThumperClaimResultExplanation,
+	isThumperRunClaimable,
+	isThumperRunReadyToResolve,
+	resolveThumperState,
+	type ThumperComplicationId,
+	type ThumperEventActionId,
+	type ThumperWindowChosenResponse
+} from '@async-frontier-mmo/domain';
+import { parseFrameId } from 'shared';
+import type { getGameDb } from './gameDb.js';
+import { resolveTargetDisplayName } from './targetResource.js';
+
+function ledgerEntryRelatesToRun(
+	payload: Record<string, unknown>,
+	runId: string,
+	resultId: string
+): boolean {
+	const sourceId = payload.source_id;
+	if (sourceId === runId || sourceId === resultId) {
+		return true;
+	}
+	if (payload.thumper_run_id === runId) {
+		return true;
+	}
+	if (payload.source_type === 'thumper_run_result' && sourceId === resultId) {
+		return true;
+	}
+	return false;
+}
+
+export async function loadClaimScreen(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string,
+	now: Date
+) {
+	const openRun = await getOpenThumperRunForPilot(db, pilotId);
+	const latestRun = await getLatestThumperRunForPilot(db, pilotId);
+
+	if (!latestRun && !openRun) {
+		return { mode: 'none' as const };
+	}
+
+	const displayRun = latestRun?.claimedAt ? latestRun : openRun ?? latestRun;
+	if (!displayRun) {
+		return { mode: 'none' as const };
+	}
+
+	const targetDisplayName = await resolveTargetDisplayName(db, displayRun.targetResourceId);
+	const windows = await getThumperEventWindowsForRun(db, displayRun.id);
+	const thumperDemo = resolveThumperState({
+		deployedAt: displayRun.deployedAt,
+		durationSeconds: displayRun.durationSeconds,
+		now
+	});
+	const runReadyToResolve = isThumperRunReadyToResolve(windows);
+	const claimable =
+		!displayRun.claimedAt &&
+		isThumperRunClaimable({ run: displayRun, windows, now }) &&
+		runReadyToResolve;
+
+	const existingResult = displayRun.claimedAt
+		? await getThumperRunResultForRun(db, displayRun.id)
+		: null;
+
+	if (!existingResult && !claimable) {
+		return {
+			mode: 'pending' as const,
+			targetDisplayName,
+			thumperDemo,
+			runReadyToResolve,
+			message: runReadyToResolve
+				? 'Thumper timer has not finished yet.'
+				: 'Resolve event windows on the Thumper Run screen before claiming.'
+		};
+	}
+
+	if (!existingResult) {
+		return {
+			mode: 'claimable' as const,
+			runId: displayRun.id,
+			targetDisplayName,
+			targetResourceId: displayRun.targetResourceId,
+			thumperDemo,
+			windowCount: windows.length
+		};
+	}
+
+	const partSnapshots = await getThumperRunPartSnapshots(db, displayRun.id);
+	const responses = windows
+		.filter((window) => window.chosenResponse !== null)
+		.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as ThumperComplicationId,
+			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
+		}));
+
+	const explanation = buildThumperClaimResultExplanation({
+		targetResourceDisplayName: targetDisplayName,
+		projectedRecovery: existingResult.projectedRecovery,
+		recoveredQuantity: existingResult.recoveredQuantity,
+		wasteQuantity: existingResult.wasteQuantity,
+		forfeitedRecovery: existingResult.forfeitedRecovery,
+		resolutionType: existingResult.resolutionType as 'completed' | 'recalled',
+		explanation: existingResult.explanation,
+		eventWindows: windows.map((window) => ({
+			windowIndex: window.windowIndex,
+			complication: window.complication as ThumperComplicationId,
+			matchingAction: window.matchingAction as ThumperEventActionId
+		})),
+		responses,
+		pilotFrame: parseFrameId(displayRun.pilotFrameId),
+		partSnapshots,
+		isPushRun: displayRun.isPushRun
+	});
+
+	const ledgerEntries = await listEconomyLedgerEntriesForPilot(db, pilotId);
+	const auditEntries = ledgerEntries
+		.filter((entry) =>
+			ledgerEntryRelatesToRun(
+				(entry.payload ?? {}) as Record<string, unknown>,
+				displayRun.id,
+				existingResult.id
+			)
+		)
+		.map((entry) => ({
+			id: entry.id,
+			eventType: entry.eventType,
+			quantityDelta: entry.quantityDelta,
+			createdAt: entry.createdAt?.toISOString() ?? null,
+			payload: entry.payload
+		}));
+
+	return {
+		mode: 'result' as const,
+		runId: displayRun.id,
+		resultId: existingResult.id,
+		targetDisplayName,
+		targetResourceId: displayRun.targetResourceId,
+		alreadyClaimed: true,
+		claimResult: existingResult,
+		explanation,
+		auditEntries
+	};
+}

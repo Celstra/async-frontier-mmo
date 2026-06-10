@@ -14,14 +14,10 @@
 		'heat_resistance',
 		'malleability'
 	];
-	const thumperDemo = $derived(
-		form?.claimed ? null : (data.thumperDemo ?? form?.thumperDemo)
-	);
-	const openRun = $derived(form?.claimed ? null : (data.openRun ?? null));
+	const thumperDemo = $derived(data.thumperDemo ?? null);
+	const openRun = $derived(data.openRun ?? null);
 	const eventWindows = $derived(data.eventWindows ?? []);
 	const runReadyToResolve = $derived(data.runReadyToResolve ?? false);
-	const claimResult = $derived(form?.claimResult ?? null);
-	const claimReward = $derived(form?.reward ?? null);
 	const craftContext = $derived(form?.craftContext ?? data.craftContext);
 	const craftOutcome = $derived(form?.craftOutcome ?? null);
 	const scannerItems = $derived(form?.scannerItems ?? data.scannerItems ?? []);
@@ -110,9 +106,7 @@
 	function suggestedTuningForSchematic(schematicId: string): Record<string, number> {
 		return craftContext?.thumperPartSuggestedTuning?.[schematicId] ?? {};
 	}
-	const thumperSource = $derived(
-		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
-	);
+	const thumperSource = $derived(data.thumperDemo ? 'load' : 'none');
 	const canSubmitClaim = $derived(
 		(openRun?.recalled === true || thumperDemo?.status === 'claimable') && runReadyToResolve
 	);
@@ -243,9 +237,7 @@
 {/if}
 
 {#if canSubmitClaim}
-	<form method="POST" action="?/claim">
-		<button type="submit">Claim thumper</button>
-	</form>
+	<p><a href="/claim"><strong>Claim thumper →</strong></a></p>
 {:else if thumperDemo && !runReadyToResolve}
 	<p>Resolve event windows or choose Recall Early before claiming.</p>
 {:else if thumperDemo && !openRun?.recalled && thumperDemo.status !== 'claimable'}
@@ -253,6 +245,7 @@
 {/if}
 
 {#if craftContext && !thumperDemo}
+	<section id="crafting-workshop">
 	<h2>Crafting workshop</h2>
 	<p>
 		<small>
@@ -391,6 +384,7 @@
 			<button type="submit">Craft {partSchematic.displayName}</button>
 		</form>
 	{/each}
+	</section>
 {/if}
 
 {#if equippedThumperParts}
@@ -505,21 +499,6 @@
 	{/if}
 {/if}
 
-{#if form?.claimed && claimResult}
-	<p>
-		<strong>Claim result ({claimResult.resolutionType}):</strong>
-		{claimResult.recoveredQuantity} {claimResult.targetResourceId}
-		(waste {claimResult.wasteQuantity}, forfeited {claimResult.forfeitedRecovery}) —
-		{claimResult.explanation}
-	</p>
-	{#if claimReward}
-		<p>
-			<strong>Inventory:</strong> +{claimReward.quantityGranted}
-			{claimReward.displayName} (stack total {claimReward.stackQuantity})
-		</p>
-	{/if}
-{/if}
-
 {#if import.meta.env.DEV}
 	<p data-dev-note>
 		<strong>Dev:</strong> resource stat codes from <code>shared</code>:
@@ -527,9 +506,7 @@
 	</p>
 	<p data-dev-note>
 		<strong>Dev:</strong> thumper state from server ({thumperSource}):
-		{#if form?.claimed}
-			claimed
-		{:else if thumperDemo}
+		{#if thumperDemo}
 			{thumperDemo.status},
 			{#if thumperDemo.status === 'active'}
 				{displaySeconds}s remaining (client display)

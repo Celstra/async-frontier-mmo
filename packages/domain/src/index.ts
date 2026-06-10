@@ -190,6 +190,12 @@ export {
 	COMPLICATION_DISPLAY_NAMES
 } from './thumper/eventActionLabels.js';
 export {
+	buildThumperClaimResultExplanation,
+	type ThumperClaimResultExplanation,
+	type ThumperPartWearExplanationLine,
+	type ThumperWindowExplanationLine
+} from './thumper/buildThumperClaimResultExplanation.js';
+export {
 	generateThumperEventWindows,
 	TUTORIAL_RUN_SEED,
 	type ThumperRunWindowPlan
