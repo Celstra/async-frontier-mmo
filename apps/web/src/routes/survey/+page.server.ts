@@ -1,16 +1,24 @@
 import {
+	getActiveBloomId,
 	getPilotById,
+	getResourceInstanceById,
+	hasPilotCompletedTutorialThumper,
 	pilotNeedsFrameChoice,
 	sampleSpotForPilot,
 	scanFamilyForPilot
 } from '@async-frontier-mmo/db';
 import type { ResourceFamily } from '@async-frontier-mmo/domain';
+import { TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
 import { fail, redirect } from '@sveltejs/kit';
 import { getGameDb } from '$lib/server/gameDb';
 import { requireFrameChosenPilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
 import { loadSurveyScreenData } from '$lib/server/surveyLoad';
-import { parseSurveyFamily } from '$lib/surveyScreen';
+import { parseSurveyFamily, recommendedResourceSlugForBloom } from '$lib/surveyScreen';
+import {
+	trackFamilyScanCompleted,
+	trackSampleSpotCompleted
+} from '$lib/server/playtestTelemetry';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -44,6 +52,21 @@ export const actions: Actions = {
 				...(await loadSurveyScreenData(db, pilotId, family))
 			});
 		}
+
+		const activeBloomId = await getActiveBloomId(db);
+		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
+			db,
+			pilotId,
+			TUTORIAL_RUN_SEED
+		);
+		await trackFamilyScanCompleted(db, pilotId, {
+			family,
+			resourceCount: outcome.resources.length,
+			recommendedResourceSlug: recommendedResourceSlugForBloom(
+				activeBloomId,
+				hasCompletedTutorial
+			)
+		});
 
 		return loadSurveyScreenData(db, pilotId, family);
 	},
@@ -87,6 +110,12 @@ export const actions: Actions = {
 				...(await loadSurveyScreenData(db, pilotId, family))
 			});
 		}
+
+		const resource = await getResourceInstanceById(db, resourceInstanceId);
+		await trackSampleSpotCompleted(db, pilotId, {
+			resourceSlug: resource?.resourceSlug ?? 'unknown',
+			statsRevealedThisSample: outcome.statsRevealedThisSample
+		});
 
 		return {
 			sampleOutcome: outcome,

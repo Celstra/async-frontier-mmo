@@ -22,6 +22,10 @@ import { getGameDb } from '$lib/server/gameDb';
 import { requireFrameChosenPilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
 import { recommendedResourceSlugForBloom, surveyTeachingNote } from '$lib/surveyScreen';
+import {
+	trackDeployScreenViewed,
+	trackThumperDeployed
+} from '$lib/server/playtestTelemetry';
 import type { Actions, PageServerLoad } from './$types';
 
 async function resolveDeployTargetSlug(
@@ -87,6 +91,13 @@ export const load: PageServerLoad = async (event) => {
 		extractionTailMinutes,
 		isPushRun,
 		isTutorialRun
+	});
+
+	await trackDeployScreenViewed(db, pilotId, {
+		resourceSlug: resource.resourceSlug,
+		resourceInstanceId,
+		spotId,
+		extractionTailMinutes
 	});
 
 	return {
@@ -187,6 +198,12 @@ export const actions: Actions = {
 				complication: window.complication,
 				matchingAction: window.matchingAction
 			}))
+		});
+
+		await trackThumperDeployed(db, pilotId, {
+			targetResourceId,
+			isTutorialRun,
+			extractionTailMinutes
 		});
 
 		redirect(303, '/');

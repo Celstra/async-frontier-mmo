@@ -25,6 +25,7 @@ import {
 	validateEventWindowResponse
 } from '$lib/server/runLoad';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
+import { trackEventWindowResolved } from '$lib/server/playtestTelemetry';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -114,6 +115,11 @@ export const actions: Actions = {
 			if (outcome.status === 'not_recorded') {
 				return fail(400, { message: 'Could not record event window response' });
 			}
+
+			await trackEventWindowResolved(db, pilotId, windowIndex, {
+				chosenResponse,
+				complication: window.complication
+			});
 		}
 
 		const refreshedRun = (await getOpenThumperRunForPilot(db, pilotId))!;

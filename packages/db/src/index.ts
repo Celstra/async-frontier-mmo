@@ -134,3 +134,20 @@ export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';
 export { pilotFamilyScans } from './schema/pilotFamilyScans.js';
 export { pilotResourceStatReveals } from './schema/pilotResourceStatReveals.js';
 export { pilotSurveyEnergy } from './schema/pilotSurveyEnergy.js';
+export {
+	PLAYTEST_COMPREHENSION_EVENTS,
+	PLAYTEST_EVENT_NAMES,
+	PLAYTEST_FUNNEL_EVENTS,
+	isPlaytestEventName,
+	type PlaytestEventName
+} from './playtest/eventNames.js';
+export {
+	countPilotDepositSamples,
+	countPilotFamilyScans,
+	countPlaytestEventsByName,
+	listPlaytestEventsForPilot,
+	recordPlaytestEvent,
+	recordPlaytestEventOnce,
+	type PlaytestEventPayload
+} from './queries/playtestTelemetry.js';
+export { playtestEvents } from './schema/playtestEvents.js';

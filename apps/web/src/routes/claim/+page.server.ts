@@ -7,6 +7,10 @@ import { dev } from '$app/environment';
 import { fail, redirect } from '@sveltejs/kit';
 import { claimOpenRun } from '$lib/server/claimWorkflow';
 import { loadClaimScreen } from '$lib/server/claimLoad';
+import {
+	trackResourceClaimed,
+	trackThumperClaimed
+} from '$lib/server/playtestTelemetry';
 import { getGameDb } from '$lib/server/gameDb';
 import { requireFrameChosenPilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
@@ -52,6 +56,22 @@ export const actions: Actions = {
 			outcome.status === 'claimed' ||
 			outcome.status === 'already_claimed'
 		) {
+			if (outcome.status === 'claimed') {
+				const latest = await getLatestThumperRunForPilot(db, pilotId);
+				if (latest && outcome.claimResult) {
+					await trackThumperClaimed(db, pilotId, {
+						thumperRunId: latest.id,
+						recoveredQuantity: outcome.claimResult.recoveredQuantity
+					});
+				}
+				if (outcome.reward) {
+					await trackResourceClaimed(db, pilotId, {
+						resourceSlug: outcome.reward.resourceSlug,
+						resourceInstanceId: outcome.reward.resourceInstanceId,
+						quantityGranted: outcome.reward.quantityGranted
+					});
+				}
+			}
 			redirect(303, '/claim');
 		}
 

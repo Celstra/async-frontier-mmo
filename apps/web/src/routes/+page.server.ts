@@ -30,6 +30,7 @@ import {
 	FRAME_CHOICE_OPTIONS
 } from '$lib/pilotHome';
 import { resolvePilotId } from '$lib/server/pilot';
+import { trackFrameChosen } from '$lib/server/playtestTelemetry';
 import { loadOpenRunState } from '$lib/server/runLoad';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
 import type { Actions, PageServerLoad } from './$types';
@@ -262,6 +263,7 @@ export const actions: Actions = {
 		}
 
 		await setPilotFrame(db, pilotId, frameIdRaw);
+		await trackFrameChosen(db, pilotId, frameIdRaw);
 	},
 
 	rotateBloom: async (event) => {

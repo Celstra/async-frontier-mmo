@@ -17,6 +17,11 @@ import {
 import { getGameDb } from '$lib/server/gameDb';
 import { requireFrameChosenPilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
+import {
+	trackCraftCommitted,
+	trackCraftScreenViewed,
+	trackItemEquipped
+} from '$lib/server/playtestTelemetry';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -27,8 +32,37 @@ export const load: PageServerLoad = async (event) => {
 		redirect(303, '/');
 	}
 
-	return loadCraftScreen(db, pilotId, event.url);
+	return loadCraftScreenWithTelemetry(db, pilotId, event.url);
 };
+
+async function loadCraftScreenWithTelemetry(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string,
+	url: URL
+) {
+	const screen = await loadCraftScreen(db, pilotId, url);
+	const schematic = MVP_SCHEMATIC_BY_ID[screen.selectedSchematicId] ?? SURVEY_SCANNER_MK_I;
+	const allSlotsFilled = schematic.slots.every((slot) => Boolean(screen.slotSelections[slot.id]));
+	const hasRepairableGear =
+		screen.fieldRepairKitCount > 0 &&
+		[...screen.scannerItems, ...screen.thumperPartItems].some(
+			(item) => item.condition < 100 || item.integrity < 100
+		);
+
+	await trackCraftScreenViewed(db, pilotId, {
+		selectedSchematicId: screen.selectedSchematicId,
+		allocationHintCount: screen.allocationHints.length,
+		inventory: screen.inventory,
+		schematic,
+		slotSelections: screen.slotSelections,
+		tuning: screen.tuning,
+		tuningTotal: screen.tuningTotal,
+		allSlotsFilled,
+		hasRepairableGear
+	});
+
+	return screen;
+}
 
 export const actions: Actions = {
 	craft: async (event) => {
@@ -91,7 +125,13 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const screen = await loadCraftScreen(db, pilotId, event.url);
+		await trackCraftCommitted(db, pilotId, {
+			schematicId: schematic.id,
+			craftMode,
+			itemDisplayName: outcome.item.displayName
+		});
+
+		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 
 		return {
 			...screen,
@@ -120,7 +160,12 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const screen = await loadCraftScreen(db, pilotId, event.url);
+		await trackItemEquipped(db, pilotId, {
+			itemKind: 'scanner',
+			displayName: outcome.item.displayName
+		});
+
+		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 		return {
 			...screen,
 			equipOutcome: {
@@ -154,7 +199,15 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const screen = await loadCraftScreen(db, pilotId, event.url);
+		if (outcome.status === 'equipped') {
+			await trackItemEquipped(db, pilotId, {
+				itemKind: 'thumper_part',
+				displayName: outcome.item.displayName,
+				slot: outcome.slot
+			});
+		}
+
+		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 		return {
 			...screen,
 			equipThumperOutcome:
@@ -189,7 +242,7 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const screen = await loadCraftScreen(db, pilotId, event.url);
+		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 		return {
 			...screen,
 			repairOutcome: {
