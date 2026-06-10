@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import type { PageProps } from './$types';
 	import type { ResourceStatCode } from 'shared';
@@ -69,7 +70,10 @@
 	<section class="frame-choice">
 		<h2>Choose your frame</h2>
 		<p>How do you operate on the frontier?</p>
-		<form method="POST" action="?/chooseFrame">
+		{#if form?.message}
+			<p class="flash flash--error">{form.message}</p>
+		{/if}
+		<form method="POST" action="?/chooseFrame" use:enhance>
 			{#each frameChoiceOptions as option}
 				<label class="frame-option">
 					<input type="radio" name="frameId" value={option.id} required />
@@ -173,7 +177,10 @@
 		<details class="dev-panel">
 			<summary>Dev</summary>
 			{#if hasCompletedTutorial}
-				<form method="POST" action="?/rotateBloom">
+				{#if form?.message}
+					<p class="flash flash--error">{form.message}</p>
+				{/if}
+				<form method="POST" action="?/rotateBloom" use:enhance>
 					<button type="submit">Rotate bloom</button>
 				</form>
 				{#if bloomRotation}

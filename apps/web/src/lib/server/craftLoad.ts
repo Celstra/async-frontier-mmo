@@ -37,11 +37,21 @@ const SUGGESTED_TUNING: Record<string, TuningAllocation> = {
 	[REINFORCED_HULL_PLATE.id]: { max_condition: 2, damage_reduction: 1, repairability: 0 }
 };
 
+/**
+ * UI-ready schematic with full weight data for client-side preview.
+ * Preserves term structure so SlotSelector can show relevant stats per slot.
+ */
 export function schematicToCraftUi(schematic: SchematicDefinition) {
 	return {
 		id: schematic.id,
+		version: schematic.version,
 		displayName: schematic.displayName,
-		slots: schematic.slots,
+		slots: schematic.slots.map(slot => ({
+			id: slot.id,
+			displayName: slot.displayName,
+			requiredFamily: slot.requiredFamily,
+			inputQuantity: slot.inputQuantity
+		})),
 		properties: schematic.properties.map((property) => ({
 			id: property.id,
 			displayName: property.displayName,
@@ -50,7 +60,8 @@ export function schematicToCraftUi(schematic: SchematicDefinition) {
 					return {
 						kind: 'average_oq' as const,
 						label: `Average OQ (${Math.round(term.weight * 100)}%)`,
-						weightPercent: Math.round(term.weight * 100)
+						weightPercent: Math.round(term.weight * 100),
+						weight: term.weight
 					};
 				}
 
@@ -59,6 +70,7 @@ export function schematicToCraftUi(schematic: SchematicDefinition) {
 					kind: 'slot_stat' as const,
 					label: `${slot?.displayName ?? term.slotId} · ${term.stat} (${Math.round(term.weight * 100)}%)`,
 					weightPercent: Math.round(term.weight * 100),
+					weight: term.weight,
 					slotId: term.slotId,
 					stat: term.stat
 				};
@@ -223,6 +235,8 @@ export async function loadCraftScreen(
 		schematics: MVP_CRAFT_SCHEMATICS.map(schematicToCraftUi),
 		selectedSchematicId: schematic.id,
 		schematic: schematicToCraftUi(schematic),
+		// Full domain schematic for client-side preview calculations
+		schematicDefinition: schematic,
 		inventory,
 		veyrithStack: inventory.find((stack) => stack.resourceSlug === 'veyrith_copper') ?? null,
 		allocationHints,

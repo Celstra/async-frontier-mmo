@@ -39,7 +39,11 @@
 					>
 						{stage.label}
 						{#if stage.id === 'run' && data.runBadge === 'active'}
-							<span class="run-badge" title="Thumper run in progress">active</span>
+							<span class="run-badge run-badge--active" title="Thumper run in progress">active</span>
+						{:else if stage.id === 'run' && data.runBadge === 'claimable'}
+							<span class="run-badge run-badge--claimable" title="Thumper ready to claim"
+								>ready to claim</span
+							>
 						{/if}
 					</a>
 				{/if}
@@ -173,10 +177,19 @@
 		font-weight: 600;
 		line-height: 1.3;
 		text-transform: lowercase;
+		vertical-align: middle;
+	}
+
+	.run-badge--active {
 		color: #1f4d1f;
 		background: #d8edd8;
 		border: 1px solid #6b9e6b;
-		vertical-align: middle;
+	}
+
+	.run-badge--claimable {
+		color: #5c4a12;
+		background: #f5e6b8;
+		border: 1px solid #c9a227;
 	}
 
 	.app-main {

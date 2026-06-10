@@ -1,6 +1,24 @@
-/** Minimal run indicator for layout nav — one open-run query, no resolution math. */
-export type RunBadgeState = 'none' | 'active';
+import { resolveThumperState } from '@async-frontier-mmo/domain';
 
-export function runBadgeFromOpenRun(hasOpenRun: boolean): RunBadgeState {
-	return hasOpenRun ? 'active' : 'none';
+/** Minimal run indicator for layout nav — one open-run query + domain timer resolution. */
+export type RunBadgeState = 'none' | 'active' | 'claimable';
+
+export type OpenRunBadgeInput = {
+	deployedAt: Date;
+	durationSeconds: number;
+};
+
+export function runBadgeFromOpenRun(
+	openRun: OpenRunBadgeInput | null,
+	now: Date = new Date()
+): RunBadgeState {
+	if (!openRun) {
+		return 'none';
+	}
+
+	return resolveThumperState({
+		deployedAt: openRun.deployedAt,
+		durationSeconds: openRun.durationSeconds,
+		now
+	}).status;
 }

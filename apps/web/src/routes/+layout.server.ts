@@ -16,7 +16,14 @@ export const load: LayoutServerLoad = async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
 		const openRun = await getOpenThumperRunForPilot(db, pilotId);
-		runBadge = runBadgeFromOpenRun(openRun !== null);
+		runBadge = runBadgeFromOpenRun(
+			openRun
+				? {
+						deployedAt: openRun.deployedAt,
+						durationSeconds: openRun.durationSeconds
+					}
+				: null
+		);
 	} catch {
 		// Missing DB, connection errors, etc. — layout still renders.
 	}
