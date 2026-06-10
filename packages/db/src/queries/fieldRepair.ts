@@ -4,6 +4,7 @@ import {
 	applyHullDamageWithoutFieldRepair,
 	applyFieldRepairWithKit,
 	FIELD_REPAIR_KIT,
+	parseEventWindowSeverity,
 	resolveEventWindowOutcome,
 	SURVEY_SCANNER_MK_I,
 	isThumperPartSchematic,
@@ -183,6 +184,7 @@ export type RecordThumperResponseInput = {
 	windowIndex: number;
 	complication: string;
 	matchingAction: string;
+	severity: string;
 	chosenResponse: string;
 	pilotFrameId: string;
 	currentMeters: EventWindowMeterSnapshot;
@@ -221,6 +223,7 @@ export async function recordThumperEventWindowResponseForPilot(
 		const windowOutcome = resolveEventWindowOutcome({
 			complication: input.complication as ThumperComplicationId,
 			matchingAction: input.matchingAction as ThumperEventActionId,
+			severity: parseEventWindowSeverity(input.severity),
 			chosenResponse: input.chosenResponse as ThumperWindowChosenResponse,
 			pilotFrame: parseFrameId(input.pilotFrameId),
 			currentMeters: input.currentMeters,

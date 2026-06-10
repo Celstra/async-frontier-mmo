@@ -1,6 +1,8 @@
 import type { FrameId } from 'shared';
 import type { NamedResourceId } from '../resources/types.js';
 import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
+import type { EventWindowSeverity } from './eventWindowSeverity.js';
+import { parseEventWindowSeverity } from './eventWindowSeverity.js';
 import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
 import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
@@ -30,6 +32,8 @@ export type ThumperEventWindowSnapshot = {
 	complication: ThumperComplicationId;
 	/** Frozen at deploy — resolution must not recompute from current code maps. */
 	matchingAction: ThumperEventActionId;
+	/** Frozen at deploy — hold penalty scales with stored severity. */
+	severity?: EventWindowSeverity;
 };
 
 export type ThumperWindowChosenResponse = ThumperEventActionId | 'hold' | 'recall_early';
@@ -95,10 +99,12 @@ function resolveAnsweredWindows(input: {
 
 		const { matchingAction } = window;
 
+		const severity = parseEventWindowSeverity(window.severity);
 		wasteQuantity += penaltyWasteForResponse(
 			response.complication,
 			matchingAction,
-			response.chosenResponse
+			response.chosenResponse,
+			severity
 		);
 
 		let windowFrameBonus = 0;

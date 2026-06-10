@@ -1,6 +1,12 @@
 import type { FrameId } from 'shared';
 import type { ActiveRunMeterPreview } from './deployPreview.js';
 import { eventActionLabel } from './eventActionLabels.js';
+import {
+	MATCHING_ACTION_WEAR_CONDITION,
+	MATCHING_ACTION_WEAR_PART_SLOT,
+	THUMPER_PART_SLOT_LABEL,
+	type EventWindowSeverity
+} from './eventWindowSeverity.js';
 import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
 import type { ThumperWindowResponseOptionId } from './getEventWindowResponseOptions.js';
 import { getEventWindowResponseOptions } from './getEventWindowResponseOptions.js';
@@ -11,7 +17,9 @@ import {
 	penaltyWasteForResponse
 } from './thumperWindowResolution.js';
 
-export type EventWindowMeterSnapshot = ActiveRunMeterPreview;
+export type EventWindowMeterSnapshot = ActiveRunMeterPreview & {
+	severity?: EventWindowSeverity;
+};
 
 type PrimaryMeterKey = 'signalLock' | 'pumpFlow' | 'threatPressure' | 'hullCondition';
 
@@ -80,10 +88,12 @@ export type EventWindowStakeOption = {
 };
 
 export type EventWindowOutcome = {
+	severity: EventWindowSeverity;
 	beforeState: EventWindowMeterSnapshot;
 	afterState: EventWindowMeterSnapshot;
 	recoveryPenalty: number;
 	frameBonusRecovery: number;
+	actionWearCondition: number;
 };
 
 function matchingActionEffectLine(input: {
@@ -106,15 +116,22 @@ function matchingActionEffectLine(input: {
 		frameBonus > 0 ? ` (+${frameBonus} ${FRAME_DISPLAY[input.pilotFrame]} bonus)` : '';
 
 	if (input.matchingAction === 'field_repair') {
-		return `Restores ${meterLabel} and consumes 1 Field Repair Kit — protects projected recovery${bonusSuffix}`;
+		return `Protects your yield — consumes 1 Field Repair Kit${bonusSuffix}`;
 	}
 
-	return `Restores ${meterLabel} and protects projected recovery${bonusSuffix}`;
+	const slot = MATCHING_ACTION_WEAR_PART_SLOT[input.matchingAction];
+	const partLabel = THUMPER_PART_SLOT_LABEL[slot];
+	return `Protects your yield — wears the ${partLabel} by ${MATCHING_ACTION_WEAR_CONDITION} Condition${bonusSuffix}`;
 }
 
-function holdEffectLine(complication: ThumperComplicationId, matchingAction: ThumperEventActionId) {
-	const penalty = penaltyWasteForResponse(complication, matchingAction, 'hold');
-	return `Costs about ${penalty} units of projected recovery — bounded, never destroys the run`;
+function holdEffectLine(severity: EventWindowSeverity) {
+	const penalty = penaltyWasteForResponse(
+		'signal_drift',
+		'signal_tune',
+		'hold',
+		severity
+	);
+	return `Lose about ${penalty} units — your gear is untouched`;
 }
 
 function recallEffectLine(input: {
@@ -140,6 +157,7 @@ function recallEffectLine(input: {
 export function describeEventWindowStakes(input: {
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
+	severity: EventWindowSeverity;
 	pilotFrame: FrameId;
 	fieldRepairKitCount: number;
 	currentMeters: EventWindowMeterSnapshot;
@@ -154,7 +172,7 @@ export function describeEventWindowStakes(input: {
 
 	return options.map((option) => {
 		if (option.id === 'hold') {
-			return { id: option.id, effectLine: holdEffectLine(input.complication, input.matchingAction) };
+			return { id: option.id, effectLine: holdEffectLine(input.severity) };
 		}
 		if (option.id === 'recall_early') {
 			return {
@@ -179,7 +197,8 @@ export function describeEventWindowStakes(input: {
 		const penalty = penaltyWasteForResponse(
 			input.complication,
 			input.matchingAction,
-			option.id as Exclude<ThumperWindowChosenResponse, 'recall_early'>
+			option.id as Exclude<ThumperWindowChosenResponse, 'recall_early'>,
+			input.severity
 		);
 		return {
 			id: option.id,
@@ -192,19 +211,29 @@ export function describeEventWindowStakes(input: {
  * Deterministic before/after meter snapshot for a single window response.
  * Hold recovery penalty matches {@link penaltyWasteForResponse} / claim resolution.
  */
+function snapshotWithSeverity(
+	meters: EventWindowMeterSnapshot,
+	severity: EventWindowSeverity
+): EventWindowMeterSnapshot {
+	return { ...meters, severity };
+}
+
 export function resolveEventWindowOutcome(input: {
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
+	severity: EventWindowSeverity;
 	chosenResponse: ThumperWindowChosenResponse;
 	pilotFrame: FrameId;
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
 	totalWindowCount: number;
 }): EventWindowOutcome {
-	const beforeState = metersWithComplicationOnset(input.currentMeters, input.complication);
+	const onsetMeters = metersWithComplicationOnset(input.currentMeters, input.complication);
+	const beforeState = snapshotWithSeverity(onsetMeters, input.severity);
 	let afterState = { ...beforeState };
 	let recoveryPenalty = 0;
 	let frameBonusRecovery = 0;
+	let actionWearCondition = 0;
 
 	if (input.chosenResponse === 'recall_early') {
 		const forfeited = computeRecallForfeitedRecovery({
@@ -217,31 +246,62 @@ export function resolveEventWindowOutcome(input: {
 			projectedRecovery: Math.max(0, beforeState.projectedRecovery - forfeited)
 		};
 		recoveryPenalty = forfeited;
-		return { beforeState, afterState, recoveryPenalty, frameBonusRecovery };
+		return {
+			severity: input.severity,
+			beforeState,
+			afterState: snapshotWithSeverity(afterState, input.severity),
+			recoveryPenalty,
+			frameBonusRecovery,
+			actionWearCondition
+		};
 	}
 
 	if (input.chosenResponse === input.matchingAction) {
 		const key = COMPLICATION_PRIMARY_METER[input.complication];
-		afterState = applyMeterDelta(
-			beforeState,
-			key,
-			COMPLICATION_METER_MATCHING_RESTORE[input.complication]
+		afterState = snapshotWithSeverity(
+			applyMeterDelta(
+				beforeState,
+				key,
+				COMPLICATION_METER_MATCHING_RESTORE[input.complication]
+			),
+			input.severity
 		);
 		frameBonusRecovery = getFrameMatchingBonusRecovery(input.pilotFrame, input.matchingAction);
-		return { beforeState, afterState, recoveryPenalty, frameBonusRecovery };
+		if (input.matchingAction !== 'field_repair') {
+			actionWearCondition = MATCHING_ACTION_WEAR_CONDITION;
+		}
+		return {
+			severity: input.severity,
+			beforeState,
+			afterState,
+			recoveryPenalty,
+			frameBonusRecovery,
+			actionWearCondition
+		};
 	}
 
 	recoveryPenalty = penaltyWasteForResponse(
 		input.complication,
 		input.matchingAction,
-		input.chosenResponse
+		input.chosenResponse,
+		input.severity
 	);
-	afterState = {
-		...beforeState,
-		projectedRecovery: Math.max(0, beforeState.projectedRecovery - recoveryPenalty)
-	};
+	afterState = snapshotWithSeverity(
+		{
+			...beforeState,
+			projectedRecovery: Math.max(0, beforeState.projectedRecovery - recoveryPenalty)
+		},
+		input.severity
+	);
 
-	return { beforeState, afterState, recoveryPenalty, frameBonusRecovery };
+	return {
+		severity: input.severity,
+		beforeState,
+		afterState,
+		recoveryPenalty,
+		frameBonusRecovery,
+		actionWearCondition
+	};
 }
 
 function primaryMeterLabel(complication: ThumperComplicationId): string {
@@ -275,8 +335,11 @@ export function formatEventWindowOutcomeLine(input: {
 		return 'Recall Early — run ended; secured progress kept';
 	}
 
+	const severityLabel =
+		input.beforeState.severity === 'serious' ? ' (serious)' : '';
+
 	if (input.chosenResponse === 'hold') {
-		return `Held — projected recovery ${input.beforeState.projectedRecovery} → ${input.afterState.projectedRecovery} units`;
+		return `Held${severityLabel} — projected recovery ${input.beforeState.projectedRecovery} → ${input.afterState.projectedRecovery} units — gear untouched`;
 	}
 
 	if (input.chosenResponse === input.matchingAction) {
@@ -286,7 +349,12 @@ export function formatEventWindowOutcomeLine(input: {
 			bonus > 0
 				? ` (+${bonus} ${FRAME_DISPLAY[input.pilotFrame]} bonus)`
 				: '';
-		return `${actionLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, projected recovery protected${bonusText}`;
+		if (input.matchingAction === 'field_repair') {
+			return `${actionLabel}${severityLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, yield protected, Field Repair Kit consumed${bonusText}`;
+		}
+		const slot = MATCHING_ACTION_WEAR_PART_SLOT[input.matchingAction];
+		const partLabel = THUMPER_PART_SLOT_LABEL[slot];
+		return `${actionLabel}${severityLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, yield protected, ${partLabel} −${MATCHING_ACTION_WEAR_CONDITION} Condition${bonusText}`;
 	}
 
 	const penalty = input.beforeState.projectedRecovery - input.afterState.projectedRecovery;

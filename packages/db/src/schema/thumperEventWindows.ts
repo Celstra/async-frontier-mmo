@@ -11,6 +11,7 @@ export const thumperEventWindows = pgTable(
 		windowIndex: integer('window_index').notNull(),
 		complication: text('complication').notNull(),
 		matchingAction: text('matching_action').notNull(),
+		severity: text('severity').default('minor'),
 		chosenResponse: text('chosen_response'),
 		respondedAt: timestamp('responded_at', { withTimezone: true }),
 		beforeState: jsonb('before_state'),

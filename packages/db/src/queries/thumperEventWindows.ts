@@ -13,6 +13,7 @@ export async function insertThumperEventWindows(
 			windowIndex: number;
 			complication: string;
 			matchingAction: string;
+			severity?: string;
 		}>;
 	}
 ) {
@@ -27,7 +28,8 @@ export async function insertThumperEventWindows(
 				thumperRunId: input.thumperRunId,
 				windowIndex: window.windowIndex,
 				complication: window.complication,
-				matchingAction: window.matchingAction
+				matchingAction: window.matchingAction,
+				severity: window.severity ?? 'minor'
 			}))
 		)
 		.returning();

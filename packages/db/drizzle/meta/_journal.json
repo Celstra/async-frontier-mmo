@@ -169,6 +169,20 @@
       "when": 1783100000000,
       "tag": "0023_ancient_bushwacker",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783200000000,
+      "tag": "0024_small_malice",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0025_lyrical_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

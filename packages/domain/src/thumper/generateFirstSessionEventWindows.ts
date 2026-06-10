@@ -26,7 +26,8 @@ export function generateFirstSessionEventWindows(input: {
 	const windows = FIRST_SESSION_COMPLICATIONS.map((complication, index) => ({
 		windowIndex: index + 1,
 		complication,
-		matchingAction: COMPLICATION_MATCHING_ACTION[complication]
+		matchingAction: COMPLICATION_MATCHING_ACTION[complication],
+		severity: 'minor' as const
 	}));
 
 	return {

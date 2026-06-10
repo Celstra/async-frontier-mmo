@@ -13,6 +13,7 @@ import type {
 	ThumperRunResolutionType,
 	ThumperWindowChosenResponse
 } from './resolveThumperRunResult.js';
+import { parseEventWindowSeverity } from './eventWindowSeverity.js';
 import { penaltyWasteForResponse, describeClaimWindowConsequence } from './thumperWindowResolution.js';
 
 export type ThumperWindowExplanationLine = {
@@ -107,10 +108,12 @@ export function buildThumperClaimResultExplanation(input: {
 		}
 
 		const chosenResponse = response.chosenResponse;
+		const severity = parseEventWindowSeverity(window.severity);
 		const wasteFromWindow = penaltyWasteForResponse(
 			window.complication,
 			window.matchingAction,
-			chosenResponse
+			chosenResponse,
+			severity
 		);
 
 		const frameBonusRecovery =
@@ -136,7 +139,19 @@ export function buildThumperClaimResultExplanation(input: {
 		});
 	}
 
-	const wearDeltas = computeRunPartWearDeltas(input.responses, { isPushRun: input.isPushRun });
+	const wearDeltas = computeRunPartWearDeltas(
+		input.responses.map((response) => {
+			const window = input.eventWindows.find((row) => row.windowIndex === response.windowIndex);
+			if (!window) {
+				throw new Error(`No event window for index ${response.windowIndex}`);
+			}
+			return {
+				...response,
+				matchingAction: window.matchingAction
+			};
+		}),
+		{ isPushRun: input.isPushRun }
+	);
 	const afterWear = applyWearToRunParts(input.partSnapshots, wearDeltas);
 	const wearLines: ThumperPartWearExplanationLine[] = input.partSnapshots.map((before) => {
 		const after = afterWear.find((part) => part.itemId === before.itemId)!;

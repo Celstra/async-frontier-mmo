@@ -12,8 +12,18 @@ describe('buildThumperClaimResultExplanation', () => {
 			resolutionType: 'completed',
 			explanation: 'signal_drift: used signal_tune',
 			eventWindows: [
-				{ windowIndex: 1, complication: 'signal_drift', matchingAction: 'signal_tune' },
-				{ windowIndex: 2, complication: 'pump_strain', matchingAction: 'clear_pump_problem' }
+				{
+					windowIndex: 1,
+					complication: 'signal_drift',
+					matchingAction: 'signal_tune',
+					severity: 'minor'
+				},
+				{
+					windowIndex: 2,
+					complication: 'pump_strain',
+					matchingAction: 'clear_pump_problem',
+					severity: 'minor'
+				}
 			],
 			responses: [
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
@@ -64,14 +74,24 @@ describe('buildThumperClaimResultExplanation', () => {
 		const explanation = buildThumperClaimResultExplanation({
 			targetResourceDisplayName: 'Veyrith Copper',
 			projectedRecovery: 60,
-			recoveredQuantity: 45,
-			wasteQuantity: 15,
+			recoveredQuantity: 55,
+			wasteQuantity: 5,
 			forfeitedRecovery: 0,
 			resolutionType: 'completed',
 			explanation: 'pump_strain: held/ignored',
 			eventWindows: [
-				{ windowIndex: 1, complication: 'signal_drift', matchingAction: 'signal_tune' },
-				{ windowIndex: 2, complication: 'pump_strain', matchingAction: 'clear_pump_problem' }
+				{
+					windowIndex: 1,
+					complication: 'signal_drift',
+					matchingAction: 'signal_tune',
+					severity: 'minor'
+				},
+				{
+					windowIndex: 2,
+					complication: 'pump_strain',
+					matchingAction: 'clear_pump_problem',
+					severity: 'minor'
+				}
 			],
 			responses: [
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
@@ -82,7 +102,7 @@ describe('buildThumperClaimResultExplanation', () => {
 			isPushRun: false
 		});
 
-		expect(explanation.windowLines[1]?.wasteFromWindow).toBe(15);
+		expect(explanation.windowLines[1]?.wasteFromWindow).toBe(5);
 		expect(explanation.windowLines[1]?.consequence).toContain('held/ignored');
 		expect(explanation.salvageNote).toContain('waste/scrap');
 	});

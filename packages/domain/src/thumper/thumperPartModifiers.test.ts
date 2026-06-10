@@ -6,6 +6,7 @@ import { EFFICIENT_PUMP } from '../crafting/schematics/efficientPump.js';
 import { generateSeededThumperEventWindows } from './generateSeededThumperEventWindows.js';
 import { resolveThumperRunResult } from './resolveThumperRunResult.js';
 import { WORN_BASIC_PUMP } from './starterWornParts.js';
+import { MATCHING_ACTION_WEAR_CONDITION } from './eventWindowSeverity.js';
 import {
 	applyWearToRunParts,
 	computeRunPartWearDeltas,
@@ -172,7 +173,14 @@ describe('thumper part modifiers', () => {
 		};
 
 		const deltas = computeRunPartWearDeltas(
-			[{ windowIndex: 1, complication: 'pump_strain', chosenResponse: 'hold' }],
+			[
+				{
+					windowIndex: 1,
+					complication: 'pump_strain',
+					chosenResponse: 'hold',
+					matchingAction: 'clear_pump_problem'
+				}
+			],
 			{ isPushRun: false }
 		);
 		const afterRun = applyWearToRunParts(runParts, deltas);
@@ -180,6 +188,24 @@ describe('thumper part modifiers', () => {
 		expect(afterRun.find((part) => part.itemId === 'run-drill')!.condition).toBeLessThan(80);
 		expect(afterRun.find((part) => part.itemId === 'run-pump')!.condition).toBeLessThan(80);
 		expect(sparePump.condition).toBe(100);
+	});
+
+	it('matching action wear lands on the related part slot only', () => {
+		const deltas = computeRunPartWearDeltas(
+			[
+				{
+					windowIndex: 1,
+					complication: 'signal_drift',
+					chosenResponse: 'signal_tune',
+					matchingAction: 'signal_tune'
+				}
+			],
+			{ isPushRun: false }
+		);
+
+		expect(deltas.drill.conditionLoss).toBe(2 + MATCHING_ACTION_WEAR_CONDITION);
+		expect(deltas.pump.conditionLoss).toBe(3);
+		expect(deltas.hull.conditionLoss).toBe(2);
 	});
 
 	it('a part at zero Condition degrades run performance but is not deleted', () => {

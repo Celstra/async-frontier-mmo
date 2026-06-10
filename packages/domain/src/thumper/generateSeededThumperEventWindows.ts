@@ -5,6 +5,7 @@ import {
 	THUMPER_EVENT_ACTIONS,
 	THUMPER_SAFETY_CHOICES
 } from './complicationActions.js';
+import { rollEventWindowSeverity } from './eventWindowSeverity.js';
 import { createSeededRng } from './seededRng.js';
 import type { ThumperComplicationId, ThumperEventWindowPlan } from './types.js';
 
@@ -52,11 +53,15 @@ export function generateSeededThumperEventWindows(input: {
 	const rng = createSeededRng(input.runSeed);
 	const ordered = shuffleComplications(THUMPER_COMPLICATIONS, rng).slice(0, windowCount);
 
-	const windows = ordered.map((complication, index) => ({
-		windowIndex: index + 1,
-		complication,
-		matchingAction: COMPLICATION_MATCHING_ACTION[complication]
-	}));
+	const windows = ordered.map((complication, index) => {
+		const windowIndex = index + 1;
+		return {
+			windowIndex,
+			complication,
+			matchingAction: COMPLICATION_MATCHING_ACTION[complication],
+			severity: rollEventWindowSeverity({ runSeed: input.runSeed, windowIndex })
+		};
+	});
 
 	return {
 		runSeed: input.runSeed,

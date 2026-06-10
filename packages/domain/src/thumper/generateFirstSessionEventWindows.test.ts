@@ -20,11 +20,13 @@ describe('generateFirstSessionEventWindows', () => {
 
 		expect(plan.windows[0]).toMatchObject({
 			complication: 'signal_drift',
-			matchingAction: 'signal_tune'
+			matchingAction: 'signal_tune',
+			severity: 'minor'
 		});
 		expect(plan.windows[1]).toMatchObject({
 			complication: 'pump_strain',
-			matchingAction: 'clear_pump_problem'
+			matchingAction: 'clear_pump_problem',
+			severity: 'minor'
 		});
 	});
 

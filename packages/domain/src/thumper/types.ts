@@ -1,3 +1,5 @@
+import type { EventWindowSeverity } from './eventWindowSeverity.js';
+
 /** Locked MVP complications (Decision 005). Tutorial uses two; types include all four for the pair map. */
 export type ThumperComplicationId =
 	| 'signal_drift'
@@ -20,6 +22,7 @@ export type ThumperEventWindow = {
 	windowIndex: number;
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
+	severity: EventWindowSeverity;
 };
 
 export type ThumperEventWindowPlan = {

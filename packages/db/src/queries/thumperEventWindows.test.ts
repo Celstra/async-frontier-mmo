@@ -2,6 +2,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	buildActiveRunMeters,
+	parseEventWindowSeverity,
 	resolveEventWindowOutcome,
 	type EventWindowMeterSnapshot
 } from '@async-frontier-mmo/domain';
@@ -119,9 +120,11 @@ describeDb('thumper event window before/after state', () => {
 
 		const windows = await getThumperEventWindowsForRun(db, run.id);
 		const currentMeters = await deployMetersForRun(db, testPilotId, run.id);
+		const severity = parseEventWindowSeverity(windows[0]!.severity);
 		const expected = resolveEventWindowOutcome({
 			complication: 'signal_drift',
 			matchingAction: 'signal_tune',
+			severity,
 			chosenResponse: 'hold',
 			pilotFrame: 'recon',
 			currentMeters,
@@ -135,6 +138,7 @@ describeDb('thumper event window before/after state', () => {
 			windowIndex: 1,
 			complication: 'signal_drift',
 			matchingAction: 'signal_tune',
+			severity: windows[0]!.severity ?? 'minor',
 			chosenResponse: 'hold',
 			pilotFrameId: 'recon',
 			currentMeters,

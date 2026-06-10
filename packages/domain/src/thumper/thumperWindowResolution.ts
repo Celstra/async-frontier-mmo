@@ -1,5 +1,10 @@
 import type { FrameId } from 'shared';
 import { complicationDisplayName } from './eventActionLabels.js';
+import {
+	holdPenaltyForSeverity,
+	parseEventWindowSeverity,
+	type EventWindowSeverity
+} from './eventWindowSeverity.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
 import type { ThumperWindowChosenResponse } from './resolveThumperRunResult.js';
 
@@ -13,14 +18,21 @@ export const COMPLICATION_PENALTY_WASTE: Record<ThumperComplicationId, number> =
 export function penaltyWasteForResponse(
 	complication: ThumperComplicationId,
 	matchingAction: ThumperEventActionId,
-	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>
+	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>,
+	severity: EventWindowSeverity = 'minor'
 ): number {
 	if (chosenResponse === matchingAction) {
 		return 0;
 	}
 
+	if (chosenResponse === 'hold') {
+		return holdPenaltyForSeverity(severity);
+	}
+
 	return COMPLICATION_PENALTY_WASTE[complication];
 }
+
+export { parseEventWindowSeverity };
 
 /** Stored on thumper_run_results.explanation — keeps action ids for audit replay. */
 export function describeWindowResponse(

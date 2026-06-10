@@ -3,6 +3,7 @@ import {
 	computeRunPartWearDeltas,
 	computeThumperPartRunModifiers,
 	type ThumperComplicationId,
+	type ThumperEventActionId,
 	type ThumperPartSnapshot,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
@@ -12,6 +13,7 @@ import { appendItemConditionChangedLedger } from './economyLedger.js';
 import { items } from '../schema/items.js';
 import { thumperRunPartSnapshots } from '../schema/thumperRunPartSnapshots.js';
 import { getEquippedThumperPartsForPilot, itemToPartSnapshot } from './thumperPartEquipment.js';
+import { getThumperEventWindowsForRun } from './thumperEventWindows.js';
 
 export async function snapshotEquippedPartsForRun(
 	db: DbExecutor,
@@ -98,12 +100,25 @@ export async function applyRunWearToPartItems(
 		isPushRun: boolean;
 	}
 ) {
+	const storedWindows = await getThumperEventWindowsForRun(db, input.thumperRunId);
+	const matchingActionByWindow = new Map(
+		storedWindows.map((window) => [window.windowIndex, window.matchingAction])
+	);
+
 	const wearDeltas = computeRunPartWearDeltas(
-		input.responses.map((response) => ({
-			windowIndex: response.windowIndex,
-			complication: response.complication as ThumperComplicationId,
-			chosenResponse: response.chosenResponse as ThumperWindowChosenResponse
-		})),
+		input.responses.map((response) => {
+			const matchingAction = matchingActionByWindow.get(response.windowIndex);
+			if (!matchingAction) {
+				throw new Error(`No stored window for index ${response.windowIndex}`);
+			}
+
+			return {
+				windowIndex: response.windowIndex,
+				complication: response.complication as ThumperComplicationId,
+				chosenResponse: response.chosenResponse as ThumperWindowChosenResponse,
+				matchingAction: matchingAction as ThumperEventActionId
+			};
+		}),
 		{ isPushRun: input.isPushRun }
 	);
 

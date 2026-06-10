@@ -115,6 +115,7 @@ export const actions: Actions = {
 				windowIndex,
 				complication: window.complication,
 				matchingAction: window.matchingAction,
+				severity: window.severity ?? 'minor',
 				chosenResponse,
 				pilotFrameId: run.pilotFrameId,
 				currentMeters: preRespondState.runMeters,

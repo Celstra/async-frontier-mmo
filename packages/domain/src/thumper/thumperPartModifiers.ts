@@ -1,5 +1,10 @@
 import { applyRoutineUse, applySevereEvent, createItemDurability, isItemDisabled } from '../durability/itemDurability.js';
+import {
+	MATCHING_ACTION_WEAR_CONDITION,
+	MATCHING_ACTION_WEAR_PART_SLOT
+} from './eventWindowSeverity.js';
 import type { ThumperEventWindowResponse } from './resolveThumperRunResult.js';
+import type { ThumperEventActionId } from './types.js';
 import type {
 	ThumperPartRunModifiers,
 	ThumperPartSlot,
@@ -57,8 +62,12 @@ export function computeThumperPartRunModifiers(
 	};
 }
 
+export type ThumperEventWindowWearInput = ThumperEventWindowResponse & {
+	matchingAction: ThumperEventActionId;
+};
+
 export function computeRunPartWearDeltas(
-	responses: ThumperEventWindowResponse[],
+	responses: ThumperEventWindowWearInput[],
 	options: { isPushRun: boolean }
 ): Record<ThumperPartSlot, ThumperPartWearDelta> {
 	const deltas: Record<ThumperPartSlot, ThumperPartWearDelta> = {
@@ -82,6 +91,14 @@ export function computeRunPartWearDeltas(
 
 		if (response.complication === 'hull_damage' && response.chosenResponse === 'hold') {
 			deltas.hull.conditionLoss += 5;
+		}
+
+		if (
+			response.chosenResponse === response.matchingAction &&
+			response.chosenResponse !== 'field_repair'
+		) {
+			const slot = MATCHING_ACTION_WEAR_PART_SLOT[response.chosenResponse];
+			deltas[slot].conditionLoss += MATCHING_ACTION_WEAR_CONDITION;
 		}
 	}
 

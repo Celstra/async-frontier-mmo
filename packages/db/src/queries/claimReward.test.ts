@@ -2,17 +2,9 @@ import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	assertVeyrithTutorialWindowsReady,
-	DEFAULT_PROJECTED_RECOVERY,
-	generateSeededThumperEventWindows,
-	PUSH_RUN_PROJECTED_RECOVERY,
-	resolveFirstSessionThumperRunResult,
-	resolveThumperRunResult,
-	type NamedResourceId,
-	type ThumperComplicationId,
-	type ThumperEventActionId,
-	type ThumperWindowChosenResponse
+	FIRST_SESSION_SCANNER_MINIMUM,
+	generateSeededThumperEventWindows
 } from '@async-frontier-mmo/domain';
-import { parseFrameId } from 'shared';
 import { createDb } from '../client.js';
 import { items } from '../schema/items.js';
 import { pilots } from '../schema/pilots.js';
@@ -26,7 +18,7 @@ import { economyLedger } from '../schema/economyLedger.js';
 import { listEconomyLedgerEntriesForPilot } from './economyLedger.js';
 import { ensureDemoPilot } from './pilots.js';
 import { ensureStarterThumperPartsForPilot } from './thumperPartEquipment.js';
-import { getThumperRunPartSnapshots, partModifiersFromRunSnapshots } from './thumperRunParts.js';
+import { resolveThumperRunForStoredWindows } from './thumperRunResolution.js';
 import {
 	ensureBloomOneResourceInstances,
 	getResourceInstanceByBloomSlug
@@ -75,41 +67,19 @@ function ledgerEntriesForRun(
 }
 
 async function buildSeededClaimResult(
-	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
+	tx: Parameters<typeof resolveThumperRunForStoredWindows>[0],
 	runRow: {
 		id: string;
 		targetResourceId: string;
 		pilotFrameId: string;
 		runSeed: string;
 		isPushRun: boolean;
+		trueConcentrationPercent: number | null;
+		extractionTailMinutes: number;
 	},
 	windows: Awaited<ReturnType<typeof import('./thumperEventWindows.js').getThumperEventWindowsForRun>>
 ) {
-	const snapshots = await getThumperRunPartSnapshots(tx, runRow.id);
-	return resolveThumperRunResult({
-		runConfig: {
-			targetResourceId: runRow.targetResourceId as NamedResourceId,
-			projectedRecovery: runRow.isPushRun
-				? PUSH_RUN_PROJECTED_RECOVERY
-				: DEFAULT_PROJECTED_RECOVERY,
-			runSeed: runRow.runSeed,
-			appliedWear: 0,
-			partModifiers: partModifiersFromRunSnapshots(snapshots)
-		},
-		eventWindows: windows.map((window) => ({
-			windowIndex: window.windowIndex,
-			complication: window.complication as ThumperComplicationId,
-			matchingAction: window.matchingAction as ThumperEventActionId
-		})),
-		responses: windows
-			.filter((window) => window.chosenResponse !== null)
-			.map((window) => ({
-				windowIndex: window.windowIndex,
-				complication: window.complication as ThumperComplicationId,
-				chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
-			})),
-		pilotFrame: parseFrameId(runRow.pilotFrameId)
-	});
+	return resolveThumperRunForStoredWindows(tx, runRow, windows);
 }
 
 describeDb('transactional claim reward', () => {
@@ -202,26 +172,10 @@ describeDb('transactional claim reward', () => {
 			isClaimable: () => true,
 			isResolvableRun: () => true,
 			validateWindows: (_run, windows) => assertVeyrithTutorialWindowsReady(windows),
-			buildResult: async (tx, runRow, windows) => {
-				const snapshots = await getThumperRunPartSnapshots(tx, runRow.id);
-				return resolveFirstSessionThumperRunResult({
-					targetResourceId: 'veyrith_copper',
-					pilotFrame: parseFrameId(runRow.pilotFrameId),
-					partModifiers: partModifiersFromRunSnapshots(snapshots),
-					eventWindows: windows.map((window) => ({
-						windowIndex: window.windowIndex,
-						complication: window.complication as 'signal_drift' | 'pump_strain',
-						matchingAction: window.matchingAction as ThumperEventActionId
-					})),
-					responses: windows
-						.filter((window) => window.chosenResponse !== null)
-						.map((window) => ({
-							windowIndex: window.windowIndex,
-							complication: window.complication as 'signal_drift' | 'pump_strain',
-							chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
-						}))
-				});
-			},
+			buildResult: (tx, runRow, windows) =>
+				resolveThumperRunForStoredWindows(tx, runRow, windows, {
+					recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
+				}),
 			grantResourceReward: true
 		});
 
@@ -252,26 +206,10 @@ describeDb('transactional claim reward', () => {
 			isClaimable: () => true,
 			isResolvableRun: () => true,
 			validateWindows: (_run, windows) => assertVeyrithTutorialWindowsReady(windows),
-			buildResult: async (tx, runRow, windows) => {
-				const snapshots = await getThumperRunPartSnapshots(tx, runRow.id);
-				return resolveFirstSessionThumperRunResult({
-					targetResourceId: 'veyrith_copper',
-					pilotFrame: parseFrameId(runRow.pilotFrameId),
-					partModifiers: partModifiersFromRunSnapshots(snapshots),
-					eventWindows: windows.map((window) => ({
-						windowIndex: window.windowIndex,
-						complication: window.complication as 'signal_drift' | 'pump_strain',
-						matchingAction: window.matchingAction as ThumperEventActionId
-					})),
-					responses: windows
-						.filter((window) => window.chosenResponse !== null)
-						.map((window) => ({
-							windowIndex: window.windowIndex,
-							complication: window.complication as 'signal_drift' | 'pump_strain',
-							chosenResponse: window.chosenResponse as 'signal_tune' | 'clear_pump_problem'
-						}))
-				});
-			},
+			buildResult: (tx, runRow, windows) =>
+				resolveThumperRunForStoredWindows(tx, runRow, windows, {
+					recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
+				}),
 			grantResourceReward: true
 		});
 

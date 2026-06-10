@@ -14,6 +14,7 @@ import {
 	describeEventWindowStakes,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	formatEventWindowOutcomeLine,
+	parseEventWindowSeverity,
 	frameFlavoredActionLabel,
 	getEventWindowResponseOptions,
 	isThumperRunReadyToResolve,
@@ -106,13 +107,17 @@ function parseMeterSnapshot(value: unknown): EventWindowMeterSnapshot | null {
 	) {
 		return null;
 	}
-	return {
+	const snapshot: EventWindowMeterSnapshot = {
 		projectedRecovery: row.projectedRecovery,
 		signalLock: row.signalLock,
 		pumpFlow: row.pumpFlow,
 		threatPressure: row.threatPressure,
 		hullCondition: row.hullCondition
 	};
+	if (row.severity === 'minor' || row.severity === 'serious') {
+		snapshot.severity = row.severity;
+	}
+	return snapshot;
 }
 
 export function currentRunMetersFromWindows(
@@ -146,9 +151,11 @@ export function mapEventWindowsForUi(
 			windows.filter((row) => row.windowIndex < window.windowIndex)
 		);
 
+		const severity = parseEventWindowSeverity(window.severity);
 		const stakes = describeEventWindowStakes({
 			complication,
 			matchingAction,
+			severity,
 			pilotFrame: pilotFrameId,
 			fieldRepairKitCount,
 			currentMeters: metersForWindow,
@@ -174,6 +181,7 @@ export function mapEventWindowsForUi(
 			windowIndex: window.windowIndex,
 			complication,
 			matchingAction,
+			severity,
 			matchingActionLabel: frameFlavoredActionLabel(pilotFrameId, matchingAction),
 			chosenResponse: window.chosenResponse,
 			responded: window.chosenResponse !== null,

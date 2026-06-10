@@ -1,0 +1,1 @@
+ALTER TABLE "thumper_event_windows" ADD COLUMN "severity" text DEFAULT 'minor';

@@ -44,6 +44,26 @@ describe('generateSeededThumperEventWindows', () => {
 		expect(pushRun.projectedRecovery).toBeGreaterThan(defaultRun.projectedRecovery);
 	});
 
+	it('assigns deterministic severity per window from the run seed', () => {
+		const plan = generateSeededThumperEventWindows({
+			runSeed: 'severity-determinism',
+			targetResourceId: 'keth_iron',
+			isPushRun: false
+		});
+
+		expect(plan.windows.every((window) => window.severity === 'minor' || window.severity === 'serious')).toBe(
+			true
+		);
+		const replay = generateSeededThumperEventWindows({
+			runSeed: 'severity-determinism',
+			targetResourceId: 'keth_iron',
+			isPushRun: false
+		});
+		expect(replay.windows.map((window) => window.severity)).toEqual(
+			plan.windows.map((window) => window.severity)
+		);
+	});
+
 	it('draws only from the four locked complications without repeats', () => {
 		const plan = generateSeededThumperEventWindows({
 			runSeed: 'variety-check',

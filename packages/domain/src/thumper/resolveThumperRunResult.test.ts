@@ -75,8 +75,8 @@ describe('resolveThumperRunResult', () => {
 		);
 		const perfect = resolveFirstSession(perfectResponses, 'recon');
 
-		expect(withHold.wasteQuantity).toBe(15);
-		expect(withHold.recoveredQuantity).toBe(perfect.recoveredQuantity - 15);
+		expect(withHold.wasteQuantity).toBe(5);
+		expect(withHold.recoveredQuantity).toBe(perfect.recoveredQuantity - 5);
 		expect(withHold.targetResourceId).toBe('veyrith_copper');
 		expect(withHold).not.toHaveProperty('stats');
 	});
@@ -138,7 +138,7 @@ describe('resolveThumperRunResult', () => {
 		const result = resolveThumperRunResult({
 			runConfig: {
 				targetResourceId: 'veyrith_copper',
-				projectedRecovery: 40,
+				projectedRecovery: 35,
 				recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
 			},
 			eventWindows: firstSessionWindows,
