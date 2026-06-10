@@ -403,3 +403,20 @@ db:generate no drift; web build ok.
 **Open for Ryan's next playtest:** do severity frequencies/penalties feel right; is
 150–400 capacity the right hunt cadence; craft screen — does slotting now feel like a
 decision? All knobs are domain constants.
+
+## CP11 — Prospecting cycles (Ryan: "I thump, I need a fresh start")
+
+Depletion alone wasn't enough movement: a claim left the spot "thinning" but still
+deployable at the same %. Now each claim ends the prospecting cycle for that resource:
+- `resource_instances.prospecting_cycle` (world state, migration 0026); claim increments
+  it inside the claim transaction and deletes the pilot's family scan for that family.
+- Spots derive from (bloom seed, resource, cycle): new ids, new bands, new true
+  concentrations, new capacities each cycle. Cycle 1 keeps the legacy spot-id format so
+  existing rows stay valid; cycle ≥2 ids are `slug:cN:spot:i`.
+- Stale-cycle spots reject sampling/deploy ("That deposit signal has faded — scan for
+  fresh spots."); open runs on old-cycle spots still claim fine.
+- Stat reveals persist (stats belong to the resource); samples on other resources persist.
+- Claim explanation gains "The thump scattered nearby signals — survey for fresh deposits."
+- Ryan's own survey patch (hasFamilyScan gating + invalidateAll) kept and wired to the
+  server mechanism that makes it true.
+- Verified: check clean; domain 142/142; db 32/32; smoke ok; build ok.
