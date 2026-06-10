@@ -122,4 +122,4 @@ pnpm check
 - **021-A** diversifies which stat each CM slot reads — allocation matters.
 - Lesson 5.1’s engine investment pays off: three files, no new math code.
 
-**Next exercise (Lesson 6.1):** Condition + Integrity domain model for thumper parts.
+**Next exercise (Lesson 19 / Phase 6 Lesson 6.1):** Condition + Integrity domain model — `docs/lessons/19-condition-integrity-domain.md`.

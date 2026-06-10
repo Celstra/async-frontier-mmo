@@ -1537,7 +1537,7 @@ Use the learning-coach skill.
 
 Lesson: add Condition + Integrity domain model.
 
-Important: write the lesson into docs/lessons/16-condition-integrity-domain.md.
+Important: write the lesson into docs/lessons/19-condition-integrity-domain.md (v2 canonical path; Phase 6 Lesson 6.1).
 
 Goal:
 - Add pure domain types/rules for Condition and Integrity.
@@ -1569,7 +1569,7 @@ pnpm check
 Commit:
 
 ```bash
-git add packages/domain docs/lessons/16-condition-integrity-domain.md
+git add packages/domain docs/lessons/19-condition-integrity-domain.md
 git commit -m "feat: add condition and integrity rules"
 git push
 ```

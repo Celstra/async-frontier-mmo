@@ -36,6 +36,15 @@ export {
 } from './crafting/schematicEngine.js';
 export { getPropertyOutputBand } from './crafting/propertyBand.js';
 export {
+	applyNormalRepair,
+	applyRoutineUse,
+	applySevereEvent,
+	createItemDurability,
+	getMaxCondition,
+	isItemDisabled
+} from './durability/itemDurability.js';
+export type { ItemDurability, SevereDurabilityEvent } from './durability/types.js';
+export {
 	BASIC_DRILL_HEAD,
 	EFFICIENT_PUMP,
 	MVP_SCHEMATIC_BY_ID,
