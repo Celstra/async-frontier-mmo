@@ -15,6 +15,8 @@ export const items = pgTable('items', {
 	hasMinorFlaw: boolean('has_minor_flaw').notNull().default(false),
 	condition: integer('condition').notNull().default(100),
 	integrity: integer('integrity').notNull().default(100),
+	/** Set when a consumable kit is spent during field repair. */
+	consumedAt: timestamp('consumed_at', { withTimezone: true }),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 });
 

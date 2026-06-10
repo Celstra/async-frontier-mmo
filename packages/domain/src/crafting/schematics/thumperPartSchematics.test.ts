@@ -5,6 +5,7 @@ import { previewCraftProperties, resolveCraft } from '../schematicEngine.js';
 import type { SchematicDefinition, SchematicSlotFill } from '../types.js';
 import { BASIC_DRILL_HEAD } from './basicDrillHead.js';
 import { EFFICIENT_PUMP } from './efficientPump.js';
+import { FIELD_REPAIR_KIT } from './fieldRepairKit.js';
 import {
 	MVP_THUMPER_PART_SCHEMATICS,
 	REINFORCED_HULL_PLATE,
@@ -34,29 +35,6 @@ function lineBase(
 	}
 	return line.baseScore;
 }
-
-/** Decision 021-A Field Reliability weights — inline for allocation test only (Lesson 6.2 adds full recipe). */
-const FIELD_RELIABILITY_TEST_SCHEMATIC: SchematicDefinition = {
-	id: 'field_repair_kit_field_reliability_test',
-	version: 2,
-	displayName: 'Field Repair Kit (field reliability test)',
-	slots: [
-		{ id: 'patch_alloy', displayName: 'Patch Alloy', requiredFamily: 'structural_alloy' },
-		{ id: 'control_filament', displayName: 'Control Filament', requiredFamily: 'conductive_metal' },
-		{ id: 'reactive_binder', displayName: 'Reactive Binder', requiredFamily: 'reactive_crystal' }
-	],
-	properties: [
-		{
-			id: 'field_reliability',
-			displayName: 'Field Reliability',
-			terms: [
-				{ kind: 'slot_stat', slotId: 'reactive_binder', stat: 'heat_resistance', weight: 0.45 },
-				{ kind: 'slot_stat', slotId: 'control_filament', stat: 'heat_resistance', weight: 0.35 },
-				{ kind: 'average_oq', weight: 0.2 }
-			]
-		}
-	]
-};
 
 describe('MVP thumper-part schematics as data', () => {
 	it('all four thumper-part schematics craft through the same engine path', () => {
@@ -241,12 +219,12 @@ describe('MVP thumper-part schematics as data', () => {
 		];
 
 		const slagReliability = lineBase(
-			FIELD_RELIABILITY_TEST_SCHEMATIC,
+			FIELD_REPAIR_KIT,
 			repairFills('red_mesa_conductive_slag'),
 			'field_reliability'
 		);
 		const veyrithReliability = lineBase(
-			FIELD_RELIABILITY_TEST_SCHEMATIC,
+			FIELD_REPAIR_KIT,
 			repairFills('veyrith_copper'),
 			'field_reliability'
 		);

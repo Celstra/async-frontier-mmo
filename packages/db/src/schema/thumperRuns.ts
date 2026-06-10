@@ -12,5 +12,8 @@ export const thumperRuns = pgTable('thumper_runs', {
 	isPushRun: boolean('is_push_run').notNull().default(false),
 	deployedAt: timestamp('deployed_at', { withTimezone: true }).notNull(),
 	durationSeconds: integer('duration_seconds').notNull(),
+	/** Run hull durability until thumper parts are equippable items (Lesson 6.3). */
+	runHullCondition: integer('run_hull_condition').notNull().default(100),
+	runHullIntegrity: integer('run_hull_integrity').notNull().default(100),
 	claimedAt: timestamp('claimed_at', { withTimezone: true })
 });

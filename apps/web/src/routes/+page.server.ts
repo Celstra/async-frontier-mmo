@@ -1,6 +1,8 @@
 import {
 	BLOOM_ONE_ID,
 	claimOpenThumperRunForPilot,
+	countFieldRepairKitsForPilot,
+	craftFieldRepairKitForPilot,
 	craftSurveyScannerForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
@@ -15,10 +17,12 @@ import {
 	getThumperRunResultForRun,
 	hasPilotCompletedTutorialThumper,
 	listPilotResourceStacksWithInstances,
-	recordThumperEventWindowResponse
+	recordThumperEventWindowResponseForPilot
 } from '@async-frontier-mmo/db';
 import {
 	assertVeyrithTutorialWindowsReady,
+	FIELD_REPAIR_KIT,
+	FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 	FIRST_SCANNER_SUGGESTED_TUNING,
 	generateThumperEventWindows,
 	getEventWindowResponseOptions,
@@ -46,9 +50,6 @@ import { DEMO_PILOT_ID, parseFrameId } from 'shared';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { Actions, PageServerLoad } from './$types';
-
-/** Until Lesson 6.2 inventory exists, demo pilot owns zero repair kits. */
-const DEMO_FIELD_REPAIR_KIT_COUNT = 0;
 
 const SEEDED_RUN_NOT_RESOLVABLE_MESSAGE =
 	'Seeded run claim resolution is not available yet. Complete the tutorial run first, or wait for the non-tutorial resolver lesson.';
@@ -93,7 +94,8 @@ function isRunEndedByRecall(
 }
 
 function mapEventWindowsForUi(
-	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
+	fieldRepairKitCount: number
 ) {
 	return windows.map((window) => ({
 		windowIndex: window.windowIndex,
@@ -104,12 +106,16 @@ function mapEventWindowsForUi(
 		responseOptions: getEventWindowResponseOptions({
 			complication: window.complication as ThumperComplicationId,
 			matchingAction: window.matchingAction as ThumperEventActionId,
-			fieldRepairKitCount: DEMO_FIELD_REPAIR_KIT_COUNT
+			fieldRepairKitCount
 		})
 	}));
 }
 
-async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<Awaited<ReturnType<typeof getOpenThumperRunForPilot>>>) {
+async function loadOpenRunState(
+	db: ReturnType<typeof getDb>,
+	run: NonNullable<Awaited<ReturnType<typeof getOpenThumperRunForPilot>>>,
+	fieldRepairKitCount: number
+) {
 	const now = new Date();
 	const thumperDemo = resolveThumperState({
 		deployedAt: run.deployedAt,
@@ -133,7 +139,10 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 			claimResolutionAvailable: run.runSeed === TUTORIAL_RUN_SEED,
 			recalled
 		},
-		eventWindows: mapEventWindowsForUi(eventWindows),
+		eventWindows: mapEventWindowsForUi(eventWindows, fieldRepairKitCount),
+		runHullCondition: run.runHullCondition,
+		runHullIntegrity: run.runHullIntegrity,
+		fieldRepairKitCount,
 		runReadyToResolve: isThumperRunReadyToResolve(eventWindows)
 	};
 }
@@ -191,6 +200,27 @@ function parseTuningAllocation(formData: FormData): TuningAllocation | null {
 	return tuning;
 }
 
+function parseRepairKitTuningAllocation(formData: FormData): TuningAllocation | null {
+	const tuning: TuningAllocation = {
+		condition_restored: Number.parseInt(String(formData.get('tuning_condition_restored')), 10),
+		integrity_safety: Number.parseInt(String(formData.get('tuning_integrity_safety')), 10),
+		field_reliability: Number.parseInt(String(formData.get('tuning_field_reliability')), 10)
+	};
+
+	for (const points of Object.values(tuning)) {
+		if (!Number.isInteger(points) || points < 0) {
+			return null;
+		}
+	}
+
+	const total = Object.values(tuning).reduce((sum, points) => sum + points, 0);
+	if (total !== 3) {
+		return null;
+	}
+
+	return tuning;
+}
+
 function parseSlotInstanceId(
 	formData: FormData,
 	slotId: string
@@ -228,17 +258,32 @@ async function loadSurveyContext(db: ReturnType<typeof getDb>, pilotId: string) 
 async function loadCraftContext(db: ReturnType<typeof getDb>, pilotId: string) {
 	const inventory = await listPilotResourceStacksWithInstances(db, pilotId);
 
+	const scannerSchematic = {
+		id: SURVEY_SCANNER_MK_I.id,
+		displayName: SURVEY_SCANNER_MK_I.displayName,
+		slots: SURVEY_SCANNER_MK_I.slots,
+		properties: SURVEY_SCANNER_MK_I.properties.map((property) => ({
+			id: property.id,
+			displayName: property.displayName
+		}))
+	};
+	const repairKitSchematic = {
+		id: FIELD_REPAIR_KIT.id,
+		displayName: FIELD_REPAIR_KIT.displayName,
+		slots: FIELD_REPAIR_KIT.slots,
+		properties: FIELD_REPAIR_KIT.properties.map((property) => ({
+			id: property.id,
+			displayName: property.displayName
+		}))
+	};
+
 	return {
-		schematic: {
-			id: SURVEY_SCANNER_MK_I.id,
-			displayName: SURVEY_SCANNER_MK_I.displayName,
-			slots: SURVEY_SCANNER_MK_I.slots,
-			properties: SURVEY_SCANNER_MK_I.properties.map((property) => ({
-				id: property.id,
-				displayName: property.displayName
-			}))
-		},
+		schematic: scannerSchematic,
+		scannerSchematic,
+		repairKitSchematic,
 		suggestedTuning: FIRST_SCANNER_SUGGESTED_TUNING,
+		scannerSuggestedTuning: FIRST_SCANNER_SUGGESTED_TUNING,
+		repairKitSuggestedTuning: FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 		inventory
 	};
 }
@@ -271,6 +316,7 @@ export const load: PageServerLoad = async () => {
 		DEMO_PILOT_ID,
 		TUTORIAL_RUN_SEED
 	);
+	const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
 	const run = await getOpenThumperRunForPilot(db, DEMO_PILOT_ID);
 
 	if (!run) {
@@ -280,6 +326,7 @@ export const load: PageServerLoad = async () => {
 			openRun: null,
 			eventWindows: [],
 			runReadyToResolve: false,
+			fieldRepairKitCount,
 			pilotFrame,
 			hasCompletedTutorial,
 			craftContext,
@@ -287,7 +334,7 @@ export const load: PageServerLoad = async () => {
 		};
 	}
 
-	const state = await loadOpenRunState(db, run);
+	const state = await loadOpenRunState(db, run, fieldRepairKitCount);
 	return { pilotFrame, hasCompletedTutorial, craftContext, ...surveyContext, ...state };
 };
 
@@ -341,7 +388,8 @@ export const actions: Actions = {
 			}))
 		});
 
-		const state = await loadOpenRunState(db, run);
+		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
+		const state = await loadOpenRunState(db, run, fieldRepairKitCount);
 		return { hasCompletedTutorial, ...state };
 	},
 
@@ -380,28 +428,38 @@ export const actions: Actions = {
 			return fail(400, { message: orderValidation.reason });
 		}
 
+		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
 		const validation = validateEventWindowResponse({
 			complication: window.complication as ThumperComplicationId,
 			matchingAction: window.matchingAction as ThumperEventActionId,
 			chosenResponse,
-			fieldRepairKitCount: DEMO_FIELD_REPAIR_KIT_COUNT
+			fieldRepairKitCount
 		});
 		if (!validation.ok) {
 			return fail(400, { message: validation.reason });
 		}
 
 		if (window.chosenResponse === null) {
-			const recorded = await recordThumperEventWindowResponse(db, {
+			const outcome = await recordThumperEventWindowResponseForPilot(db, {
+				pilotId: DEMO_PILOT_ID,
 				thumperRunId: run.id,
 				windowIndex,
-				chosenResponse
+				complication: window.complication,
+				chosenResponse,
+				runHullCondition: run.runHullCondition,
+				runHullIntegrity: run.runHullIntegrity
 			});
-			if (!recorded) {
+			if (outcome.status === 'no_repair_kit') {
+				return fail(400, { message: 'Field Repair requires a crafted Field Repair Kit' });
+			}
+			if (outcome.status === 'not_recorded') {
 				return fail(400, { message: 'Could not record event window response' });
 			}
 		}
 
-		const state = await loadOpenRunState(db, run);
+		const refreshedRun = (await getOpenThumperRunForPilot(db, DEMO_PILOT_ID))!;
+		const refreshedKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
+		const state = await loadOpenRunState(db, refreshedRun, refreshedKitCount);
 		return state;
 	},
 
@@ -501,6 +559,66 @@ export const actions: Actions = {
 				item: outcome.item,
 				explanation: outcome.explanation
 			},
+			craftContext,
+			...surveyContext
+		};
+	},
+
+	craftRepairKit: async ({ request }) => {
+		const db = getDb();
+		await ensureDemoPilotReady(db);
+
+		const formData = await request.formData();
+		const idempotencyKey = formData.get('idempotencyKey');
+		const craftMode = parseCraftMode(formData.get('craftMode'));
+		const tuning = parseRepairKitTuningAllocation(formData);
+
+		if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+			return fail(400, { message: 'Missing craft idempotency key' });
+		}
+		if (!craftMode) {
+			return fail(400, { message: 'Invalid craft mode' });
+		}
+		if (!tuning) {
+			return fail(400, { message: 'Allocate exactly 3 tuning points for repair kit' });
+		}
+
+		const slotInputs = FIELD_REPAIR_KIT.slots.map((slot) => {
+			const resourceInstanceId = parseSlotInstanceId(formData, slot.id);
+			if (!resourceInstanceId) {
+				return null;
+			}
+			return { slotId: slot.id, resourceInstanceId };
+		});
+
+		if (slotInputs.some((slot) => slot === null)) {
+			return fail(400, { message: 'Every schematic slot must be filled' });
+		}
+
+		const outcome = await craftFieldRepairKitForPilot(db, {
+			pilotId: DEMO_PILOT_ID,
+			idempotencyKey,
+			slotInputs: slotInputs as Array<{ slotId: string; resourceInstanceId: string }>,
+			tuning,
+			craftMode,
+			experimentSeed: idempotencyKey
+		});
+
+		if (outcome.status === 'invalid_craft') {
+			return fail(400, { message: outcome.reason });
+		}
+
+		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, DEMO_PILOT_ID);
+		const craftContext = await loadCraftContext(db, DEMO_PILOT_ID);
+		const surveyContext = await loadSurveyContext(db, DEMO_PILOT_ID);
+
+		return {
+			craftOutcome: {
+				status: outcome.status,
+				item: outcome.item,
+				explanation: outcome.explanation
+			},
+			fieldRepairKitCount,
 			craftContext,
 			...surveyContext
 		};

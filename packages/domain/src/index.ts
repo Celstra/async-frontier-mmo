@@ -45,8 +45,21 @@ export {
 } from './durability/itemDurability.js';
 export type { ItemDurability, SevereDurabilityEvent } from './durability/types.js';
 export {
+	applyFieldRepairWithKit,
+	applyHullDamageFieldRepair,
+	applyHullDamageWithoutFieldRepair,
+	conditionRestoredPointsFromKitScore,
+	HULL_DAMAGE_WITHOUT_FIELD_REPAIR,
+	integrityLossMitigatedFromSafetyScore,
+	type FieldRepairKitScores,
+	type FieldRepairOutcome
+} from './durability/fieldRepair.js';
+export {
 	BASIC_DRILL_HEAD,
 	EFFICIENT_PUMP,
+	FIELD_REPAIR_KIT,
+	FIRST_REPAIR_KIT_SUGGESTED_TUNING,
+	MVP_CRAFT_SCHEMATICS,
 	MVP_SCHEMATIC_BY_ID,
 	MVP_THUMPER_PART_SCHEMATICS,
 	REINFORCED_HULL_PLATE,

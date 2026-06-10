@@ -1597,7 +1597,7 @@ Use the learning-coach skill.
 
 Lesson: add Field Repair Kit as a crafted repair item.
 
-Important: write the lesson into docs/lessons/17-field-repair-kit.md.
+Important: write the lesson into docs/lessons/20-field-repair-kit.md (v2 canonical path; Phase 6 Lesson 6.2).
 
 Goal:
 - Add Field Repair Kit as one of the five MVP craftable outputs.
@@ -1627,7 +1627,7 @@ pnpm --filter web build
 Commit:
 
 ```bash
-git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/17-field-repair-kit.md
+git add packages/domain packages/db apps/web pnpm-lock.yaml docs/lessons/20-field-repair-kit.md
 git commit -m "feat: add field repair kit loop"
 git push
 ```
