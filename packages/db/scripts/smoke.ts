@@ -10,12 +10,17 @@ import {
 	claimOpenThumperRunForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
+	ensureBloomOneResourceInstances,
 	ensureDemoPilot,
 	getOpenThumperRunForPilot,
 	getPilotFrame,
+	getResourceInstanceByBloomSlug,
+	getResourceStackForPilotInstance,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
+	grantResourceToPilot,
 	insertThumperRun,
+	listEconomyLedgerEntriesForPilot,
 	recordThumperEventWindowResponse
 } from '../src/index.js';
 import { thumperRunResults } from '../src/schema/thumperRunResults.js';
@@ -91,6 +96,50 @@ async function claimTutorialRun(now: Date) {
 }
 
 await ensureDemoPilot(db);
+
+const bloomOne = await ensureBloomOneResourceInstances(db);
+if (bloomOne.length !== 9) {
+	failSmoke('bloom #1 seed should contain nine resource instances');
+}
+
+const veyrithInstance = await getResourceInstanceByBloomSlug(db, 1, 'veyrith_copper');
+if (!veyrithInstance) {
+	failSmoke('bloom #1 should include veyrith_copper instance');
+}
+
+const grantBeforeLedger = (await listEconomyLedgerEntriesForPilot(db, DEMO_PILOT_ID)).filter(
+	(entry) => entry.eventType === 'resource_granted'
+).length;
+
+await grantResourceToPilot(db, {
+	pilotId: DEMO_PILOT_ID,
+	resourceInstanceId: veyrithInstance.id,
+	quantity: 3,
+	source: { type: 'smoke_test', id: 'grant-a' }
+});
+await grantResourceToPilot(db, {
+	pilotId: DEMO_PILOT_ID,
+	resourceInstanceId: veyrithInstance.id,
+	quantity: 2,
+	source: { type: 'smoke_test', id: 'grant-b' }
+});
+
+const veyrithStack = await getResourceStackForPilotInstance(
+	db,
+	DEMO_PILOT_ID,
+	veyrithInstance.id
+);
+if (!veyrithStack || veyrithStack.quantity < 5) {
+	failSmoke('duplicate grants should combine into one resource stack');
+}
+
+const grantAfterLedger = (await listEconomyLedgerEntriesForPilot(db, DEMO_PILOT_ID)).filter(
+	(entry) => entry.eventType === 'resource_granted'
+).length;
+if (grantAfterLedger < grantBeforeLedger + 2) {
+	failSmoke('every grant should append a resource_granted ledger row');
+}
+
 const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
 if (pilotFrame !== 'recon') {
 	failSmoke('demo pilot should default to recon frame');

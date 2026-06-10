@@ -64,6 +64,20 @@
       "when": 1781600000000,
       "tag": "0008_thumper_run_results_recall",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0009_resource_economy",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781800000000,
+      "tag": "0010_economy_ledger_foreign_keys",
+      "breakpoints": true
     }
   ]
 }

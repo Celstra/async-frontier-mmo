@@ -10,7 +10,8 @@
 		"check": "tsc --noEmit",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"db:smoke": "tsx --env-file=.env scripts/smoke.ts"
+		"db:smoke": "tsx --env-file=.env scripts/smoke.ts",
+		"test": "tsx --env-file=.env node_modules/vitest/vitest.mjs run"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.40.0",
@@ -20,7 +21,9 @@
 	"devDependencies": {
 		"@async-frontier-mmo/domain": "workspace:*",
 		"drizzle-kit": "^0.31.4",
+		"shared": "workspace:*",
 		"tsx": "^4.20.3",
-		"typescript": "^5.8.0"
+		"typescript": "^5.8.0",
+		"vitest": "^3.2.4"
 	}
 }

@@ -1,0 +1,3 @@
+ALTER TABLE "economy_ledger" ADD CONSTRAINT "economy_ledger_pilot_id_pilots_id_fk" FOREIGN KEY ("pilot_id") REFERENCES "public"."pilots"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "economy_ledger" ADD CONSTRAINT "economy_ledger_resource_instance_id_resource_instances_id_fk" FOREIGN KEY ("resource_instance_id") REFERENCES "public"."resource_instances"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "economy_ledger" ADD CONSTRAINT "economy_ledger_resource_stack_id_resource_stacks_id_fk" FOREIGN KEY ("resource_stack_id") REFERENCES "public"."resource_stacks"("id") ON DELETE no action ON UPDATE no action;
