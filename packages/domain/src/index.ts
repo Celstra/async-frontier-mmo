@@ -111,6 +111,27 @@ export {
 	type ActiveBloomSurveyResult,
 	type ActiveBloomSurveySignal
 } from './survey/activeBloomSurvey.js';
+export {
+	applyProspectingScannerWear,
+	concentrationPercentToExtractionMultiplier,
+	createEmptyPilotSurveyProgress,
+	DEFAULT_PROJECTED_RECOVERY as PROSPECTING_DEFAULT_PROJECTED_RECOVERY,
+	FAMILY_SCAN_ENERGY_COST,
+	generateDepositSpots,
+	presentResourceStatsForPilot,
+	projectedRecoveryWithConcentration,
+	resolveSurveyEnergy,
+	SAMPLE_ENERGY_COST,
+	SAMPLE_TRICKLE_UNITS,
+	scanFamilyProspect,
+	sampleDepositSpot,
+	SURVEY_ENERGY_CAP,
+	unsampledSpotConcentrationBand,
+	type DepositSpot,
+	type FamilyScanResourceView,
+	type PilotSurveyProgress,
+	type SampleDepositSpotResult
+} from './survey/prospectingSampling.js';
 export { surveyRedMesaFirstSession } from './survey/redMesaSurvey';
 export {
 	applySurveyClarityToResult,
