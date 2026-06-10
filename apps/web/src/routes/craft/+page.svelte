@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { familyDisplayLabel, thumperPartSlotLabel } from '$lib/displayLabels';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -55,14 +56,13 @@
 
 <p>
 	<small>
-		Thinking-craft (Decision 008): named resources supply stats; schematic weights turn stats into
-		property scores; you allocate exactly 3 tuning points; Safe Craft vs Careful Experiment resolves
-		variance. When in doubt, read the weights.
+		Your resources' stats set what's possible. The schematic's weights decide which stats matter.
+		Three tuning points let you choose where the quality goes.
 	</small>
 </p>
 
 {#if form?.message}
-	<p><strong>{form.message}</strong></p>
+	<p class="flash flash--error">{form.message}</p>
 {/if}
 
 <section class="inventory-panel">
@@ -128,7 +128,7 @@
 
 		{#each data.schematic.slots as slot}
 			<fieldset>
-				<legend>{slot.displayName} ({slot.requiredFamily}) — pick named resource</legend>
+				<legend>{slot.displayName} ({familyDisplayLabel(slot.requiredFamily)}) — pick resource</legend>
 				<select
 					name="slot_{slot.id}"
 					onchange={(event) => event.currentTarget.form?.requestSubmit()}
@@ -152,7 +152,8 @@
 			</fieldset>
 		{/each}
 
-		<h3>Property weights (when in doubt, show the weights)</h3>
+		<h3>Property weights</h3>
+		<p><small>When in doubt, read the weights below.</small></p>
 		{#each data.schematic.properties as property}
 			<article class="property-line">
 				<h4>{property.displayName}</h4>
@@ -226,7 +227,7 @@
 {#if craftOutcome}
 	<section class="craft-result">
 		<h2>Craft result</h2>
-		<p>{craftOutcome.explanation.summary}</p>
+		<p class="flash flash--success">{craftOutcome.explanation.summary}</p>
 		<p><small>{craftOutcome.explanation.modeContribution}</small></p>
 		<ul>
 			{#each craftOutcome.explanation.properties as line}
@@ -312,7 +313,8 @@
 		<ul>
 			{#each data.thumperPartItems as part}
 				<li>
-					{part.displayName} ({part.slot}) — condition {part.condition}, integrity {part.integrity}
+					{part.displayName} ({thumperPartSlotLabel(part.slot)}) — condition {part.condition}, integrity
+					{part.integrity}
 					<form method="POST" action="?/equipThumperPart" style="display: inline">
 						<input type="hidden" name="slot" value={part.slot} />
 						<input type="hidden" name="itemId" value={part.id} />
@@ -331,23 +333,22 @@
 </section>
 
 {#if equipOutcome}
-	<p>
-		<strong>Equipped {equipOutcome.displayName}</strong> — Survey Clarity
-		{equipOutcome.surveyClarity}.
+	<p class="flash flash--success">
+		Equipped {equipOutcome.displayName} — Survey Clarity {equipOutcome.surveyClarity}.
 	</p>
 {/if}
 
 {#if equipThumperOutcome && 'displayName' in equipThumperOutcome}
-	<p>
-		<strong>Equipped {equipThumperOutcome.displayName}</strong> ({equipThumperOutcome.slot}) —
+	<p class="flash flash--success">
+		Equipped {equipThumperOutcome.displayName} ({thumperPartSlotLabel(equipThumperOutcome.slot)}) —
 		condition {equipThumperOutcome.condition}, integrity {equipThumperOutcome.integrity}.
 	</p>
 {/if}
 
 {#if repairOutcome}
-	<p>
-		<strong>Repaired {repairOutcome.displayName}</strong> — condition {repairOutcome.condition},
-		integrity {repairOutcome.integrity}. Kits remaining: {repairOutcome.fieldRepairKitCount}.
+	<p class="flash flash--success">
+		Repaired {repairOutcome.displayName} — condition {repairOutcome.condition}, integrity
+		{repairOutcome.integrity}. Kits remaining: {repairOutcome.fieldRepairKitCount}.
 	</p>
 {/if}
 

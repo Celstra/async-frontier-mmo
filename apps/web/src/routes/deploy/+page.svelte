@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { extractionTailPlayerDescription, spotDisplayLabel } from '$lib/displayLabels';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	const preview = $derived(data.preview);
 	const selectedTailId = $derived(data.selectedTailId);
+	const selectedTailLabel = $derived(
+		data.extractionTailOptions.find((tail) => tail.id === selectedTailId)?.label ?? selectedTailId
+	);
 </script>
 
 <p><a href="/survey">← Red Mesa Survey</a></p>
@@ -27,7 +31,7 @@
 	<dl>
 		<div>
 			<dt>Spot</dt>
-			<dd>{data.spotId}</dd>
+			<dd>{spotDisplayLabel(data.spotId, data.spotIndex)}</dd>
 		</div>
 		<div>
 			<dt>Sampled concentration</dt>
@@ -54,7 +58,7 @@
 		</li>
 	</ul>
 
-	<h3>Run preview (Decision 005)</h3>
+	<h3>Run preview</h3>
 	<p>
 		<small>
 			Projected values are deterministic estimates at deploy. Claim applies event-window outcomes —
@@ -94,7 +98,7 @@
 </section>
 
 {#if form?.message}
-	<p><strong>{form.message}</strong></p>
+	<p class="flash flash--error">{form.message}</p>
 {/if}
 
 <form method="GET" action="/deploy" class="preview-controls">
@@ -102,7 +106,7 @@
 	<input type="hidden" name="spotId" value={data.spotId} />
 
 	<fieldset>
-		<legend>Extraction tail (Decision 017)</legend>
+		<legend>Extraction tail — how long the thumper keeps working after the active phase</legend>
 		{#each data.extractionTailOptions as tail}
 			<label>
 				<input
@@ -112,10 +116,7 @@
 					checked={tail.id === selectedTailId}
 					onchange={(event) => event.currentTarget.form?.requestSubmit()}
 				/>
-				{tail.label}
-				<small>
-					— ~{(Math.pow(tail.minutes / 60, 0.5)).toFixed(2)}× passive yield vs 1 h
-				</small>
+				<small>{extractionTailPlayerDescription(tail)}</small>
 			</label>
 		{/each}
 	</fieldset>
@@ -146,7 +147,10 @@
 	<p>
 		<small>
 			Basic Personal Thumper — active phase ~{Math.round(preview.totalDurationSeconds / 60)} min total
-			(includes {selectedTailId} tail). Tutorial runs ignore push.
+			(includes {selectedTailLabel} tail).
+			{#if data.isTutorialRun}
+				Tutorial runs don't include push event windows.
+			{/if}
 		</small>
 	</p>
 

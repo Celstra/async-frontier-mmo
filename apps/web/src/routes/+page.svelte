@@ -68,7 +68,7 @@
 {#if needsFrameChoice}
 	<section class="frame-choice">
 		<h2>Choose your frame</h2>
-		<p>How do you operate on the frontier? (Decision 011 — verbs, not stat blocks.)</p>
+		<p>How do you operate on the frontier?</p>
 		<form method="POST" action="?/chooseFrame">
 			{#each frameChoiceOptions as option}
 				<label class="frame-option">
@@ -169,36 +169,38 @@
 		<p>Wait for the run timer or choose Recall Early to end the run.</p>
 	{/if}
 
-	{#if import.meta.env.DEV && hasCompletedTutorial}
-		<form method="POST" action="?/rotateBloom">
-			<button type="submit">Dev: rotate bloom</button>
-		</form>
-		{#if bloomRotation}
-			<p><small>Rotated to bloom #{bloomRotation.newBloomId}</small></p>
-		{/if}
-	{/if}
-
 	{#if import.meta.env.DEV}
-		<p data-dev-note>
-			<strong>Dev:</strong> resource stat codes from <code>shared</code>:
-			{resourceStatCodes.join(', ')}
-		</p>
-		<p data-dev-note>
-			<strong>Dev:</strong> thumper state from server ({thumperSource}):
-			{#if thumperDemo}
-				{thumperDemo.status},
-				{#if thumperDemo.status === 'active'}
-					{displaySeconds}s remaining (client display)
-				{:else}
-					{thumperDemo.secondsRemaining}s remaining
+		<details class="dev-panel">
+			<summary>Dev</summary>
+			{#if hasCompletedTutorial}
+				<form method="POST" action="?/rotateBloom">
+					<button type="submit">Rotate bloom</button>
+				</form>
+				{#if bloomRotation}
+					<p><small>Rotated to bloom #{bloomRotation.newBloomId}</small></p>
 				{/if}
-				{#if openRun}
-					— target: {openRun.targetDisplayName} ({openRun.targetResourceId})
-				{/if}
-			{:else}
-				no thumper deployed
 			{/if}
-		</p>
+			<p>
+				Resource stat codes from <code>shared</code>:
+				{resourceStatCodes.join(', ')}
+			</p>
+			<p>
+				Thumper state from server ({thumperSource}):
+				{#if thumperDemo}
+					{thumperDemo.status},
+					{#if thumperDemo.status === 'active'}
+						{displaySeconds}s remaining (client display)
+					{:else}
+						{thumperDemo.secondsRemaining}s remaining
+					{/if}
+					{#if openRun}
+						— target: {openRun.targetDisplayName} ({openRun.targetResourceId})
+					{/if}
+				{:else}
+					no thumper deployed
+				{/if}
+			</p>
+		</details>
 	{/if}
 {/if}
 

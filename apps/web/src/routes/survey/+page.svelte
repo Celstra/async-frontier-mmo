@@ -1,4 +1,10 @@
 <script lang="ts">
+	import { familyDisplayLabel } from '$lib/displayLabels';
+	import {
+		FAMILY_SCAN_ENERGY_LABEL,
+		SAMPLE_SPOT_ENERGY_LABEL,
+		SURVEY_ENERGY_CAP
+	} from '$lib/surveyScreen';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -37,20 +43,16 @@
 	<p><small>Basic Scanner Mk 0 — wider concentration bands until you craft and equip a scanner.</small></p>
 {/if}
 
-<p><strong>Survey energy:</strong> {surveyEnergy}</p>
+<p>Survey energy: {surveyEnergy} / {SURVEY_ENERGY_CAP}</p>
 
 {#if message}
-	<p><strong>{message}</strong></p>
+	<p class="flash flash--error">{message}</p>
 {/if}
 
 {#if sampleOutcome?.status === 'ok'}
-	<p>
-		<small>
-			Sampled spot — true concentration {sampleOutcome.trueConcentrationPercent}%, trickle +{sampleOutcome.trickleQuantity}
-			{#if sampleOutcome.statsRevealedThisSample}
-				, stats revealed for this resource
-			{/if}
-		</small>
+	<p class="flash flash--success">
+		Sample secured: {sampleOutcome.trueConcentrationPercent}% concentration · +{sampleOutcome.trickleQuantity}
+		{sampleOutcome.displayName ?? 'units'}{#if sampleOutcome.statsRevealedThisSample} · stats revealed!{/if}
 	</p>
 {/if}
 
@@ -67,16 +69,16 @@
 
 <form method="POST" action="?/scanFamily">
 	<input type="hidden" name="family" value={selectedFamily} />
-	<button type="submit">Scan {selectedFamily.replaceAll('_', ' ')} family (−8 energy)</button>
+	<button type="submit">Scan {familyDisplayLabel(selectedFamily)} family — {FAMILY_SCAN_ENERGY_LABEL}</button>
 </form>
 
 {#if !data.hasFamilyScan}
-	<p><em>Scan a family to reveal resources and deposit spots (−8 survey energy).</em></p>
+	<p><em>Scan a family to reveal resources and deposit spots. {FAMILY_SCAN_ENERGY_LABEL}.</em></p>
 {:else}
 	<p>
 		<small>
-			Decision 019 — family scan lists resources and deposit spots. Stats stay hidden until you sample that
-			resource once. Zero-weight craft stats are de-emphasized after reveal.
+			Stats stay hidden until you take a sample. Greyed-out stats don't matter for any current
+			schematic.
 		</small>
 	</p>
 {/if}
@@ -129,7 +131,7 @@
 									<input type="hidden" name="family" value={selectedFamily} />
 									<input type="hidden" name="resourceInstanceId" value={resource.resourceInstanceId} />
 									<input type="hidden" name="spotId" value={spot.spotId} />
-									<button type="submit">Sample (−12 energy)</button>
+									<button type="submit">Sample — {SAMPLE_SPOT_ENERGY_LABEL}</button>
 								</form>
 							{/if}
 						</li>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolutionDisplayLabel, thumperPartSlotLabel } from '$lib/displayLabels';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -9,7 +10,7 @@
 <h1>Claim Results</h1>
 
 {#if form?.message}
-	<p><strong>{form.message}</strong></p>
+	<p class="flash flash--error">{form.message}</p>
 {/if}
 
 {#if data.mode === 'pending'}
@@ -24,7 +25,7 @@
 		<p>
 			Your run on <strong>{data.targetDisplayName}</strong> finished ({data.windowCount} event
 			window{data.windowCount === 1 ? '' : 's'} resolved). Claim once to add recovered units to
-			inventory — duplicate claims are rejected server-side.
+			inventory — you can only claim once.
 		</p>
 		<form method="POST" action="?/claim">
 			<button type="submit">Claim {data.targetDisplayName}</button>
@@ -34,8 +35,8 @@
 	<section class="claim-outcome">
 		<p>
 			<small>
-				Decision 013 comprehension: every line below should help answer “why did I get this
-				amount?” Named resource stats did not change — only quantity, waste, and part wear.
+				Here's exactly where your haul came from. Your resource's stats never change during a run —
+				only how much you recovered.
 			</small>
 		</p>
 
@@ -64,7 +65,7 @@
 			</div>
 			<div>
 				<dt>Resolution</dt>
-				<dd>{data.explanation.resolutionType}</dd>
+				<dd>{resolutionDisplayLabel(data.explanation.resolutionType)}</dd>
 			</div>
 		</dl>
 
@@ -102,7 +103,8 @@
 			<ul>
 				{#each data.explanation.wearLines as wear}
 					<li>
-						<strong>{wear.displayName}</strong> ({wear.slot}): condition {wear.conditionBefore} →
+						<strong>{wear.displayName}</strong> ({thumperPartSlotLabel(wear.slot)}): condition
+						{wear.conditionBefore} →
 						{wear.conditionAfter} ({wear.conditionDelta}), integrity {wear.integrityBefore} →
 						{wear.integrityAfter}
 					</li>
@@ -119,27 +121,30 @@
 		</p>
 
 		{#if data.showDevAudit}
-			<section class="dev-audit">
-				<h3>Dev audit (ledger)</h3>
-				<p><small>Run {data.runId} · result {data.resultId}</small></p>
-				{#if data.auditEntries.length === 0}
-					<p><small>No ledger rows matched this run.</small></p>
-				{:else}
-					<ul>
-						{#each data.auditEntries as entry}
-							<li>
-								<code>{entry.eventType}</code>
-								{#if entry.quantityDelta}
-									Δ {entry.quantityDelta}
-								{/if}
-								<small>{entry.createdAt}</small>
-								<pre>{JSON.stringify(entry.payload, null, 2)}</pre>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-				<p><small>Stored explanation: {data.explanation.legacyExplanation}</small></p>
-			</section>
+			<details class="dev-panel">
+				<summary>Dev</summary>
+				<section class="dev-audit">
+					<h3>Ledger audit</h3>
+					<p><small>Run {data.runId} · result {data.resultId}</small></p>
+					{#if data.auditEntries.length === 0}
+						<p><small>No ledger rows matched this run.</small></p>
+					{:else}
+						<ul>
+							{#each data.auditEntries as entry}
+								<li>
+									<code>{entry.eventType}</code>
+									{#if entry.quantityDelta}
+										Δ {entry.quantityDelta}
+									{/if}
+									<small>{entry.createdAt}</small>
+									<pre>{JSON.stringify(entry.payload, null, 2)}</pre>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					<p><small>Stored explanation: {data.explanation.legacyExplanation}</small></p>
+				</section>
+			</details>
 		{/if}
 	</section>
 {/if}

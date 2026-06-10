@@ -1,4 +1,9 @@
 import type { ResourceFamily } from '@async-frontier-mmo/domain';
+import { SURVEY_ENERGY_CAP } from '@async-frontier-mmo/domain';
+
+export { SURVEY_ENERGY_CAP };
+export const FAMILY_SCAN_ENERGY_LABEL = 'Scan costs 8 energy';
+export const SAMPLE_SPOT_ENERGY_LABEL = 'Sample costs 12 energy';
 
 export const SURVEY_FAMILY_OPTIONS: ReadonlyArray<{
 	id: ResourceFamily;

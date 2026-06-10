@@ -118,7 +118,10 @@ export const actions: Actions = {
 		});
 
 		return {
-			sampleOutcome: outcome,
+			sampleOutcome: {
+				...outcome,
+				displayName: resource?.displayName
+			},
 			...(await loadSurveyScreenData(db, pilotId, family))
 		};
 	}

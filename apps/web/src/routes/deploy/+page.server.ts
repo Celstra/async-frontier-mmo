@@ -100,9 +100,13 @@ export const load: PageServerLoad = async (event) => {
 		extractionTailMinutes
 	});
 
+	const spotIndexMatch = spotId.match(/:spot:(\d+)$/);
+	const spotIndex = spotIndexMatch ? Number.parseInt(spotIndexMatch[1], 10) : undefined;
+
 	return {
 		resourceInstanceId,
 		spotId,
+		spotIndex,
 		displayName: resource.displayName,
 		resourceSlug: resource.resourceSlug,
 		recommended: resource.resourceSlug === recommendedResourceSlug,
