@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { extractionTailPlayerDescription, spotDisplayLabel } from '$lib/displayLabels';
 	import type { PageProps } from './$types';
 
@@ -40,6 +41,12 @@
 				multiplier)
 			</dd>
 		</div>
+		<div>
+			<dt>Deposit yield</dt>
+			<dd>
+				{data.spotYieldBandLabel} — {data.spotRemainingUnits} / {data.spotCapacityUnits} units left
+			</dd>
+		</div>
 	</dl>
 
 	<h3>Equipped thumper parts</h3>
@@ -68,7 +75,14 @@
 	<dl class="meter-grid">
 		<div>
 			<dt>Projected Recovery</dt>
-			<dd>{preview.projectedRecovery} units</dd>
+			<dd>
+				{preview.projectedRecovery} units
+				{#if data.recoveryCappedByDeposit}
+					<br /><small
+						>Capped by remaining deposit — only {data.spotRemainingUnits} units left in this spot.</small
+					>
+				{/if}
+			</dd>
 		</div>
 		<div>
 			<dt>Signal Lock</dt>
@@ -96,10 +110,6 @@
 		</div>
 	</dl>
 </section>
-
-{#if form?.message}
-	<p class="flash flash--error">{form.message}</p>
-{/if}
 
 <form method="GET" action="/deploy" class="preview-controls">
 	<input type="hidden" name="resourceInstanceId" value={data.resourceInstanceId} />
@@ -135,7 +145,11 @@
 	{/if}
 </form>
 
-<form method="POST" action="?/deploy">
+{#if form?.message}
+	<p class="flash flash--error">{form.message}</p>
+{/if}
+
+<form method="POST" action="?/deploy" use:enhance>
 	<input type="hidden" name="targetResourceId" value={data.resourceSlug} />
 	<input type="hidden" name="resourceInstanceId" value={data.resourceInstanceId} />
 	<input type="hidden" name="spotId" value={data.spotId} />

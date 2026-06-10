@@ -6,6 +6,12 @@ import { createSeededRng } from '../thumper/seededRng.js';
 import type { CompleteResourceStatMap, ResourceFamily } from '../resources/types.js';
 import { MVP_RESOURCE_STAT_CODES } from '../resources/familyStatCaps.js';
 import type { ActiveBloomSurveyResource } from './activeBloomSurvey.js';
+import {
+	depositSpotCapacityUnits,
+	depositSpotYieldBand,
+	depositSpotYieldBandLabel,
+	type DepositSpotYieldBand
+} from './depositSpotCapacity.js';
 import { getStatBand } from './statBand.js';
 import type { SurveyStatHint } from './types.js';
 
@@ -23,7 +29,6 @@ export const SAMPLE_TRICKLE_UNITS = 2;
 
 export const SPOTS_PER_RESOURCE_MIN = 3;
 export const SPOTS_PER_RESOURCE_MAX = 5;
-export const DEFAULT_SPOT_DEPOSIT_UNITS = 500;
 
 /** SWG baseline: ~67% concentration ≈ 1.0× extraction rate. */
 export const SWG_BASE_CONCENTRATION_PERCENT = 67;
@@ -33,7 +38,13 @@ export type DepositSpot = {
 	resourceSlug: string;
 	spotIndex: number;
 	trueConcentrationPercent: number;
+};
+
+export type DepositSpotYieldPresentation = {
+	capacityUnits: number;
 	remainingUnits: number;
+	yieldBand: DepositSpotYieldBand;
+	yieldBandLabel: string;
 };
 
 export type PilotSurveyProgress = {
@@ -59,7 +70,10 @@ export type FamilyScanResourceView = {
 		trueConcentrationPercent: number | null;
 		concentrationBandMinPercent: number;
 		concentrationBandMaxPercent: number;
+		capacityUnits: number;
 		remainingUnits: number;
+		yieldBand: DepositSpotYieldBand;
+		yieldBandLabel: string;
 	}>;
 };
 
@@ -126,11 +140,9 @@ export function generateDepositSpots(input: {
 	bloomGenerationSeed: string;
 	concentrationMinPercent: number;
 	concentrationMaxPercent: number;
-	depositUnits?: number;
 }): DepositSpot[] {
 	const rng = createSeededRng(`spots:${input.bloomGenerationSeed}:${input.resourceSlug}`);
 	const count = rollInt(rng, SPOTS_PER_RESOURCE_MIN, SPOTS_PER_RESOURCE_MAX);
-	const depositUnits = input.depositUnits ?? DEFAULT_SPOT_DEPOSIT_UNITS;
 	const spots: DepositSpot[] = [];
 
 	for (let index = 0; index < count; index += 1) {
@@ -144,8 +156,7 @@ export function generateDepositSpots(input: {
 			spotId: `${input.resourceSlug}:spot:${index}`,
 			resourceSlug: input.resourceSlug,
 			spotIndex: index,
-			trueConcentrationPercent,
-			remainingUnits: depositUnits
+			trueConcentrationPercent
 		});
 	}
 
@@ -262,12 +273,33 @@ function spendEnergy(progress: PilotSurveyProgress, cost: number): PilotSurveyPr
 	};
 }
 
+function resolveYieldPresentation(
+	spotId: string,
+	bloomGenerationSeed: string,
+	yieldBySpotId?: Readonly<Record<string, DepositSpotYieldPresentation>>
+): DepositSpotYieldPresentation {
+	const stored = yieldBySpotId?.[spotId];
+	if (stored) {
+		return stored;
+	}
+
+	const capacityUnits = depositSpotCapacityUnits({ generationSeed: bloomGenerationSeed, spotId });
+	return presentDepositSpotYield({ capacityUnits, extractedUnits: 0 });
+}
+
 function presentSpot(
 	spot: DepositSpot,
 	resource: ActiveBloomSurveyResource,
 	pilotProgress: PilotSurveyProgress,
-	surveyClarityScore: number
+	surveyClarityScore: number,
+	bloomGenerationSeed: string,
+	yieldBySpotId?: Readonly<Record<string, DepositSpotYieldPresentation>>
 ): FamilyScanResourceView['spots'][number] {
+	const yieldPresentation = resolveYieldPresentation(
+		spot.spotId,
+		bloomGenerationSeed,
+		yieldBySpotId
+	);
 	const sampled = pilotProgress.sampledSpotIds.has(spot.spotId);
 	const band = unsampledSpotConcentrationBand({
 		trueConcentrationPercent: spot.trueConcentrationPercent,
@@ -284,7 +316,26 @@ function presentSpot(
 		trueConcentrationPercent: sampled ? spot.trueConcentrationPercent : null,
 		concentrationBandMinPercent: band.minPercent,
 		concentrationBandMaxPercent: band.maxPercent,
-		remainingUnits: spot.remainingUnits
+		capacityUnits: yieldPresentation.capacityUnits,
+		remainingUnits: yieldPresentation.remainingUnits,
+		yieldBand: yieldPresentation.yieldBand,
+		yieldBandLabel: yieldPresentation.yieldBandLabel
+	};
+}
+
+/** Build yield presentation from persisted or default world state. */
+export function presentDepositSpotYield(input: {
+	capacityUnits: number;
+	extractedUnits: number;
+}): DepositSpotYieldPresentation {
+	const remainingUnits = Math.max(0, input.capacityUnits - input.extractedUnits);
+	const yieldBand = depositSpotYieldBand(remainingUnits, input.capacityUnits);
+
+	return {
+		capacityUnits: input.capacityUnits,
+		remainingUnits,
+		yieldBand,
+		yieldBandLabel: depositSpotYieldBandLabel(yieldBand)
 	};
 }
 
@@ -296,6 +347,7 @@ export function scanFamilyProspect(input: {
 	family: ResourceFamily;
 	resources: ActiveBloomSurveyResource[];
 	spotsByResourceSlug: Readonly<Record<string, readonly DepositSpot[]>>;
+	yieldBySpotId?: Readonly<Record<string, DepositSpotYieldPresentation>>;
 	pilotProgress: PilotSurveyProgress;
 	bloomGenerationSeed: string;
 	nowMs: number;
@@ -320,6 +372,7 @@ export function scanFamilyProspect(input: {
 		family: input.family,
 		resources: input.resources,
 		spotsByResourceSlug: input.spotsByResourceSlug,
+		yieldBySpotId: input.yieldBySpotId,
 		pilotProgress: progress,
 		bloomGenerationSeed: input.bloomGenerationSeed,
 		surveyClarityScore
@@ -337,6 +390,7 @@ function buildFamilyResourceViews(input: {
 	family: ResourceFamily;
 	resources: ActiveBloomSurveyResource[];
 	spotsByResourceSlug: Readonly<Record<string, readonly DepositSpot[]>>;
+	yieldBySpotId?: Readonly<Record<string, DepositSpotYieldPresentation>>;
 	pilotProgress: PilotSurveyProgress;
 	bloomGenerationSeed: string;
 	surveyClarityScore: number;
@@ -368,7 +422,14 @@ function buildFamilyResourceViews(input: {
 			stats: statsPresentation.stats,
 			statHints: statsPresentation.statHints,
 			spots: spots.map((spot) =>
-				presentSpot(spot, resource, input.pilotProgress, input.surveyClarityScore)
+				presentSpot(
+					spot,
+					resource,
+					input.pilotProgress,
+					input.surveyClarityScore,
+					input.bloomGenerationSeed,
+					input.yieldBySpotId
+				)
 			)
 		};
 	});
@@ -379,6 +440,7 @@ export function buildFamilyScanPreview(input: {
 	family: ResourceFamily;
 	resources: ActiveBloomSurveyResource[];
 	spotsByResourceSlug: Readonly<Record<string, readonly DepositSpot[]>>;
+	yieldBySpotId?: Readonly<Record<string, DepositSpotYieldPresentation>>;
 	pilotProgress: PilotSurveyProgress;
 	bloomGenerationSeed: string;
 	surveyClarityScore?: number;

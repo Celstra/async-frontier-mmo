@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { resolutionDisplayLabel, thumperPartSlotLabel } from '$lib/displayLabels';
 	import type { PageProps } from './$types';
 
@@ -8,10 +9,6 @@
 <p><a href="/">← Pilot Home</a></p>
 
 <h1>Claim Results</h1>
-
-{#if form?.message}
-	<p class="flash flash--error">{form.message}</p>
-{/if}
 
 {#if data.mode === 'pending'}
 	<p>
@@ -27,7 +24,10 @@
 			window{data.windowCount === 1 ? '' : 's'} resolved). Claim once to add recovered units to
 			inventory — you can only claim once.
 		</p>
-		<form method="POST" action="?/claim">
+		{#if form?.message}
+			<p class="flash flash--error">{form.message}</p>
+		{/if}
+		<form method="POST" action="?/claim" use:enhance>
 			<button type="submit">Claim {data.targetDisplayName}</button>
 		</form>
 	</section>
@@ -94,6 +94,12 @@
 					<li>{line}</li>
 				{/each}
 			</ul>
+		{/if}
+
+		{#if data.depositSpotExhausted}
+			<p class="deposit-exhausted">
+				This deposit is exhausted — <a href="/survey">survey for a new spot</a>.
+			</p>
 		{/if}
 
 		<h3>Part wear</h3>

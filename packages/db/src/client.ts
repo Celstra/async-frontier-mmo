@@ -9,4 +9,4 @@ export function createDb(databaseUrl: string) {
 export type Db = ReturnType<typeof createDb>;
 
 /** Database or transaction handle — use for queries that run inside `db.transaction()`. */
-export type DbExecutor = Pick<Db, 'insert' | 'select' | 'update' | 'delete'>;
+export type DbExecutor = Pick<Db, 'insert' | 'select' | 'update' | 'delete' | 'execute'>;

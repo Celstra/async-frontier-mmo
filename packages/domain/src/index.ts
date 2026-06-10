@@ -117,12 +117,23 @@ export {
 	type ActiveBloomSurveySignal
 } from './survey/activeBloomSurvey.js';
 export {
+	DEPOSIT_SPOT_CAPACITY_MAX_UNITS,
+	DEPOSIT_SPOT_CAPACITY_MIN_UNITS,
+	DEPOSIT_SPOT_YIELD_BAND_LABELS,
+	depositSpotCapacityUnits,
+	depositSpotRemainingUnits,
+	depositSpotYieldBand,
+	depositSpotYieldBandLabel,
+	type DepositSpotYieldBand
+} from './survey/depositSpotCapacity.js';
+export {
 	applyProspectingScannerWear,
 	concentrationPercentToExtractionMultiplier,
 	createEmptyPilotSurveyProgress,
 	DEFAULT_PROJECTED_RECOVERY as PROSPECTING_DEFAULT_PROJECTED_RECOVERY,
 	FAMILY_SCAN_ENERGY_COST,
 	generateDepositSpots,
+	presentDepositSpotYield,
 	presentResourceStatsForPilot,
 	projectedRecoveryWithConcentration,
 	resolveSurveyEnergy,
@@ -134,6 +145,7 @@ export {
 	SURVEY_ENERGY_CAP,
 	unsampledSpotConcentrationBand,
 	type DepositSpot,
+	type DepositSpotYieldPresentation,
 	type FamilyScanResourceView,
 	type PilotSurveyProgress,
 	type SampleDepositSpotResult
@@ -223,6 +235,15 @@ export {
 	type EventWindowOutcome,
 	type EventWindowStakeOption
 } from './thumper/eventWindowOutcome.js';
+export {
+	HOLD_PENALTY_BY_SEVERITY,
+	MATCHING_ACTION_WEAR_CONDITION,
+	MATCHING_ACTION_WEAR_PART_SLOT,
+	rollEventWindowSeverity,
+	parseEventWindowSeverity,
+	holdPenaltyForSeverity,
+	type EventWindowSeverity
+} from './thumper/eventWindowSeverity.js';
 export { assertRecallResponseAudit } from './thumper/assertRecallResponseAudit';
 export { isTutorialThumperDeploy } from './thumper/isTutorialThumperDeploy';
 export {
@@ -254,7 +275,8 @@ export {
 	computeRunPartWearDeltas,
 	computeThumperPartRunModifiers,
 	partConditionPerformanceMultiplier,
-	pumpRecoveryBonusFromEfficiency
+	pumpRecoveryBonusFromEfficiency,
+	type ThumperEventWindowWearInput
 } from './thumper/thumperPartModifiers.js';
 export {
 	THUMPER_PART_SLOTS,

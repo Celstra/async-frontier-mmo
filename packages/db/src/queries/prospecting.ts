@@ -16,6 +16,7 @@ import {
 } from '@async-frontier-mmo/domain';
 import { and, eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
+import { loadDepositSpotYieldMap, yieldPresentationMap } from './depositSpotYields.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
 import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
 import { pilotResourceStatReveals } from '../schema/pilotResourceStatReveals.js';
@@ -210,6 +211,34 @@ function depositSpotsForResource(
 	});
 }
 
+async function yieldBySpotIdForFamilyInstances(
+	db: DbExecutor,
+	input: {
+		familyInstances: Array<{ id: string; resourceSlug: string }>;
+		spotsByResourceSlug: Readonly<Record<string, readonly DepositSpot[]>>;
+		bloomGenerationSeed: string;
+	}
+) {
+	const spotIds: string[] = [];
+	const resourceInstanceIdBySpotId: Record<string, string> = {};
+
+	for (const instance of input.familyInstances) {
+		const spots = input.spotsByResourceSlug[instance.resourceSlug] ?? [];
+		for (const spot of spots) {
+			spotIds.push(spot.spotId);
+			resourceInstanceIdBySpotId[spot.spotId] = instance.id;
+		}
+	}
+
+	const states = await loadDepositSpotYieldMap(db, {
+		spotIds,
+		resourceInstanceIdBySpotId,
+		generationSeed: input.bloomGenerationSeed
+	});
+
+	return yieldPresentationMap(states);
+}
+
 /** Resolved survey progress for UI load — energy regen applied at `now`. */
 export async function getPilotProspectingProgress(
 	db: DbExecutor,
@@ -326,10 +355,17 @@ export async function previewFamilyScanForPilot(
 	const surveyClarityScore = scanner?.propertyScores.survey_clarity ?? 0;
 	const recommendedResourceSlug = input.recommendedResourceSlug ?? null;
 
+	const yieldBySpotId = await yieldBySpotIdForFamilyInstances(db, {
+		familyInstances,
+		spotsByResourceSlug,
+		bloomGenerationSeed
+	});
+
 	const views = buildFamilyScanPreview({
 		family: input.family,
 		resources,
 		spotsByResourceSlug,
+		yieldBySpotId,
 		pilotProgress: displayProgress,
 		bloomGenerationSeed,
 		surveyClarityScore
@@ -422,10 +458,17 @@ export async function scanFamilyForPilot(
 		const scanner = await getEquippedScannerForPilot(tx, input.pilotId);
 		const surveyClarityScore = scanner?.propertyScores.survey_clarity ?? 0;
 
+		const yieldBySpotId = await yieldBySpotIdForFamilyInstances(tx, {
+			familyInstances,
+			spotsByResourceSlug,
+			bloomGenerationSeed
+		});
+
 		const scanResult = scanFamilyProspect({
 			family: input.family,
 			resources,
 			spotsByResourceSlug,
+			yieldBySpotId,
 			pilotProgress,
 			bloomGenerationSeed,
 			nowMs,
@@ -487,6 +530,8 @@ export type SampleSpotForPilotOutcome =
 			statsRevealedThisSample: boolean;
 			surveyEnergy: number;
 			energyCost: number;
+			yieldBandLabel: string;
+			yieldBand: string;
 	  }
 	| { status: 'insufficient_energy' }
 	| { status: 'family_scan_required' }
@@ -629,13 +674,22 @@ export async function sampleSpotForPilot(
 			sourceId: reservedSample.id
 		});
 
+		const yieldBySpotId = await yieldBySpotIdForFamilyInstances(tx, {
+			familyInstances: [resourceRow],
+			spotsByResourceSlug: { [resource.resourceSlug]: spots },
+			bloomGenerationSeed
+		});
+		const spotYield = yieldBySpotId[input.spotId];
+
 		return {
 			status: 'ok' as const,
 			trueConcentrationPercent: sampleResult.trueConcentrationPercent,
 			trickleQuantity: sampleResult.trickleGrant.quantity,
 			statsRevealedThisSample: sampleResult.statsRevealedThisSample,
 			surveyEnergy: sampleResult.pilotProgress.surveyEnergy,
-			energyCost: sampleResult.energyCost
+			energyCost: sampleResult.energyCost,
+			yieldBandLabel: spotYield?.yieldBandLabel ?? 'Rich deposit',
+			yieldBand: spotYield?.yieldBand ?? 'rich'
 		};
 	});
 }

@@ -1,6 +1,9 @@
 import {
+	DepositSpotExhaustedError,
 	deployThumperRunWithEventWindows,
 	getActiveBloomId,
+	getBloomRecord,
+	getDepositSpotYieldState,
 	getOpenThumperRunForPilot,
 	getPilotDepositSample,
 	getPilotFrame,
@@ -73,6 +76,18 @@ export const load: PageServerLoad = async (event) => {
 		redirect(303, '/survey');
 	}
 
+	const bloom = await getBloomRecord(db, resource.bloomId);
+	const bloomGenerationSeed = bloom?.generationSeed ?? `red-mesa-bloom-${resource.bloomId}`;
+	const spotYield = await getDepositSpotYieldState(db, {
+		spotId,
+		resourceInstanceId,
+		generationSeed: bloomGenerationSeed
+	});
+
+	if (spotYield.remainingUnits <= 0) {
+		redirect(303, '/survey');
+	}
+
 	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 		db,
 		pilotId,
@@ -85,13 +100,18 @@ export const load: PageServerLoad = async (event) => {
 	const isPushRun = !isTutorialRun && previewPushRun;
 	const recommendedResourceSlug = recommendedResourceSlugForBloom(resource.bloomId, hasCompletedTutorial);
 
-	const { equippedParts, preview } = await loadDeployPreviewForPilot(db, {
+	const { equippedParts, preview: rawPreview } = await loadDeployPreviewForPilot(db, {
 		pilotId,
 		trueConcentrationPercent: sample.trueConcentrationPercent,
 		extractionTailMinutes,
 		isPushRun,
 		isTutorialRun
 	});
+
+	const recoveryCappedByDeposit = rawPreview.projectedRecovery > spotYield.remainingUnits;
+	const preview = recoveryCappedByDeposit
+		? { ...rawPreview, projectedRecovery: spotYield.remainingUnits }
+		: rawPreview;
 
 	await trackDeployScreenViewed(db, pilotId, {
 		resourceSlug: resource.resourceSlug,
@@ -112,6 +132,10 @@ export const load: PageServerLoad = async (event) => {
 		recommended: resource.resourceSlug === recommendedResourceSlug,
 		teachingNote: surveyTeachingNote(resource.resourceSlug),
 		trueConcentrationPercent: sample.trueConcentrationPercent,
+		spotYieldBandLabel: spotYield.yieldBandLabel,
+		spotRemainingUnits: spotYield.remainingUnits,
+		spotCapacityUnits: spotYield.capacityUnits,
+		recoveryCappedByDeposit,
 		hasCompletedTutorial,
 		isTutorialRun,
 		showPushRunToggle: !isTutorialRun,
@@ -168,6 +192,23 @@ export const actions: Actions = {
 		});
 		const isPushRun = !isTutorialRun && formData.get('isPushRun') === 'true';
 
+		const resource = await getResourceInstanceById(db, resourceInstanceId);
+		if (!resource) {
+			return fail(400, { message: 'Resource not found' });
+		}
+
+		const bloom = await getBloomRecord(db, resource.bloomId);
+		const bloomGenerationSeed = bloom?.generationSeed ?? `red-mesa-bloom-${resource.bloomId}`;
+		const spotYield = await getDepositSpotYieldState(db, {
+			spotId,
+			resourceInstanceId,
+			generationSeed: bloomGenerationSeed
+		});
+
+		if (spotYield.remainingUnits <= 0) {
+			return fail(400, { message: 'This deposit is exhausted — survey for a new spot' });
+		}
+
 		const { preview } = await loadDeployPreviewForPilot(db, {
 			pilotId,
 			trueConcentrationPercent: sample.trueConcentrationPercent,
@@ -185,24 +226,31 @@ export const actions: Actions = {
 			isTutorialRun
 		});
 
-		await deployThumperRunWithEventWindows(db, {
-			pilotId,
-			pilotFrameId: pilotFrame,
-			targetResourceId,
-			runSeed: plan.runSeed,
-			isPushRun: plan.isPushRun,
-			deployedAt: new Date(),
-			durationSeconds: preview.totalDurationSeconds,
-			depositSpotId: spotId,
-			trueConcentrationPercent: sample.trueConcentrationPercent,
-			extractionTailMinutes,
-			resourceInstanceId,
-			windows: plan.windows.map((window) => ({
-				windowIndex: window.windowIndex,
-				complication: window.complication,
-				matchingAction: window.matchingAction
-			}))
-		});
+		try {
+			await deployThumperRunWithEventWindows(db, {
+				pilotId,
+				pilotFrameId: pilotFrame,
+				targetResourceId,
+				runSeed: plan.runSeed,
+				isPushRun: plan.isPushRun,
+				deployedAt: new Date(),
+				durationSeconds: preview.totalDurationSeconds,
+				depositSpotId: spotId,
+				trueConcentrationPercent: sample.trueConcentrationPercent,
+				extractionTailMinutes,
+				resourceInstanceId,
+				windows: plan.windows.map((window) => ({
+					windowIndex: window.windowIndex,
+					complication: window.complication,
+					matchingAction: window.matchingAction
+				}))
+			});
+		} catch (error) {
+			if (error instanceof DepositSpotExhaustedError) {
+				return fail(400, { message: 'This deposit is exhausted — survey for a new spot' });
+			}
+			throw error;
+		}
 
 		await trackThumperDeployed(db, pilotId, {
 			targetResourceId,

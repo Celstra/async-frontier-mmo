@@ -1,5 +1,14 @@
+import { rollEventWindowSeverity, TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
 import { eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
+import { getBloomRecord } from './bloomRotation.js';
+import {
+	assertDepositSpotDeployable,
+	drainDepositSpotOnClaim,
+	formatDepositSpotDrainAdjustment
+} from './depositSpotYields.js';
+
+export { DepositSpotExhaustedError } from './depositSpotYields.js';
 import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
 import { snapshotEquippedPartsForRun } from './thumperRunParts.js';
@@ -53,7 +62,16 @@ type EventWindowSeed = {
 	windowIndex: number;
 	complication: string;
 	matchingAction: string;
+	severity?: string;
 };
+
+async function bloomGenerationSeedForInstance(
+	tx: DbExecutor,
+	resourceInstance: { bloomId: number }
+): Promise<string> {
+	const bloom = await getBloomRecord(tx, resourceInstance.bloomId);
+	return bloom?.generationSeed ?? `red-mesa-bloom-${resourceInstance.bloomId}`;
+}
 
 /** Insert run + event windows atomically. Rolls back the run if window insert fails. */
 export async function deployThumperRunWithEventWindows(
@@ -80,6 +98,15 @@ export async function deployThumperRunWithEventWindows(
 			: await getResourceInstanceByBloomSlug(tx, activeBloomId, input.targetResourceId);
 		const resolvedResourceInstanceId = input.resourceInstanceId ?? targetInstance?.id ?? null;
 
+		if (input.depositSpotId && resolvedResourceInstanceId && targetInstance) {
+			const generationSeed = await bloomGenerationSeedForInstance(tx, targetInstance);
+			await assertDepositSpotDeployable(tx, {
+				spotId: input.depositSpotId,
+				resourceInstanceId: resolvedResourceInstanceId,
+				generationSeed
+			});
+		}
+
 		const run = await insertThumperRun(tx, {
 			pilotId: input.pilotId,
 			pilotFrameId: input.pilotFrameId,
@@ -97,7 +124,16 @@ export async function deployThumperRunWithEventWindows(
 		if (input.windows.length > 0) {
 			await insertThumperEventWindows(tx, {
 				thumperRunId: run.id,
-				windows: input.windows
+				windows: input.windows.map((window) => ({
+					...window,
+					severity:
+						window.severity ??
+						rollEventWindowSeverity({
+							runSeed: input.runSeed,
+							windowIndex: window.windowIndex,
+							forceMinor: input.runSeed === TUTORIAL_RUN_SEED
+						})
+				}))
 			});
 		}
 
@@ -236,7 +272,34 @@ export async function claimOpenThumperRunForPilot(
 			return { status: 'no_open_run' };
 		}
 
-		const resultPayload = await input.buildResult(tx, run, windows);
+		let resultPayload = await input.buildResult(tx, run, windows);
+
+		if (run.depositSpotId && run.resourceInstanceId && resultPayload.recoveredQuantity > 0) {
+			const resourceInstance = await getResourceInstanceById(tx, run.resourceInstanceId);
+			if (resourceInstance) {
+				const generationSeed = await bloomGenerationSeedForInstance(tx, resourceInstance);
+				const drain = await drainDepositSpotOnClaim(tx, {
+					spotId: run.depositSpotId,
+					resourceInstanceId: run.resourceInstanceId,
+					generationSeed,
+					requestedUnits: resultPayload.recoveredQuantity,
+					now: input.now
+				});
+
+				if (drain.grantedUnits !== resultPayload.recoveredQuantity) {
+					const adjustmentLine =
+						drain.adjustmentLine ?? formatDepositSpotDrainAdjustment(drain.grantedUnits);
+					resultPayload = {
+						...resultPayload,
+						recoveredQuantity: drain.grantedUnits,
+						explanation: resultPayload.explanation.includes(adjustmentLine)
+							? resultPayload.explanation
+							: `${resultPayload.explanation}\n\n${adjustmentLine}`
+					};
+				}
+			}
+		}
+
 		const claimResult = await insertThumperRunResult(tx, {
 			thumperRunId: run.id,
 			targetResourceId: resultPayload.targetResourceId,
@@ -258,7 +321,8 @@ export async function claimOpenThumperRunForPilot(
 				source_type: 'thumper_run',
 				source_id: run.id,
 				recovered_quantity: resultPayload.recoveredQuantity,
-				resolution_type: resultPayload.resolutionType
+				resolution_type: resultPayload.resolutionType,
+				deposit_spot_id: run.depositSpotId ?? null
 			},
 			createdAt: input.now
 		});

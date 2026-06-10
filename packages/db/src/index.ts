@@ -65,12 +65,28 @@ export {
 	insertThumperRun
 } from './queries/thumperRuns.js';
 export {
+	DepositSpotExhaustedError,
+	formatDepositSpotDrainAdjustment,
+	getDepositSpotYieldState,
+	loadDepositSpotYieldMap,
+	parseDepositSpotDrainAdjustment,
+	seedDepositSpotRemainingUnits,
+	yieldPresentationMap,
+	type DepositSpotYieldState,
+	type DrainDepositSpotOnClaimResult
+} from './queries/depositSpotYields.js';
+export {
 	claimOpenThumperRunForPilot,
 	deployThumperRunWithEventWindows,
 	type ClaimResourceReward,
 	type ClaimThumperRunOutcome,
 	type ThumperRunResultPayload
 } from './queries/thumperRunWorkflow.js';
+export {
+	mapStoredWindowsToResolutionSnapshots,
+	mapStoredWindowsToResponses,
+	resolveThumperRunForStoredWindows
+} from './queries/thumperRunResolution.js';
 export {
 	getThumperRunResultForRun,
 	insertThumperRunResult
@@ -130,6 +146,7 @@ export { thumperRunResults } from './schema/thumperRunResults.js';
 export { repairActions } from './schema/repairActions.js';
 export { thumperRunPartSnapshots } from './schema/thumperRunPartSnapshots.js';
 export { thumperRuns } from './schema/thumperRuns.js';
+export { depositSpotYields } from './schema/depositSpotYields.js';
 export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';
 export { pilotFamilyScans } from './schema/pilotFamilyScans.js';
 export { pilotResourceStatReveals } from './schema/pilotResourceStatReveals.js';

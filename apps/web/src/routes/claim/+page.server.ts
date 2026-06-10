@@ -1,7 +1,11 @@
 import {
+	getBloomRecord,
+	getDepositSpotYieldState,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
-	getThumperRunResultForRun
+	getResourceInstanceById,
+	getThumperRunResultForRun,
+	parseDepositSpotDrainAdjustment
 } from '@async-frontier-mmo/db';
 import { dev } from '$app/environment';
 import { fail, redirect } from '@sveltejs/kit';
@@ -24,7 +28,7 @@ export const load: PageServerLoad = async (event) => {
 		redirect(303, '/');
 	}
 
-	const state = await loadClaimScreen(db, pilotId, new Date());
+	const state = await augmentClaimScreenWithDepositSpot(db, pilotId, await loadClaimScreen(db, pilotId, new Date()));
 	if (state.mode === 'none') {
 		redirect(303, '/');
 	}
@@ -34,6 +38,48 @@ export const load: PageServerLoad = async (event) => {
 		showDevAudit: dev
 	};
 };
+
+async function augmentClaimScreenWithDepositSpot(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string,
+	state: Awaited<ReturnType<typeof loadClaimScreen>>
+) {
+	if (state.mode !== 'result') {
+		return state;
+	}
+
+	const run = await getLatestThumperRunForPilot(db, pilotId);
+	if (!run?.depositSpotId || !run.resourceInstanceId) {
+		return state;
+	}
+
+	const resourceInstance = await getResourceInstanceById(db, run.resourceInstanceId);
+	if (!resourceInstance) {
+		return state;
+	}
+
+	const bloom = await getBloomRecord(db, resourceInstance.bloomId);
+	const generationSeed = bloom?.generationSeed ?? `red-mesa-bloom-${resourceInstance.bloomId}`;
+	const spotYield = await getDepositSpotYieldState(db, {
+		spotId: run.depositSpotId,
+		resourceInstanceId: run.resourceInstanceId,
+		generationSeed
+	});
+
+	const drainLine = parseDepositSpotDrainAdjustment(state.claimResult.explanation);
+	const payoutAdjustments = drainLine
+		? [...state.explanation.payoutAdjustments, drainLine]
+		: state.explanation.payoutAdjustments;
+
+	return {
+		...state,
+		explanation: {
+			...state.explanation,
+			payoutAdjustments
+		},
+		depositSpotExhausted: spotYield.remainingUnits <= 0
+	};
+}
 
 export const actions: Actions = {
 	claim: async (event) => {

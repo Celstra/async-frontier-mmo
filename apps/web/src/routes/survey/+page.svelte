@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { familyDisplayLabel } from '$lib/displayLabels';
 	import {
 		FAMILY_SCAN_ENERGY_LABEL,
@@ -14,6 +15,15 @@
 	const selectedFamily = $derived(form?.selectedFamily ?? data.selectedFamily);
 	const message = $derived(form?.message ?? null);
 	const sampleOutcome = $derived(form?.sampleOutcome ?? null);
+
+	/** Spot that triggered the latest sampleSpot submission — for inline flash placement. */
+	let lastSampledSpotId = $state<string | null>(null);
+	let lastSampledResourceId = $state<string | null>(null);
+
+	function trackSampleTarget(resourceInstanceId: string, spotId: string) {
+		lastSampledResourceId = resourceInstanceId;
+		lastSampledSpotId = spotId;
+	}
 
 	function deployHref(resourceInstanceId: string, spotId: string): string {
 		const params = new URLSearchParams({ resourceInstanceId, spotId });
@@ -45,17 +55,6 @@
 
 <p>Survey energy: {surveyEnergy} / {SURVEY_ENERGY_CAP}</p>
 
-{#if message}
-	<p class="flash flash--error">{message}</p>
-{/if}
-
-{#if sampleOutcome?.status === 'ok'}
-	<p class="flash flash--success">
-		Sample secured: {sampleOutcome.trueConcentrationPercent}% concentration · +{sampleOutcome.trickleQuantity}
-		{sampleOutcome.displayName ?? 'units'}{#if sampleOutcome.statsRevealedThisSample} · stats revealed!{/if}
-	</p>
-{/if}
-
 <form method="GET" action="/survey">
 	<label>
 		Resource family
@@ -67,7 +66,11 @@
 	</label>
 </form>
 
-<form method="POST" action="?/scanFamily">
+{#if message && !sampleOutcome}
+	<p class="flash flash--error">{message}</p>
+{/if}
+
+<form method="POST" action="?/scanFamily" use:enhance>
 	<input type="hidden" name="family" value={selectedFamily} />
 	<button type="submit">Scan {familyDisplayLabel(selectedFamily)} family — {FAMILY_SCAN_ENERGY_LABEL}</button>
 </form>
@@ -118,21 +121,39 @@
 				{/if}
 
 				<h3>Deposit spots</h3>
+				{#if message && sampleOutcome && lastSampledResourceId === resource.resourceInstanceId}
+					<p class="flash flash--error">{message}</p>
+				{/if}
 				<ul class="spot-list">
 					{#each resource.spots as spot}
 						<li>
 							Spot {spot.spotIndex + 1} —
-							{#if spot.sampled && spot.trueConcentrationPercent !== null}
-								<strong>{spot.trueConcentrationPercent}%</strong> (sampled)
+							{#if spot.yieldBand === 'exhausted'}
+								<strong>Exhausted</strong>
+							{:else if spot.sampled && spot.trueConcentrationPercent !== null}
+								<strong>{spot.trueConcentrationPercent}%</strong> (sampled) · {spot.yieldBandLabel}
 								<a href={deployHref(resource.resourceInstanceId, spot.spotId)}>Deploy thumper →</a>
 							{:else}
 								{spot.concentrationBandMinPercent}–{spot.concentrationBandMaxPercent}% (estimate)
-								<form method="POST" action="?/sampleSpot" style="display: inline">
+								<form
+									method="POST"
+									action="?/sampleSpot"
+									style="display: inline"
+									use:enhance
+									onsubmit={() => trackSampleTarget(resource.resourceInstanceId, spot.spotId)}
+								>
 									<input type="hidden" name="family" value={selectedFamily} />
 									<input type="hidden" name="resourceInstanceId" value={resource.resourceInstanceId} />
 									<input type="hidden" name="spotId" value={spot.spotId} />
 									<button type="submit">Sample — {SAMPLE_SPOT_ENERGY_LABEL}</button>
 								</form>
+							{/if}
+							{#if sampleOutcome?.status === 'ok' && lastSampledResourceId === resource.resourceInstanceId && lastSampledSpotId === spot.spotId}
+								<p class="flash flash--success spot-sample-flash">
+									Sample secured: {sampleOutcome.trueConcentrationPercent}% concentration · {sampleOutcome.yieldBandLabel}
+									· +{sampleOutcome.trickleQuantity}
+									{sampleOutcome.displayName ?? 'units'}{#if sampleOutcome.statsRevealedThisSample} · stats revealed!{/if}
+								</p>
 							{/if}
 						</li>
 					{/each}
@@ -157,6 +178,10 @@
 
 	.spot-list {
 		padding-left: 1.25rem;
+	}
+
+	.spot-sample-flash {
+		margin: 0.35rem 0 0;
 	}
 
 	.stat-deemphasized {
