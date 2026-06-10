@@ -90,6 +90,17 @@ export {
 	type RotateBloomOutcome
 } from './queries/bloomRotation.js';
 export {
+	clearPilotProspectingState,
+	getPilotProspectingProgress,
+	sampleSpotForPilot,
+	scanFamilyForPilot,
+	type PilotProspectingProgress,
+	type SampleSpotForPilotInput,
+	type SampleSpotForPilotOutcome,
+	type ScanFamilyForPilotInput,
+	type ScanFamilyForPilotOutcome
+} from './queries/prospecting.js';
+export {
 	getResourceStackForPilotInstance,
 	grantResourceToPilot,
 	listResourceStacksForPilot,
@@ -105,3 +116,6 @@ export { thumperRunResults } from './schema/thumperRunResults.js';
 export { repairActions } from './schema/repairActions.js';
 export { thumperRunPartSnapshots } from './schema/thumperRunPartSnapshots.js';
 export { thumperRuns } from './schema/thumperRuns.js';
+export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';
+export { pilotResourceStatReveals } from './schema/pilotResourceStatReveals.js';
+export { pilotSurveyEnergy } from './schema/pilotSurveyEnergy.js';
