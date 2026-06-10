@@ -1,5 +1,5 @@
 import type { ResourceStatCode } from 'shared';
-import type { CompleteResourceStatMap, NamedResourceId, ResourceFamily } from '../resources/types.js';
+import type { CompleteResourceStatMap, ResourceFamily } from '../resources/types.js';
 
 /** One ingredient slot on a schematic (family requirement only — named resource chosen at craft time). */
 export type SchematicSlotDefinition = {
@@ -44,7 +44,10 @@ export type SchematicDefinition = {
 /** Resource placed in a slot at craft/preview time. Stats are read-only inputs. */
 export type SchematicSlotFill = {
 	slotId: string;
-	resourceId: NamedResourceId;
+	/** Persisted instance slug — not limited to the static Red Mesa catalog. */
+	resourceSlug: string;
+	/** Player-facing name from the resource instance row. */
+	resourceDisplayName: string;
 	family: ResourceFamily;
 	stats: CompleteResourceStatMap;
 };

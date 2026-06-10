@@ -1,6 +1,18 @@
 /** Persistence layer — Drizzle schema and queries. */
 export { createDb, type Db, type DbExecutor } from './client.js';
-export { ensureDemoPilot, getPilotById, getPilotFrame } from './queries/pilots.js';
+export {
+	craftSchematicForPilot,
+	craftSurveyScannerForPilot,
+	CraftValidationError,
+	type CraftSchematicInput,
+	type CraftSchematicOutcome
+} from './queries/crafting.js';
+export { ensureDemoPilot, ensureDemoPilotReady, getPilotById, getPilotFrame } from './queries/pilots.js';
+export { listPilotResourceStacksWithInstances } from './queries/pilotInventory.js';
+export { consumeResourceFromPilotTx, InsufficientResourceError } from './queries/resourceConsumes.js';
+export { ensureStarterStockpileForPilot, hasStarterStockpileGrant } from './queries/starterStockpile.js';
+export { craftingAttempts, type CraftSlotSelection } from './schema/craftingAttempts.js';
+export { items, type CraftSlotProvenance } from './schema/items.js';
 export {
 	getThumperEventWindowsForRun,
 	insertThumperEventWindows,

@@ -78,6 +78,20 @@
       "when": 1781800000000,
       "tag": "0010_economy_ledger_foreign_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0011_items_crafting_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0012_pilot_starter_stockpile_flag",
+      "breakpoints": true
     }
   ]
 }

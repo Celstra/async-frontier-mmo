@@ -3,6 +3,17 @@ import type { ResourceStatCode } from 'shared';
 /** Map of stat code → value (1–1000). Partial for open-ended inputs; bloom resources use CompleteResourceStatMap. */
 export type ResourceStatMap = Partial<Record<ResourceStatCode, number>>;
 
+export { buildCraftResultExplanation } from './crafting/buildCraftResultExplanation.js';
+export type {
+	CraftPropertyDriver,
+	CraftPropertyExplanation,
+	CraftResultExplanation
+} from './crafting/buildCraftResultExplanation.js';
+export {
+	CRAFT_QUANTITY_PER_SLOT,
+	FIRST_SCANNER_SUGGESTED_TUNING,
+	STARTER_STOCKPILE_GRANTS
+} from './crafting/starterStockpile.js';
 export {
 	CAREFUL_EXPERIMENT_BOOST,
 	CAREFUL_EXPERIMENT_BOOST_CHANCE,

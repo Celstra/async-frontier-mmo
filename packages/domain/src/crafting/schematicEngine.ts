@@ -103,7 +103,7 @@ export function validateSchematicSlotFills(
 
 		if (fill.family !== slot.requiredFamily) {
 			throw new SchematicSlotValidationError(
-				`Slot "${slot.id}" requires family "${slot.requiredFamily}", got "${fill.family}" (${fill.resourceId})`
+				`Slot "${slot.id}" requires family "${slot.requiredFamily}", got "${fill.family}" (${fill.resourceSlug})`
 			);
 		}
 	}

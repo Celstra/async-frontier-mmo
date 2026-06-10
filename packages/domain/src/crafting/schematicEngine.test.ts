@@ -19,7 +19,8 @@ function slotFill(slotId: string, resourceId: Parameters<typeof getRedMesaResour
 	const resource = getRedMesaResource(resourceId);
 	return {
 		slotId,
-		resourceId: resource.id,
+		resourceSlug: resource.id,
+		resourceDisplayName: resource.displayName,
 		family: resource.family,
 		stats: { ...resource.stats }
 	};
@@ -107,7 +108,8 @@ describe('Survey Scanner Module Mk I schematic engine', () => {
 		const wrongCore: SchematicSlotFill = {
 			...fills[0],
 			slotId: 'conductive_core',
-			resourceId: 'keth_iron',
+			resourceSlug: 'keth_iron',
+			resourceDisplayName: 'Keth Iron',
 			family: 'structural_alloy'
 		};
 

@@ -5,6 +5,8 @@
 
 	let { data, form }: PageProps = $props();
 
+	const craftIdempotencyKey = crypto.randomUUID();
+
 	const resourceStatCodes: ResourceStatCode[] = [
 		'OQ',
 		'conductivity',
@@ -22,6 +24,29 @@
 	const runReadyToResolve = $derived(form?.runReadyToResolve ?? data.runReadyToResolve ?? false);
 	const claimResult = $derived(form?.claimResult ?? null);
 	const claimReward = $derived(form?.reward ?? null);
+	const craftContext = $derived(form?.craftContext ?? data.craftContext);
+	const craftOutcome = $derived(form?.craftOutcome ?? null);
+
+	function stacksForFamily(family: string) {
+		return craftContext?.inventory.filter((stack) => stack.family === family) ?? [];
+	}
+
+	function defaultStackForSlot(slotId: string, family: string): string {
+		const stacks = stacksForFamily(family);
+		if (slotId === 'conductive_core') {
+			const veyrith = stacks.find((stack) => stack.resourceSlug === 'veyrith_copper');
+			if (veyrith) return veyrith.resourceInstanceId;
+		}
+		if (slotId === 'crystal_lens') {
+			const pale = stacks.find((stack) => stack.resourceSlug === 'pale_ember_crystal');
+			if (pale) return pale.resourceInstanceId;
+		}
+		if (slotId === 'frame_mount') {
+			const keth = stacks.find((stack) => stack.resourceSlug === 'keth_iron');
+			if (keth) return keth.resourceInstanceId;
+		}
+		return stacks[0]?.resourceInstanceId ?? '';
+	}
 	const thumperSource = $derived(
 		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
 	);
@@ -173,6 +198,96 @@
 	<p>Seeded run claim resolution is not available yet. Practice responding to event windows.</p>
 {:else if thumperDemo && canClaimRun && !openRun?.recalled && thumperDemo.status !== 'claimable'}
 	<p>Wait for the run timer or choose Recall Early to end the run.</p>
+{/if}
+
+{#if craftContext && !thumperDemo}
+	<h2>Craft {craftContext.schematic.displayName}</h2>
+	<p>
+		<small>
+			Fill each slot from owned stacks, spend exactly 3 tuning points, then Safe Craft or Careful
+			Experiment.
+		</small>
+	</p>
+
+	{#if craftContext.inventory.length > 0}
+		<p><strong>Owned resources:</strong></p>
+		<ul>
+			{#each craftContext.inventory as stack}
+				<li>{stack.displayName} × {stack.quantity} ({stack.family})</li>
+			{/each}
+		</ul>
+	{/if}
+
+	<form method="POST" action="?/craftScanner">
+		<input type="hidden" name="idempotencyKey" value={craftIdempotencyKey} />
+
+		{#each craftContext.schematic.slots as slot}
+			<fieldset>
+				<legend>{slot.displayName} ({slot.requiredFamily})</legend>
+				<select name="slot_{slot.id}" required>
+					<option value="" disabled selected={stacksForFamily(slot.requiredFamily).length === 0}>
+						Choose stack
+					</option>
+					{#each stacksForFamily(slot.requiredFamily) as stack}
+						<option
+							value={stack.resourceInstanceId}
+							selected={stack.resourceInstanceId === defaultStackForSlot(slot.id, slot.requiredFamily)}
+						>
+							{stack.displayName} × {stack.quantity}
+						</option>
+					{/each}
+				</select>
+			</fieldset>
+		{/each}
+
+		<fieldset>
+			<legend>Tuning (3 points total)</legend>
+			{#each craftContext.schematic.properties as property}
+				<label>
+					{property.displayName}
+					<input
+						type="number"
+						name="tuning_{property.id}"
+						min="0"
+						max="3"
+						value={craftContext.suggestedTuning[property.id] ?? 0}
+					/>
+				</label>
+			{/each}
+		</fieldset>
+
+		<fieldset>
+			<legend>Craft mode</legend>
+			<label>
+				<input type="radio" name="craftMode" value="safe_craft" checked />
+				Safe Craft
+			</label>
+			<label>
+				<input type="radio" name="craftMode" value="careful_experiment" />
+				Careful Experiment
+			</label>
+		</fieldset>
+
+		<button type="submit">Craft scanner</button>
+	</form>
+{/if}
+
+{#if craftOutcome}
+	<h3>Craft result</h3>
+	<p>{craftOutcome.explanation.summary}</p>
+	<p><small>{craftOutcome.explanation.modeContribution}</small></p>
+	<ul>
+		{#each craftOutcome.explanation.properties as line}
+			<li>
+				<strong>{line.displayName}</strong>: {line.finalScore} ({line.finalBand}) — base
+				{line.baseScore}, tuned {line.tunedScore}, {line.tuningPoints} tuning point(s). Top driver:
+				{line.drivers[0]?.label} ({line.drivers[0]?.statValue}, {line.drivers[0]?.weightPercent}% weight).
+			</li>
+		{/each}
+	</ul>
+	{#if craftOutcome.item.hasMinorFlaw}
+		<p><small>Minor flaw on crafted item.</small></p>
+	{/if}
 {/if}
 
 {#if form?.claimed && claimResult}
