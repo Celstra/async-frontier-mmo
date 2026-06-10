@@ -12,13 +12,17 @@ import {
 	craftSurveyScannerForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
-	ensureDemoPilotReady,
+	ensurePilotGameReady,
+	ensureSessionPilot,
 	equipScannerItemForPilot,
 	getEquippedScannerForPilot,
 	getLatestThumperRunForPilot,
 	listScannerItemsForPilot,
 	getOpenThumperRunForPilot,
+	getPilotById,
 	getPilotFrame,
+	pilotNeedsFrameChoice,
+	setPilotFrame,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
 	hasPilotCompletedTutorialThumper,
@@ -69,10 +73,18 @@ import {
 	type ThumperWindowChosenResponse,
 	resolveThumperState
 } from '@async-frontier-mmo/domain';
-import { parseFrameId } from 'shared';
+import { parseFrameId, isFrameId } from 'shared';
 import { dev } from '$app/environment';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
+import {
+	activeBloomDisplayName,
+	buildRunStatusSummary,
+	buildSuggestedNextAction,
+	frameChoiceLabel,
+	frameChoiceVerb,
+	FRAME_CHOICE_OPTIONS
+} from '$lib/pilotHome';
 import { resolvePilotId } from '$lib/server/pilot';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -82,6 +94,16 @@ function getDb() {
 		error(500, 'DATABASE_URL is not configured');
 	}
 	return createDb(databaseUrl);
+}
+
+async function requireFrameChosenPilot(db: ReturnType<typeof getDb>, pilotId: string) {
+	await ensureSessionPilot(db, pilotId);
+	const pilot = await getPilotById(db, pilotId);
+	if (!pilot || pilotNeedsFrameChoice(pilot)) {
+		return fail(400, { message: 'Choose a frame before continuing' });
+	}
+	await ensurePilotGameReady(db, pilotId);
+	return null;
 }
 
 async function resolveDeployTargetSlug(
@@ -555,31 +577,153 @@ async function claimOpenRun(db: ReturnType<typeof getDb>, pilotId: string, now: 
 	});
 }
 
+async function loadPilotHomeContext(
+	db: ReturnType<typeof getDb>,
+	pilotId: string,
+	input: {
+		pilotFrame: ReturnType<typeof parseFrameId>;
+		needsFrameChoice: boolean;
+		activeBloomId: number;
+		inventory: Awaited<ReturnType<typeof loadCraftContext>>['inventory'];
+		equippedScanner: Awaited<ReturnType<typeof loadSurveyContext>>['equippedScanner'];
+		scannerItems: Awaited<ReturnType<typeof loadSurveyContext>>['scannerItems'];
+		equippedThumperParts: Awaited<ReturnType<typeof loadThumperPartsContext>>['equippedThumperParts'];
+		openRun: { targetDisplayName: string; recalled: boolean } | null;
+		thumperDemo: { status: string; secondsRemaining: number } | null;
+		runReadyToResolve: boolean;
+		eventWindows: ReadonlyArray<{ responded: boolean; windowIndex: number }>;
+		hasCompletedTutorial: boolean;
+	}
+) {
+	const resourceSummary = input.inventory.map((stack) => ({
+		displayName: stack.displayName,
+		quantity: stack.quantity,
+		family: stack.family
+	}));
+
+	return {
+		needsFrameChoice: input.needsFrameChoice,
+		frameChoiceOptions: FRAME_CHOICE_OPTIONS,
+		pilotFrame: input.pilotFrame,
+		frameLabel: frameChoiceLabel(input.pilotFrame),
+		frameVerb: frameChoiceVerb(input.pilotFrame),
+		activeBloomName: activeBloomDisplayName(input.activeBloomId),
+		runStatusSummary: buildRunStatusSummary({
+			openRun: input.openRun,
+			thumperDemo: input.thumperDemo
+		}),
+		resourceSummary,
+		equippedScannerSummary: input.equippedScanner?.displayName ?? 'Basic Scanner Mk 0',
+		equippedPartsSummary: {
+			drill: input.equippedThumperParts.drill?.displayName ?? 'Worn Basic Drill',
+			pump: input.equippedThumperParts.pump?.displayName ?? 'Worn Basic Pump',
+			hull: input.equippedThumperParts.hull?.displayName ?? 'Worn Basic Hull'
+		},
+		suggestedNextAction: buildSuggestedNextAction({
+			needsFrameChoice: input.needsFrameChoice,
+			openRun: input.openRun,
+			thumperDemo: input.thumperDemo,
+			runReadyToResolve: input.runReadyToResolve,
+			eventWindows: input.eventWindows,
+			hasCompletedTutorial: input.hasCompletedTutorial,
+			equippedScanner: input.equippedScanner,
+			scannerItems: input.scannerItems
+		})
+	};
+}
+
 export const load: PageServerLoad = async (event) => {
 	const db = getDb();
 	const pilotId = resolvePilotId(event);
-	await ensureDemoPilotReady(db);
+	await ensureSessionPilot(db, pilotId);
+	const pilot = await getPilotById(db, pilotId);
+	if (!pilot) {
+		error(500, 'Session pilot missing after ensure');
+	}
+
+	const needsFrameChoice = pilotNeedsFrameChoice(pilot);
+	if (!needsFrameChoice) {
+		await ensurePilotGameReady(db, pilotId);
+	}
+
 	const pilotFrame = await getPilotFrame(db, pilotId);
-	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
-		db,
-		pilotId,
-		TUTORIAL_RUN_SEED
-	);
+	const hasCompletedTutorial = needsFrameChoice
+		? false
+		: await hasPilotCompletedTutorialThumper(db, pilotId, TUTORIAL_RUN_SEED);
+
+	if (needsFrameChoice) {
+		return {
+			...(await loadPilotHomeContext(db, pilotId, {
+				pilotFrame,
+				needsFrameChoice: true,
+				activeBloomId: BLOOM_ONE_ID,
+				inventory: [],
+				equippedScanner: null,
+				scannerItems: [],
+				equippedThumperParts: {
+					drill: null,
+					pump: null,
+					hull: null
+				},
+				openRun: null,
+				thumperDemo: null,
+				runReadyToResolve: false,
+				eventWindows: [],
+				hasCompletedTutorial: false
+			})),
+			thumperDemo: null,
+			loadedAt: null,
+			openRun: null,
+			eventWindows: [],
+			runReadyToResolve: false,
+			fieldRepairKitCount: 0,
+			hasCompletedTutorial: false,
+			craftContext: null,
+			equippedThumperParts: null,
+			thumperPartItems: [],
+			tutorialSurvey: null,
+			activeBloomSurvey: null,
+			surveyMode: 'tutorial' as const,
+			activeBloomId: BLOOM_ONE_ID,
+			scannerItems: [],
+			equippedScanner: null
+		};
+	}
+
 	const surveyContext = await loadSurveyContext(db, pilotId, hasCompletedTutorial);
 	const thumperPartsContext = await loadThumperPartsContext(db, pilotId);
 	const craftContext = await loadCraftContext(db, pilotId);
 	const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
 	const run = await getOpenThumperRunForPilot(db, pilotId);
 
+	const pilotHomeBase = {
+		pilotFrame,
+		needsFrameChoice: false,
+		activeBloomId: surveyContext.activeBloomId,
+		inventory: craftContext.inventory,
+		equippedScanner: surveyContext.equippedScanner,
+		scannerItems: surveyContext.scannerItems,
+		equippedThumperParts: thumperPartsContext.equippedThumperParts,
+		hasCompletedTutorial
+	};
+
 	if (!run) {
+		const pilotHome = await loadPilotHomeContext(db, pilotId, {
+			...pilotHomeBase,
+			openRun: null,
+			thumperDemo: null,
+			runReadyToResolve: false,
+			eventWindows: []
+		});
+
 		return {
+			...pilotHome,
 			thumperDemo: null,
 			loadedAt: null,
 			openRun: null,
 			eventWindows: [],
 			runReadyToResolve: false,
 			fieldRepairKitCount,
-			pilotFrame,
 			hasCompletedTutorial,
 			craftContext,
 			...thumperPartsContext,
@@ -588,8 +732,16 @@ export const load: PageServerLoad = async (event) => {
 	}
 
 	const state = await loadOpenRunState(db, run, fieldRepairKitCount);
+	const pilotHome = await loadPilotHomeContext(db, pilotId, {
+		...pilotHomeBase,
+		openRun: state.openRun,
+		thumperDemo: state.thumperDemo,
+		runReadyToResolve: state.runReadyToResolve,
+		eventWindows: state.eventWindows
+	});
+
 	return {
-		pilotFrame,
+		...pilotHome,
 		hasCompletedTutorial,
 		craftContext,
 		...thumperPartsContext,
@@ -599,10 +751,30 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions: Actions = {
+	chooseFrame: async (event) => {
+		const db = getDb();
+		const pilotId = resolvePilotId(event);
+		await ensureSessionPilot(db, pilotId);
+
+		const pilot = await getPilotById(db, pilotId);
+		if (pilot && !pilotNeedsFrameChoice(pilot)) {
+			return fail(400, { message: 'Frame already chosen for this pilot' });
+		}
+
+		const formData = await event.request.formData();
+		const frameIdRaw = formData.get('frameId');
+		if (typeof frameIdRaw !== 'string' || !isFrameId(frameIdRaw)) {
+			return fail(400, { message: 'Choose Recon, Engineer, or Vanguard' });
+		}
+
+		await setPilotFrame(db, pilotId, frameIdRaw);
+	},
+
 	deploy: async (event) => {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 		const pilotFrame = await getPilotFrame(db, pilotId);
 		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 			db,
@@ -783,7 +955,8 @@ export const actions: Actions = {
 	craftScanner: async (event) => {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 
 		const formData = await event.request.formData();
 		const idempotencyKey = formData.get('idempotencyKey');
@@ -844,7 +1017,8 @@ export const actions: Actions = {
 	craftThumperPart: async (event) => {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 
 		const formData = await event.request.formData();
 		const schematicId = formData.get('schematicId');
@@ -917,7 +1091,8 @@ export const actions: Actions = {
 	craftRepairKit: async (event) => {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 
 		const formData = await event.request.formData();
 		const idempotencyKey = formData.get('idempotencyKey');
@@ -984,7 +1159,8 @@ export const actions: Actions = {
 
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 
 		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
 			db,
@@ -1015,7 +1191,8 @@ export const actions: Actions = {
 	equipThumperPart: async (event) => {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 
 		const formData = await event.request.formData();
 		const slot = formData.get('slot');
@@ -1055,7 +1232,8 @@ export const actions: Actions = {
 	equipScanner: async (event) => {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
-		await ensureDemoPilotReady(db);
+		const frameGate = await requireFrameChosenPilot(db, pilotId);
+		if (frameGate) return frameGate;
 
 		const formData = await event.request.formData();
 		const itemId = formData.get('itemId');

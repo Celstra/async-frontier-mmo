@@ -42,6 +42,16 @@
 	const hasCompletedTutorial = $derived(
 		form?.hasCompletedTutorial ?? data.hasCompletedTutorial ?? false
 	);
+	const needsFrameChoice = $derived(data.needsFrameChoice ?? false);
+	const frameChoiceOptions = $derived(data.frameChoiceOptions ?? []);
+	const frameLabel = $derived(data.frameLabel ?? '');
+	const frameVerb = $derived(data.frameVerb ?? '');
+	const activeBloomName = $derived(data.activeBloomName ?? '');
+	const runStatusSummary = $derived(data.runStatusSummary ?? '');
+	const resourceSummary = $derived(data.resourceSummary ?? []);
+	const equippedScannerSummary = $derived(data.equippedScannerSummary ?? 'Basic Scanner Mk 0');
+	const equippedPartsSummary = $derived(data.equippedPartsSummary ?? null);
+	const suggestedNextAction = $derived(data.suggestedNextAction ?? null);
 
 	function stacksForFamily(family: string) {
 		return craftContext?.inventory.filter((stack) => stack.family === family) ?? [];
@@ -156,8 +166,74 @@
 	});
 </script>
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<h1>Pilot Home</h1>
+
+{#if needsFrameChoice}
+	<section class="frame-choice">
+		<h2>Choose your frame</h2>
+		<p>How do you operate on the frontier? (Decision 011 — verbs, not stat blocks.)</p>
+		<form method="POST" action="?/chooseFrame">
+			{#each frameChoiceOptions as option}
+				<label class="frame-option">
+					<input type="radio" name="frameId" value={option.id} required />
+					<strong>{option.title}</strong>
+					<span>{option.verb}</span>
+				</label>
+			{/each}
+			<button type="submit">Confirm frame</button>
+		</form>
+	</section>
+{:else}
+	<section class="pilot-home-summary">
+		<dl>
+			<div>
+				<dt>Frame</dt>
+				<dd>{frameLabel} — {frameVerb}</dd>
+			</div>
+			<div>
+				<dt>Active bloom</dt>
+				<dd>{activeBloomName}</dd>
+			</div>
+			<div>
+				<dt>Run status</dt>
+				<dd>{runStatusSummary}</dd>
+			</div>
+			<div>
+				<dt>Resources</dt>
+				<dd>
+					{#if resourceSummary.length === 0}
+						None yet — survey and claim to fill inventory.
+					{:else}
+						<ul>
+							{#each resourceSummary as stack}
+								<li>{stack.displayName} × {stack.quantity}</li>
+							{/each}
+						</ul>
+					{/if}
+				</dd>
+			</div>
+			<div>
+				<dt>Equipped scanner</dt>
+				<dd>{equippedScannerSummary}</dd>
+			</div>
+			{#if equippedPartsSummary}
+				<div>
+					<dt>Equipped thumper parts</dt>
+					<dd>
+						Drill: {equippedPartsSummary.drill} · Pump: {equippedPartsSummary.pump} · Hull:
+						{equippedPartsSummary.hull}
+					</dd>
+				</div>
+			{/if}
+		</dl>
+
+		{#if suggestedNextAction}
+			<section class="suggested-next">
+				<h2>Suggested next</h2>
+				<p><strong>{suggestedNextAction.label}</strong> — {suggestedNextAction.detail}</p>
+			</section>
+		{/if}
+	</section>
 
 {#if (tutorialSurvey || activeBloomSurvey) && !thumperDemo}
 	<h2>
@@ -636,8 +712,46 @@
 		{/if}
 	</p>
 {/if}
+{/if}
 
 <style>
+	.pilot-home-summary dl {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.pilot-home-summary dt {
+		font-weight: 600;
+	}
+
+	.pilot-home-summary dd {
+		margin: 0.15rem 0 0;
+	}
+
+	.pilot-home-summary ul {
+		margin: 0.25rem 0 0;
+		padding-left: 1.25rem;
+	}
+
+	.frame-choice form {
+		display: grid;
+		gap: 0.75rem;
+		max-width: 28rem;
+	}
+
+	.frame-option {
+		display: grid;
+		gap: 0.15rem;
+		padding: 0.75rem;
+		border: 1px solid #ccc;
+	}
+
+	.suggested-next {
+		margin-top: 1rem;
+		padding-top: 0.5rem;
+		border-top: 1px solid #ddd;
+	}
+
 	.stat-deemphasized {
 		opacity: 0.55;
 	}

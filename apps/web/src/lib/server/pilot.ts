@@ -1,7 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import { DEMO_PILOT_ID } from 'shared';
 
-/** Lesson 7.1 will replace this with session-derived pilot identity. */
-export function resolvePilotId(_event: RequestEvent): string {
-	return DEMO_PILOT_ID;
+/** Session-scoped pilot id (cookie set in hooks.server.ts). Auth replaces this later. */
+export function resolvePilotId(event: RequestEvent): string {
+	return event.locals.pilotId;
 }

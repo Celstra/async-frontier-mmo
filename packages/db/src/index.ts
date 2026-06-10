@@ -30,7 +30,16 @@ export {
 	ThumperPartEquipValidationError,
 	type EquipThumperPartOutcome
 } from './queries/thumperPartEquipment.js';
-export { ensureDemoPilot, ensureDemoPilotReady, getPilotById, getPilotFrame } from './queries/pilots.js';
+export {
+	ensureDemoPilot,
+	ensureDemoPilotReady,
+	ensurePilotGameReady,
+	ensureSessionPilot,
+	getPilotById,
+	getPilotFrame,
+	pilotNeedsFrameChoice,
+	setPilotFrame
+} from './queries/pilots.js';
 export { listPilotResourceStacksWithInstances } from './queries/pilotInventory.js';
 export { consumeResourceFromPilotTx, InsufficientResourceError } from './queries/resourceConsumes.js';
 export {
