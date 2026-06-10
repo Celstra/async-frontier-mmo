@@ -120,6 +120,27 @@
       "when": 1782400000000,
       "tag": "0016_bloom_rotation",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782500000000,
+      "tag": "0017_rebaseline_meta",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0018_hot_path_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782700000000,
+      "tag": "0019_premium_ultimo",
+      "breakpoints": true
     }
   ]
 }
