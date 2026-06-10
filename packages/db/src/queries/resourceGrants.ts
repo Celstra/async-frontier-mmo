@@ -26,51 +26,56 @@ export async function listResourceStacksForPilot(db: DbExecutor, pilotId: string
 	return db.select().from(resourceStacks).where(eq(resourceStacks.pilotId, pilotId));
 }
 
+export type GrantResourceInput = {
+	pilotId: string;
+	resourceInstanceId: string;
+	quantity: number;
+	source: { type: string; id: string };
+};
+
 /**
- * Grant quantity to a pilot — combines stacks by pilot + instance (Decision 012)
- * and appends a resource_granted ledger row in the same transaction.
+ * Grant quantity inside an existing transaction — combines stacks and appends ledger row.
  */
-export async function grantResourceToPilot(
-	db: Db,
-	input: {
-		pilotId: string;
-		resourceInstanceId: string;
-		quantity: number;
-		source: { type: string; id: string };
-	}
-) {
+/**
+ * In-transaction grant helper — exported for sibling query modules only.
+ * Package consumers should use {@link grantResourceToPilot}.
+ */
+export async function grantResourceToPilotTx(db: DbExecutor, input: GrantResourceInput) {
 	if (input.quantity <= 0) {
 		throw new Error('grant quantity must be positive');
 	}
 
-	return db.transaction(async (tx: DbExecutor) => {
-		const [stack] = await tx
-			.insert(resourceStacks)
-			.values({
-				pilotId: input.pilotId,
-				resourceInstanceId: input.resourceInstanceId,
-				quantity: input.quantity
-			})
-			.onConflictDoUpdate({
-				target: [resourceStacks.pilotId, resourceStacks.resourceInstanceId],
-				set: {
-					quantity: sql`${resourceStacks.quantity} + ${input.quantity}`
-				}
-			})
-			.returning();
-
-		await appendEconomyLedgerEntry(tx, {
-			eventType: 'resource_granted',
+	const [stack] = await db
+		.insert(resourceStacks)
+		.values({
 			pilotId: input.pilotId,
 			resourceInstanceId: input.resourceInstanceId,
-			resourceStackId: stack!.id,
-			quantityDelta: input.quantity,
-			payload: {
-				source_type: input.source.type,
-				source_id: input.source.id
+			quantity: input.quantity
+		})
+		.onConflictDoUpdate({
+			target: [resourceStacks.pilotId, resourceStacks.resourceInstanceId],
+			set: {
+				quantity: sql`${resourceStacks.quantity} + ${input.quantity}`
 			}
-		});
+		})
+		.returning();
 
-		return stack!;
+	await appendEconomyLedgerEntry(db, {
+		eventType: 'resource_granted',
+		pilotId: input.pilotId,
+		resourceInstanceId: input.resourceInstanceId,
+		resourceStackId: stack!.id,
+		quantityDelta: input.quantity,
+		payload: {
+			source_type: input.source.type,
+			source_id: input.source.id
+		}
 	});
+
+	return stack!;
+}
+
+/** Grant quantity to a pilot — wraps {@link grantResourceToPilotTx} in its own transaction. */
+export async function grantResourceToPilot(db: Db, input: GrantResourceInput) {
+	return db.transaction((tx) => grantResourceToPilotTx(tx, input));
 }

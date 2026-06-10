@@ -21,6 +21,7 @@
 	const eventWindows = $derived(form?.eventWindows ?? data.eventWindows ?? []);
 	const runReadyToResolve = $derived(form?.runReadyToResolve ?? data.runReadyToResolve ?? false);
 	const claimResult = $derived(form?.claimResult ?? null);
+	const claimReward = $derived(form?.reward ?? null);
 	const thumperSource = $derived(
 		form?.claimed ? 'claim' : data.thumperDemo ? 'load' : form?.thumperDemo ? 'action' : 'load'
 	);
@@ -181,6 +182,12 @@
 		(waste {claimResult.wasteQuantity}, forfeited {claimResult.forfeitedRecovery}) —
 		{claimResult.explanation}
 	</p>
+	{#if claimReward}
+		<p>
+			<strong>Inventory:</strong> +{claimReward.quantityGranted}
+			{claimReward.displayName} (stack total {claimReward.stackQuantity})
+		</p>
+	{/if}
 {/if}
 
 {#if import.meta.env.DEV}

@@ -7,6 +7,7 @@ import {
 } from '@async-frontier-mmo/domain';
 import { DEMO_PILOT_ID, parseFrameId } from 'shared';
 import {
+	BLOOM_ONE_ID,
 	claimOpenThumperRunForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
@@ -56,6 +57,22 @@ function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now:
 	);
 }
 
+function ledgerGrantsForResult(
+	entries: Awaited<ReturnType<typeof listEconomyLedgerEntriesForPilot>>,
+	resultId: string
+) {
+	return entries.filter(
+		(entry) =>
+			entry.eventType === 'resource_granted' &&
+			entry.payload !== null &&
+			typeof entry.payload === 'object' &&
+			'source_type' in entry.payload &&
+			entry.payload.source_type === 'thumper_run_result' &&
+			'source_id' in entry.payload &&
+			entry.payload.source_id === resultId
+	);
+}
+
 async function claimTutorialRun(now: Date) {
 	return claimOpenThumperRunForPilot(db, {
 		pilotId: DEMO_PILOT_ID,
@@ -91,7 +108,8 @@ async function claimTutorialRun(now: Date) {
 							| 'clear_pump_problem'
 							| 'recall_early'
 					}))
-			})
+			}),
+		grantResourceReward: { bloomId: BLOOM_ONE_ID }
 	});
 }
 
@@ -185,10 +203,41 @@ await recordThumperEventWindowResponse(db, {
 	chosenResponse: 'clear_pump_problem'
 });
 
+const stackBeforeClaim = await getResourceStackForPilotInstance(
+	db,
+	DEMO_PILOT_ID,
+	veyrithInstance.id
+);
+const quantityBeforeClaim = stackBeforeClaim?.quantity ?? 0;
+
 const claimNow = new Date();
 const firstClaim = await claimTutorialRun(claimNow);
 if (firstClaim.status !== 'claimed' || !firstClaim.claimResult) {
 	failSmoke('first claim should win and insert result');
+}
+if (!firstClaim.reward || firstClaim.reward.resourceInstanceId !== veyrithInstance.id) {
+	failSmoke('first claim should grant Veyrith Copper to the bloom #1 instance');
+}
+
+const stackAfterFirstClaim = await getResourceStackForPilotInstance(
+	db,
+	DEMO_PILOT_ID,
+	veyrithInstance.id
+);
+if (
+	!stackAfterFirstClaim ||
+	stackAfterFirstClaim.quantity !== quantityBeforeClaim + firstClaim.claimResult.recoveredQuantity
+) {
+	failSmoke('claim should increase the Veyrith stack by recovered quantity');
+}
+
+const ledgerAfterFirstClaim = await listEconomyLedgerEntriesForPilot(db, DEMO_PILOT_ID);
+const grantsForFirstResult = ledgerGrantsForResult(
+	ledgerAfterFirstClaim,
+	firstClaim.claimResult.id
+);
+if (grantsForFirstResult.length !== 1) {
+	failSmoke('first claim should write exactly one resource_granted ledger row');
 }
 
 const secondClaim = await claimTutorialRun(claimNow);
@@ -197,6 +246,25 @@ if (secondClaim.status !== 'already_claimed' || !secondClaim.claimResult) {
 }
 if (secondClaim.claimResult.id !== firstClaim.claimResult.id) {
 	failSmoke('double claim must not duplicate result row');
+}
+if (secondClaim.reward !== null) {
+	failSmoke('second claim must not grant resources again');
+}
+
+const stackAfterSecondClaim = await getResourceStackForPilotInstance(
+	db,
+	DEMO_PILOT_ID,
+	veyrithInstance.id
+);
+if (!stackAfterSecondClaim || stackAfterSecondClaim.quantity !== stackAfterFirstClaim.quantity) {
+	failSmoke('double claim must not duplicate stack quantity');
+}
+
+const ledgerAfterSecondClaim = await listEconomyLedgerEntriesForPilot(db, DEMO_PILOT_ID);
+if (
+	ledgerGrantsForResult(ledgerAfterSecondClaim, firstClaim.claimResult.id).length !== 1
+) {
+	failSmoke('double claim must not duplicate ledger rows for the same result');
 }
 
 const [claimedRun] = await db.select().from(thumperRuns).where(eq(thumperRuns.id, run.id));

@@ -71,10 +71,10 @@ export async function hasPilotCompletedTutorialThumper(
 	return row !== undefined;
 }
 
-export async function claimThumperRun(db: DbExecutor, id: string) {
+export async function claimThumperRun(db: DbExecutor, id: string, claimedAt: Date) {
 	const [row] = await db
 		.update(thumperRuns)
-		.set({ claimedAt: new Date() })
+		.set({ claimedAt })
 		.where(and(eq(thumperRuns.id, id), isNull(thumperRuns.claimedAt)))
 		.returning();
 

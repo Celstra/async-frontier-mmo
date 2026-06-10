@@ -78,6 +78,11 @@ export {
 	type ThumperWindowChosenResponse
 } from './thumper/resolveThumperRunResult';
 export {
+	isThumperRunClaimable,
+	isThumperRunReadyToResolve,
+	type ThumperClaimWindowSnapshot
+} from './thumper/isThumperRunClaimable';
+export {
 	resolveThumperState,
 	type ResolveThumperStateInput,
 	type ResolveThumperStateResult

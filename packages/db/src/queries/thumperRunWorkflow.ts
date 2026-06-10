@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
+import { grantResourceToPilotTx } from './resourceGrants.js';
+import { getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import {
 	claimThumperRun,
 	getLatestThumperRunForPilot,
@@ -21,14 +23,24 @@ export type ThumperRunResultPayload = {
 	explanation: string;
 };
 
+export type ClaimResourceReward = {
+	resourceInstanceId: string;
+	resourceSlug: string;
+	displayName: string;
+	quantityGranted: number;
+	stackQuantity: number;
+};
+
 export type ClaimThumperRunOutcome =
 	| {
 			status: 'claimed';
 			claimResult: Awaited<ReturnType<typeof insertThumperRunResult>> | null;
+			reward: ClaimResourceReward | null;
 	  }
 	| {
 			status: 'already_claimed';
 			claimResult: Awaited<ReturnType<typeof getThumperRunResultForRun>>;
+			reward: null;
 	  }
 	| { status: 'no_open_run' }
 	| { status: 'not_claimable' }
@@ -100,6 +112,8 @@ export async function claimOpenThumperRunForPilot(
 			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => ThumperRunResultPayload;
+		/** When set, grants recovered quantity to the bloom resource instance in the same transaction. */
+		grantResourceReward?: { bloomId: number };
 	}
 ): Promise<ClaimThumperRunOutcome> {
 	return db.transaction(async (tx: DbExecutor) => {
@@ -108,7 +122,7 @@ export async function claimOpenThumperRunForPilot(
 			const latest = await getLatestThumperRunForPilot(tx, input.pilotId);
 			if (latest?.claimedAt) {
 				const existingResult = await getThumperRunResultForRun(tx, latest.id);
-				return { status: 'already_claimed', claimResult: existingResult };
+				return { status: 'already_claimed', claimResult: existingResult, reward: null };
 			}
 
 			return { status: 'no_open_run' };
@@ -138,7 +152,7 @@ export async function claimOpenThumperRunForPilot(
 			};
 		}
 
-		const claimedRun = await claimThumperRun(tx, run.id);
+		const claimedRun = await claimThumperRun(tx, run.id, input.now);
 		if (!claimedRun) {
 			const [currentRun] = await tx
 				.select()
@@ -148,26 +162,61 @@ export async function claimOpenThumperRunForPilot(
 			const existingResult = await getThumperRunResultForRun(tx, run.id);
 
 			if (currentRun?.claimedAt) {
-				return { status: 'already_claimed', claimResult: existingResult };
+				return { status: 'already_claimed', claimResult: existingResult, reward: null };
 			}
 
 			return { status: 'no_open_run' };
 		}
 
 		const resultPayload = input.buildResult(run, windows);
-			const claimResult = await insertThumperRunResult(tx, {
-				thumperRunId: run.id,
-				targetResourceId: resultPayload.targetResourceId,
-				projectedRecovery: resultPayload.projectedRecovery,
-				recoveredQuantity: resultPayload.recoveredQuantity,
-				wasteQuantity: resultPayload.wasteQuantity,
-				forfeitedRecovery: resultPayload.forfeitedRecovery,
-				resolutionType: resultPayload.resolutionType,
-				appliedWear: resultPayload.appliedWear,
-				explanation: resultPayload.explanation,
-				resolvedAt: input.now
+		const claimResult = await insertThumperRunResult(tx, {
+			thumperRunId: run.id,
+			targetResourceId: resultPayload.targetResourceId,
+			projectedRecovery: resultPayload.projectedRecovery,
+			recoveredQuantity: resultPayload.recoveredQuantity,
+			wasteQuantity: resultPayload.wasteQuantity,
+			forfeitedRecovery: resultPayload.forfeitedRecovery,
+			resolutionType: resultPayload.resolutionType,
+			appliedWear: resultPayload.appliedWear,
+			explanation: resultPayload.explanation,
+			resolvedAt: input.now
+		});
+
+		let reward: ClaimResourceReward | null = null;
+		if (input.grantResourceReward && resultPayload.recoveredQuantity > 0) {
+			if (resultPayload.targetResourceId !== run.targetResourceId) {
+				throw new Error(
+					`Result target ${resultPayload.targetResourceId} does not match run target ${run.targetResourceId}`
+				);
+			}
+
+			const resourceInstance = await getResourceInstanceByBloomSlug(
+				tx,
+				input.grantResourceReward.bloomId,
+				resultPayload.targetResourceId
+			);
+			if (!resourceInstance) {
+				throw new Error(
+					`No resource instance for bloom ${input.grantResourceReward.bloomId} slug ${resultPayload.targetResourceId}`
+				);
+			}
+
+			const stack = await grantResourceToPilotTx(tx, {
+				pilotId: input.pilotId,
+				resourceInstanceId: resourceInstance.id,
+				quantity: resultPayload.recoveredQuantity,
+				source: { type: 'thumper_run_result', id: claimResult.id }
 			});
 
-		return { status: 'claimed', claimResult };
+			reward = {
+				resourceInstanceId: resourceInstance.id,
+				resourceSlug: resourceInstance.resourceSlug,
+				displayName: resourceInstance.displayName,
+				quantityGranted: resultPayload.recoveredQuantity,
+				stackQuantity: stack.quantity
+			};
+		}
+
+		return { status: 'claimed', claimResult, reward };
 	});
 }

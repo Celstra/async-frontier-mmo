@@ -1,7 +1,9 @@
 import {
+	BLOOM_ONE_ID,
 	claimOpenThumperRunForPilot,
 	createDb,
 	deployThumperRunWithEventWindows,
+	ensureBloomOneResourceInstances,
 	ensureDemoPilot,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
@@ -16,6 +18,8 @@ import {
 	generateThumperEventWindows,
 	getEventWindowResponseOptions,
 	getRedMesaResource,
+	isThumperRunClaimable,
+	isThumperRunReadyToResolve,
 	isTutorialThumperDeploy,
 	TUTORIAL_RUN_SEED,
 	RED_MESA_BLOOM_RESOURCES,
@@ -80,42 +84,6 @@ function isRunEndedByRecall(
 	return windows.some((window) => window.chosenResponse === 'recall_early');
 }
 
-function isRunReadyToResolve(
-	windows: ReadonlyArray<{ chosenResponse: string | null }>
-): boolean {
-	if (windows.length === 0) {
-		return true;
-	}
-	if (isRunEndedByRecall(windows)) {
-		return true;
-	}
-	return windows.every((window) => window.chosenResponse !== null);
-}
-
-function isRunClaimableByTimer(
-	run: { deployedAt: Date; durationSeconds: number },
-	now: Date
-): boolean {
-	return (
-		resolveThumperState({
-			deployedAt: run.deployedAt,
-			durationSeconds: run.durationSeconds,
-			now
-		}).status === 'claimable'
-	);
-}
-
-function isRunClaimableForPilot(
-	run: { deployedAt: Date; durationSeconds: number },
-	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
-	now: Date
-): boolean {
-	if (isRunEndedByRecall(windows)) {
-		return isRunReadyToResolve(windows);
-	}
-	return isRunClaimableByTimer(run, now);
-}
-
 function mapEventWindowsForUi(
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
@@ -158,7 +126,7 @@ async function loadOpenRunState(db: ReturnType<typeof getDb>, run: NonNullable<A
 			recalled
 		},
 		eventWindows: mapEventWindowsForUi(eventWindows),
-		runReadyToResolve: isRunReadyToResolve(eventWindows)
+		runReadyToResolve: isThumperRunReadyToResolve(eventWindows)
 	};
 }
 
@@ -188,10 +156,12 @@ function buildTutorialClaimResult(
 }
 
 async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
+	await ensureBloomOneResourceInstances(db);
+
 	return claimOpenThumperRunForPilot(db, {
 		pilotId: DEMO_PILOT_ID,
 		now,
-		isClaimable: (run, windows) => isRunClaimableForPilot(run, windows, now),
+		isClaimable: (run, windows) => isThumperRunClaimable({ run, windows, now }),
 		isResolvableRun: (run) => run.runSeed === TUTORIAL_RUN_SEED,
 		notResolvableMessage: SEEDED_RUN_NOT_RESOLVABLE_MESSAGE,
 		validateWindows: (run, windows) => {
@@ -199,7 +169,8 @@ async function claimTutorialRun(db: ReturnType<typeof getDb>, now: Date) {
 				assertVeyrithTutorialWindowsReady(windows);
 			}
 		},
-		buildResult: (run, windows) => buildTutorialClaimResult(run, windows)
+		buildResult: (run, windows) => buildTutorialClaimResult(run, windows),
+		grantResourceReward: { bloomId: BLOOM_ONE_ID }
 	});
 }
 
@@ -352,7 +323,12 @@ export const actions: Actions = {
 		const outcome = await claimTutorialRun(db, now);
 
 		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
-			return { thumperDemo: null, claimed: true, claimResult: outcome.claimResult };
+			return {
+				thumperDemo: null,
+				claimed: true,
+				claimResult: outcome.claimResult,
+				reward: outcome.status === 'claimed' ? outcome.reward : null
+			};
 		}
 
 		if (outcome.status === 'not_claimable') {

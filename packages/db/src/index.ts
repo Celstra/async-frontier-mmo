@@ -16,6 +16,7 @@ export {
 export {
 	claimOpenThumperRunForPilot,
 	deployThumperRunWithEventWindows,
+	type ClaimResourceReward,
 	type ClaimThumperRunOutcome,
 	type ThumperRunResultPayload
 } from './queries/thumperRunWorkflow.js';
@@ -40,7 +41,8 @@ export {
 export {
 	getResourceStackForPilotInstance,
 	grantResourceToPilot,
-	listResourceStacksForPilot
+	listResourceStacksForPilot,
+	type GrantResourceInput
 } from './queries/resourceGrants.js';
 export { BLOOM_ONE_ID, BLOOM_ONE_SEED_RESOURCES } from './seed/bloomOneSeed.js';
 export { economyLedger } from './schema/economyLedger.js';
