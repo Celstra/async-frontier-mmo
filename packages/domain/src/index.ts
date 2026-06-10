@@ -122,6 +122,7 @@ export {
 	resolveSurveyEnergy,
 	SAMPLE_ENERGY_COST,
 	SAMPLE_TRICKLE_UNITS,
+	buildFamilyScanPreview,
 	scanFamilyProspect,
 	sampleDepositSpot,
 	SURVEY_ENERGY_CAP,

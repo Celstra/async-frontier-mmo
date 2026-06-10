@@ -100,14 +100,18 @@ export {
 } from './queries/bloomRotation.js';
 export {
 	clearPilotProspectingState,
+	getPilotDepositSample,
 	getPilotProspectingProgress,
+	previewFamilyScanForPilot,
 	sampleSpotForPilot,
 	scanFamilyForPilot,
 	type PilotProspectingProgress,
+	type PreviewFamilyScanForPilotInput,
 	type SampleSpotForPilotInput,
 	type SampleSpotForPilotOutcome,
 	type ScanFamilyForPilotInput,
-	type ScanFamilyForPilotOutcome
+	type ScanFamilyForPilotOutcome,
+	type SurveyResourceCard
 } from './queries/prospecting.js';
 export {
 	getResourceStackForPilotInstance,

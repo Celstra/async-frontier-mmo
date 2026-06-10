@@ -34,10 +34,6 @@
 	);
 	const thumperPartItems = $derived(form?.thumperPartItems ?? data.thumperPartItems ?? []);
 	const equipThumperOutcome = $derived(form?.equipThumperOutcome ?? null);
-	const tutorialSurvey = $derived(form?.tutorialSurvey ?? data.tutorialSurvey ?? null);
-	const activeBloomSurvey = $derived(form?.activeBloomSurvey ?? data.activeBloomSurvey ?? null);
-	const surveyMode = $derived(form?.surveyMode ?? data.surveyMode ?? 'tutorial');
-	const activeBloomId = $derived(form?.activeBloomId ?? data.activeBloomId ?? 1);
 	const bloomRotation = $derived(form?.bloomRotation ?? null);
 	const hasCompletedTutorial = $derived(
 		form?.hasCompletedTutorial ?? data.hasCompletedTutorial ?? false
@@ -230,139 +226,21 @@
 		{#if suggestedNextAction}
 			<section class="suggested-next">
 				<h2>Suggested next</h2>
-				<p><strong>{suggestedNextAction.label}</strong> — {suggestedNextAction.detail}</p>
+				<p>
+					{#if suggestedNextAction.href}
+						<a href={suggestedNextAction.href}><strong>{suggestedNextAction.label}</strong></a>
+					{:else}
+						<strong>{suggestedNextAction.label}</strong>
+					{/if}
+					— {suggestedNextAction.detail}
+				</p>
 			</section>
 		{/if}
+
+		<p><a href="/survey">Red Mesa Survey →</a></p>
 	</section>
 
-{#if (tutorialSurvey || activeBloomSurvey) && !thumperDemo}
-	<h2>
-		Red Mesa survey
-		{#if surveyMode === 'tutorial'}
-			(first session)
-		{:else}
-			(bloom #{activeBloomId})
-		{/if}
-	</h2>
-	{#if equippedScanner}
-		<p>
-			<small>
-				Equipped: {equippedScanner.displayName} — Survey Clarity {equippedScanner.surveyClarityScore}
-				(clearer stat readouts)
-			</small>
-		</p>
-	{:else}
-		<p><small>Basic Scanner Mk 0 — stat bands only until you equip a crafted scanner.</small></p>
-	{/if}
-	{#if surveyMode === 'tutorial' && tutorialSurvey}
-		<ul>
-			{#each tutorialSurvey.signals as signal}
-				<li>
-					<strong>{signal.displayName}</strong>
-					{#if signal.recommended}(recommended){/if}
-					— {signal.teachingNote}
-					<ul>
-						{#each signal.statHints as hint}
-							<li>
-								{hint.stat}: {hint.band}
-								{#if hint.exactValue !== undefined}
-									(exact {hint.exactValue})
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</li>
-			{/each}
-		</ul>
-	{:else if activeBloomSurvey}
-		<p>
-			<small>
-				Spawnable resources in the active bloom. Archived stacks in your inventory keep their
-				original provenance after rotation.
-			</small>
-		</p>
-		<ul>
-			{#each activeBloomSurvey.signals as signal}
-				<li>
-					<strong>{signal.displayName}</strong>
-					{#if signal.resourceSlug === activeBloomSurvey.recommendedResourceSlug}
-						(recommended)
-					{/if}
-					— concentration {signal.concentrationMinPercent}–{signal.concentrationMaxPercent}%
-					<ul>
-						{#each signal.statHints as hint}
-							<li class:stat-deemphasized={!hint.emphasized}>
-								{hint.stat}: {hint.band}
-								{#if hint.exactValue !== undefined}
-									(exact {hint.exactValue})
-								{/if}
-								{#if !hint.emphasized}
-									<small> — low craft relevance</small>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-
-	{#if import.meta.env.DEV && hasCompletedTutorial}
-		<form method="POST" action="?/rotateBloom">
-			<button type="submit">Rotate bloom (dev)</button>
-		</form>
-		{#if bloomRotation?.status === 'rotated'}
-			<p>
-				<small>
-					Rotated bloom #{bloomRotation.previousBloomId} → #{bloomRotation.newBloomId} (
-					{bloomRotation.spawnedResourceCount} new resources).
-				</small>
-			</p>
-		{/if}
-	{/if}
-
-	<form method="POST" action="?/deploy">
-		<fieldset>
-			<legend>Deploy thumper on signal</legend>
-			{#if surveyMode === 'tutorial' && tutorialSurvey}
-				{#each tutorialSurvey.signals as signal}
-					<label>
-						<input
-							type="radio"
-							name="targetResourceId"
-							value={signal.resourceId}
-							checked={signal.recommended}
-						/>
-						{signal.displayName}
-					</label>
-				{/each}
-			{:else if activeBloomSurvey}
-				{#each activeBloomSurvey.signals as signal}
-					<label>
-						<input
-							type="radio"
-							name="targetResourceId"
-							value={signal.resourceSlug}
-							checked={signal.resourceSlug === activeBloomSurvey.recommendedResourceSlug}
-						/>
-						{signal.displayName}
-					</label>
-				{/each}
-			{/if}
-		</fieldset>
-		<label>
-			<input type="checkbox" name="isPushRun" value="true" />
-			Push run (3 event windows, higher projected recovery)
-		</label>
-		<p>
-			<small>
-				Push is ignored on your first scripted Veyrith tutorial deploy. Repeat and non-tutorial
-				deploys may use it.
-			</small>
-		</p>
-		<button type="submit">Deploy thumper</button>
-	</form>
-{:else if thumperDemo}
+{#if thumperDemo}
 	<p>Thumper running on <strong>{openRun?.targetDisplayName ?? 'unknown signal'}</strong>.</p>
 	{#if openRun?.isPushRun}
 		<p><small>Push run — {eventWindows.length} event windows</small></p>
@@ -750,9 +628,5 @@
 		margin-top: 1rem;
 		padding-top: 0.5rem;
 		border-top: 1px solid #ddd;
-	}
-
-	.stat-deemphasized {
-		opacity: 0.55;
 	}
 </style>

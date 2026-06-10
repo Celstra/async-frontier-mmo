@@ -316,9 +316,34 @@ export function scanFamilyProspect(input: {
 
 	progress = afterSpend;
 
+	const resources = buildFamilyResourceViews({
+		family: input.family,
+		resources: input.resources,
+		spotsByResourceSlug: input.spotsByResourceSlug,
+		pilotProgress: progress,
+		bloomGenerationSeed: input.bloomGenerationSeed,
+		surveyClarityScore
+	});
+
+	return {
+		resources,
+		pilotProgress: progress,
+		energyCost: FAMILY_SCAN_ENERGY_COST,
+		scannerWear: SCANNER_CONDITION_LOSS_SCAN
+	};
+}
+
+function buildFamilyResourceViews(input: {
+	family: ResourceFamily;
+	resources: ActiveBloomSurveyResource[];
+	spotsByResourceSlug: Readonly<Record<string, readonly DepositSpot[]>>;
+	pilotProgress: PilotSurveyProgress;
+	bloomGenerationSeed: string;
+	surveyClarityScore: number;
+}): FamilyScanResourceView[] {
 	const familyResources = input.resources.filter((resource) => resource.family === input.family);
 
-	const resources: FamilyScanResourceView[] = familyResources.map((resource) => {
+	return familyResources.map((resource) => {
 		const spots =
 			input.spotsByResourceSlug[resource.resourceSlug] ??
 			generateDepositSpots({
@@ -328,7 +353,10 @@ export function scanFamilyProspect(input: {
 				concentrationMaxPercent: resource.concentrationMaxPercent
 			});
 
-		const statsPresentation = presentResourceStatsForPilot({ resource, pilotProgress: progress });
+		const statsPresentation = presentResourceStatsForPilot({
+			resource,
+			pilotProgress: input.pilotProgress
+		});
 
 		return {
 			resourceSlug: resource.resourceSlug,
@@ -339,16 +367,26 @@ export function scanFamilyProspect(input: {
 			statsVisible: statsPresentation.statsVisible,
 			stats: statsPresentation.stats,
 			statHints: statsPresentation.statHints,
-			spots: spots.map((spot) => presentSpot(spot, resource, progress, surveyClarityScore))
+			spots: spots.map((spot) =>
+				presentSpot(spot, resource, input.pilotProgress, input.surveyClarityScore)
+			)
 		};
 	});
+}
 
-	return {
-		resources,
-		pilotProgress: progress,
-		energyCost: FAMILY_SCAN_ENERGY_COST,
-		scannerWear: SCANNER_CONDITION_LOSS_SCAN
-	};
+/** Read-only family scan presentation — no energy spend (page load / post-action refresh). */
+export function buildFamilyScanPreview(input: {
+	family: ResourceFamily;
+	resources: ActiveBloomSurveyResource[];
+	spotsByResourceSlug: Readonly<Record<string, readonly DepositSpot[]>>;
+	pilotProgress: PilotSurveyProgress;
+	bloomGenerationSeed: string;
+	surveyClarityScore?: number;
+}): FamilyScanResourceView[] {
+	return buildFamilyResourceViews({
+		...input,
+		surveyClarityScore: input.surveyClarityScore ?? 0
+	});
 }
 
 /**

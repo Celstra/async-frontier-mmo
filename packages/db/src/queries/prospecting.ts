@@ -1,7 +1,9 @@
 import {
 	applyProspectingScannerWear,
+	buildFamilyScanPreview,
 	createEmptyPilotSurveyProgress,
 	generateDepositSpots,
+	isDeemphasizedSurveyStat,
 	resolveSurveyEnergy,
 	SAMPLE_ENERGY_COST,
 	SURVEY_ENERGY_CAP,
@@ -221,6 +223,118 @@ export async function getPilotProspectingProgress(
 		revealedResourceSlugs: [...progress.revealedResourceSlugs],
 		sampledSpotIds: [...progress.sampledSpotIds]
 	};
+}
+
+export type SurveyResourceCard = FamilyScanResourceView & {
+	resourceInstanceId: string;
+	recommended: boolean;
+	statHints: Array<
+		NonNullable<FamilyScanResourceView['statHints']>[number] & {
+			emphasized: boolean;
+		}
+	> | null;
+};
+
+export type PreviewFamilyScanForPilotInput = {
+	pilotId: string;
+	family: ResourceFamily;
+	now?: Date;
+	bloomId?: number;
+	recommendedResourceSlug?: string | null;
+};
+
+/** Read-only survey cards for UI load — regen applied for display; scan action still spends energy. */
+export async function previewFamilyScanForPilot(
+	db: DbExecutor,
+	input: PreviewFamilyScanForPilotInput
+): Promise<{
+	resources: SurveyResourceCard[];
+	surveyEnergy: number;
+	activeBloomId: number;
+}> {
+	const now = input.now ?? new Date();
+	const nowMs = now.getTime();
+	const pilotProgress = await loadPilotSurveyProgress(db, input.pilotId, nowMs);
+	const resolved = resolveSurveyEnergy({
+		storedEnergy: pilotProgress.surveyEnergy,
+		lastUpdatedAtMs: pilotProgress.lastEnergyUpdatedAtMs,
+		nowMs
+	});
+	const displayProgress: PilotSurveyProgress = {
+		...pilotProgress,
+		surveyEnergy: resolved.energy,
+		lastEnergyUpdatedAtMs: resolved.lastUpdatedAtMs
+	};
+
+	const activeBloomId = input.bloomId ?? (await getActiveBloomId(db));
+	const bloomGenerationSeed = await getBloomGenerationSeed(db, activeBloomId);
+	const instanceRows = await listResourceInstancesForBloom(db, activeBloomId);
+	const familyInstances = instanceRows.filter((row) => row.family === input.family);
+	const resources = familyInstances.map(resourceInstanceToSurveyResource);
+	const idBySlug = Object.fromEntries(familyInstances.map((row) => [row.resourceSlug, row.id]));
+
+	const spotsByResourceSlug = Object.fromEntries(
+		familyInstances.map((row) => [
+			row.resourceSlug,
+			depositSpotsForResource(
+				row.resourceSlug,
+				bloomGenerationSeed,
+				row.concentrationMinPercent,
+				row.concentrationMaxPercent
+			)
+		])
+	);
+
+	const scanner = await getEquippedScannerForPilot(db, input.pilotId);
+	const surveyClarityScore = scanner?.propertyScores.survey_clarity ?? 0;
+	const recommendedResourceSlug = input.recommendedResourceSlug ?? null;
+
+	const views = buildFamilyScanPreview({
+		family: input.family,
+		resources,
+		spotsByResourceSlug,
+		pilotProgress: displayProgress,
+		bloomGenerationSeed,
+		surveyClarityScore
+	});
+
+	return {
+		activeBloomId,
+		surveyEnergy: displayProgress.surveyEnergy,
+		resources: views.map((view) => ({
+			...view,
+			resourceInstanceId: idBySlug[view.resourceSlug] ?? '',
+			recommended: view.resourceSlug === recommendedResourceSlug,
+			statHints: view.statHints
+				? [...view.statHints]
+						.map((hint) => ({
+							...hint,
+							emphasized: !isDeemphasizedSurveyStat(hint.stat, view.family)
+						}))
+						.sort((left, right) => Number(right.emphasized) - Number(left.emphasized))
+				: null
+		}))
+	};
+}
+
+/** Fetch a pilot's sampled deposit spot, if any. */
+export async function getPilotDepositSample(
+	db: DbExecutor,
+	input: { pilotId: string; resourceInstanceId: string; spotId: string }
+) {
+	const [row] = await db
+		.select()
+		.from(pilotDepositSpotSamples)
+		.where(
+			and(
+				eq(pilotDepositSpotSamples.pilotId, input.pilotId),
+				eq(pilotDepositSpotSamples.spotId, input.spotId),
+				eq(pilotDepositSpotSamples.resourceInstanceId, input.resourceInstanceId)
+			)
+		)
+		.limit(1);
+
+	return row ?? null;
 }
 
 export type ScanFamilyForPilotInput = {

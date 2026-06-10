@@ -37,6 +37,7 @@ export function activeBloomDisplayName(bloomId: number): string {
 export type SuggestedNextAction = {
 	label: string;
 	detail: string;
+	href?: string;
 };
 
 export function buildSuggestedNextAction(input: {
@@ -85,7 +86,8 @@ export function buildSuggestedNextAction(input: {
 	if (!input.hasCompletedTutorial) {
 		return {
 			label: 'Survey Red Mesa',
-			detail: 'Compare the three tutorial signals and deploy on recommended Veyrith Copper.'
+			detail: 'Scan Conductive Metal, sample deposit spots, then deploy on recommended Veyrith Copper.',
+			href: '/survey'
 		};
 	}
 
@@ -105,7 +107,8 @@ export function buildSuggestedNextAction(input: {
 
 	return {
 		label: 'Survey Red Mesa',
-		detail: 'Scout the active bloom for your next thumper target.'
+		detail: 'Scout the active bloom for your next thumper target.',
+		href: '/survey'
 	};
 }
 
