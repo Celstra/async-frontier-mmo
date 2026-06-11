@@ -64,6 +64,8 @@ type EventWindowSeed = {
 	complication: string;
 	matchingAction: string;
 	severity?: string;
+	/** If true, this window is quiet and should NOT create a DB row. */
+	quiet?: boolean;
 };
 
 async function bloomGenerationSeedForInstance(
@@ -126,11 +128,15 @@ export async function deployThumperRunWithEventWindows(
 			resourceInstanceId: resolvedResourceInstanceId
 		});
 
-		if (input.windows.length > 0) {
+		// Only persist event windows (quiet: false or undefined). Quiet windows do NOT create DB rows.
+		const eventWindows = input.windows.filter((w) => !w.quiet);
+		if (eventWindows.length > 0) {
 			await insertThumperEventWindows(tx, {
 				thumperRunId: run.id,
-				windows: input.windows.map((window) => ({
-					...window,
+				windows: eventWindows.map((window) => ({
+					windowIndex: window.windowIndex,
+					complication: window.complication,
+					matchingAction: window.matchingAction,
 					severity:
 						window.severity ??
 						rollEventWindowSeverity({

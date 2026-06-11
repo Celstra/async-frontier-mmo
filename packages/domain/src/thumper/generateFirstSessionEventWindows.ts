@@ -12,7 +12,8 @@ const FIRST_SESSION_COMPLICATIONS = ['signal_drift', 'pump_strain'] as const;
 
 /**
  * Decision 011 — first tutorial run on recommended Veyrith Copper:
- * exactly two windows, deterministic order, no RNG.
+ * exactly two windows, deterministic order, no RNG, no quiet windows.
+ * Tutorial windows always fire (100% trigger rate) so new players learn the event system.
  */
 export function generateFirstSessionEventWindows(input: {
 	targetResourceId: NamedResourceId;
@@ -25,6 +26,7 @@ export function generateFirstSessionEventWindows(input: {
 
 	const windows = FIRST_SESSION_COMPLICATIONS.map((complication, index) => ({
 		windowIndex: index + 1,
+		quiet: false as const,
 		complication,
 		matchingAction: COMPLICATION_MATCHING_ACTION[complication],
 		severity: 'minor' as const

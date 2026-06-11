@@ -28,11 +28,15 @@ export function generateThumperEventWindows(input: {
 			targetResourceId: input.targetResourceId
 		});
 
+		// Tutorial has no quiet windows (100% trigger rate)
+		const eventWindowCount = tutorial.windows.length;
+
 		return {
 			...tutorial,
 			runSeed: TUTORIAL_RUN_SEED,
 			isPushRun: false,
 			windowCount: tutorial.windows.length,
+			eventWindowCount,
 			projectedRecovery: FIRST_SESSION_PROJECTED_RECOVERY
 		};
 	}

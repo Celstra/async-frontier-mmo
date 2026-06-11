@@ -192,6 +192,12 @@ Named resource stats do **not** mutate during extraction. Bad event resolution m
 
 Async behavior: if the player is absent, the run resolves under conservative default behavior. No repair kits are spent automatically, no high-risk push choices are made automatically, unresolved complications apply predictable bounded penalties, and the thumper is not surprise-deleted.
 
+**Amendment (owner-approved 2026-06-11):** Windows are scheduled but events fire probabilistically.
+Each scheduled window rolls deterministically from the run seed with `EVENT_WINDOW_TRIGGER_PROBABILITY = 0.55`.
+Quiet windows (no event) appear in the plan as `quiet: true` entries, require no response, incur no penalty,
+and do NOT create `thumper_event_windows` DB rows. Tutorial/first-session windows stay scripted (100% fire rate).
+This preserves determinism (same seed → same pattern) while making events feel less predictable.
+
 ---
 
 ## Decision 006 — MVP Resource Set and Rotation Cadence

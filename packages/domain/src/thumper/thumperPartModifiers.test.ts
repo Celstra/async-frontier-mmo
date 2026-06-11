@@ -94,7 +94,15 @@ describe('thumper part modifiers', () => {
 			targetResourceId: 'veyrith_copper',
 			isPushRun: false
 		});
-		const responses = plan.windows.map((window) => ({
+		// Filter for event windows only (quiet windows have no complication)
+		const eventWindows = plan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
+		const responses = eventWindows.map((window) => ({
 			windowIndex: window.windowIndex,
 			complication: window.complication,
 			chosenResponse: window.matchingAction
@@ -110,7 +118,7 @@ describe('thumper part modifiers', () => {
 					wornPumpSnapshot()
 				])
 			},
-			eventWindows: plan.windows,
+			eventWindows,
 			responses,
 			pilotFrame: 'engineer'
 		});
@@ -125,7 +133,7 @@ describe('thumper part modifiers', () => {
 					craftedEfficientPumpSnapshot()
 				])
 			},
-			eventWindows: plan.windows,
+			eventWindows,
 			responses,
 			pilotFrame: 'engineer'
 		});

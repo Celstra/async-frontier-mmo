@@ -50,6 +50,8 @@ export type ThumperClaimResultExplanation = {
 	wearLines: ThumperPartWearExplanationLine[];
 	payoutAdjustments: string[];
 	legacyExplanation: string;
+	/** Quality band based on recovery efficiency (owner-approved UX pass 2026-06-11). */
+	qualityBand?: string;
 };
 
 function chosenResponseLabel(response: ThumperWindowChosenResponse): string {
@@ -186,6 +188,25 @@ export function buildThumperClaimResultExplanation(input: {
 
 	const summary = `Recovered ${input.recoveredQuantity} ${input.targetResourceDisplayName} from ${input.projectedRecovery} projected (${input.resolutionType}).`;
 
+	// Calculate quality band based on recovery percentage (excluding forfeited runs)
+	const effectiveProjected = input.projectedRecovery - input.forfeitedRecovery;
+	const recoveryPercent = effectiveProjected > 0 ? input.recoveredQuantity / effectiveProjected : 1;
+
+	let qualityBand: string;
+	if (input.resolutionType === 'recalled') {
+		qualityBand = 'Recall — secured what you could';
+	} else if (recoveryPercent >= 0.9) {
+		qualityBand = 'Exceptional';
+	} else if (recoveryPercent >= 0.75) {
+		qualityBand = 'Strong';
+	} else if (recoveryPercent >= 0.5) {
+		qualityBand = 'Solid';
+	} else if (recoveryPercent >= 0.25) {
+		qualityBand = 'Modest';
+	} else {
+		qualityBand = 'Thin';
+	}
+
 	return {
 		summary,
 		projectedRecovery: input.projectedRecovery,
@@ -197,6 +218,7 @@ export function buildThumperClaimResultExplanation(input: {
 		windowLines,
 		wearLines,
 		payoutAdjustments,
-		legacyExplanation: input.explanation
+		legacyExplanation: input.explanation,
+		qualityBand
 	};
 }

@@ -234,9 +234,17 @@ describeDb('deposit spot yield depletion', () => {
 			targetResourceId: 'veyrith_copper',
 			isPushRun: false
 		});
+		// Filter quiet windows for DB persistence
+		const eventWindows = plan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
 		await deployAndResolveRun({
 			runSeed: plan.runSeed,
-			windows: plan.windows,
+			windows: eventWindows,
 			trueConcentrationPercent: sample.trueConcentrationPercent
 		});
 
@@ -331,10 +339,18 @@ describeDb('deposit spot yield depletion', () => {
 			targetResourceId: 'veyrith_copper',
 			isPushRun: false
 		});
+		// Filter quiet windows for DB persistence
+		const eventWindows = plan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
 
 		await deployAndResolveRun({
 			runSeed: plan.runSeed,
-			windows: plan.windows,
+			windows: eventWindows,
 			trueConcentrationPercent: sample.trueConcentrationPercent
 		});
 
@@ -384,9 +400,23 @@ describeDb('deposit spot yield depletion', () => {
 			remainingUnits: 40
 		});
 
-		await deployAndResolveRun({
+		// Generate a fresh plan for second run and filter quiet windows
+		const secondPlan = generateSeededThumperEventWindows({
 			runSeed: `second-partial-drain-${Date.now()}`,
-			windows: plan.windows,
+			targetResourceId: 'veyrith_copper',
+			isPushRun: false
+		});
+		const secondEventWindows = secondPlan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
+
+		await deployAndResolveRun({
+			runSeed: secondPlan.runSeed,
+			windows: secondEventWindows,
 			trueConcentrationPercent: secondSample.trueConcentrationPercent,
 			depositSpotId: cycleTwoSpotId
 		});

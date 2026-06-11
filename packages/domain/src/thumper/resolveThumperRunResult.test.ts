@@ -5,11 +5,14 @@ import {
 	FIRST_SESSION_PROJECTED_RECOVERY,
 	FIRST_SESSION_SCANNER_MINIMUM
 } from './resolveFirstSessionThumperRunResult.js';
-import { resolveThumperRunResult } from './resolveThumperRunResult.js';
+import {
+	resolveThumperRunResult,
+	type ThumperEventWindowSnapshot
+} from './resolveThumperRunResult.js';
 
 const firstSessionWindows = generateFirstSessionEventWindows({
 	targetResourceId: 'veyrith_copper'
-}).windows;
+}).windows as ThumperEventWindowSnapshot[];
 
 const firstSessionConfig = {
 	targetResourceId: 'veyrith_copper' as const,

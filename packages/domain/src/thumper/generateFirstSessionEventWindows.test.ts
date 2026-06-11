@@ -9,7 +9,12 @@ describe('generateFirstSessionEventWindows', () => {
 		});
 
 		expect(plan.windows).toHaveLength(2);
-		expect(plan.windows.map((w) => w.complication)).toEqual(['signal_drift', 'pump_strain']);
+		// Tutorial windows are all event windows (no quiet windows)
+		const eventWindows = plan.windows.filter((w) => !w.quiet);
+		expect(eventWindows.map((w) => ('complication' in w ? w.complication : ''))).toEqual([
+			'signal_drift',
+			'pump_strain'
+		]);
 		expect(plan.windows.map((w) => w.windowIndex)).toEqual([1, 2]);
 	});
 
@@ -18,12 +23,16 @@ describe('generateFirstSessionEventWindows', () => {
 			targetResourceId: 'veyrith_copper'
 		});
 
-		expect(plan.windows[0]).toMatchObject({
+		// Tutorial has only event windows (no quiet windows)
+		const eventWindows = plan.windows.filter((w) => !w.quiet);
+		expect(eventWindows[0]).toMatchObject({
+			quiet: false,
 			complication: 'signal_drift',
 			matchingAction: 'signal_tune',
 			severity: 'minor'
 		});
-		expect(plan.windows[1]).toMatchObject({
+		expect(eventWindows[1]).toMatchObject({
+			quiet: false,
 			complication: 'pump_strain',
 			matchingAction: 'clear_pump_problem',
 			severity: 'minor'

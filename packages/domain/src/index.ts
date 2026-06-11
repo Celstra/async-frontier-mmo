@@ -230,12 +230,14 @@ export {
 export {
 	COMPLICATION_METER_MATCHING_RESTORE,
 	COMPLICATION_METER_ONSET,
+	computeEventWindowProjectedMetrics,
 	computeRecallForfeitedRecovery,
 	describeEventWindowStakes,
 	formatEventWindowOutcomeLine,
 	resolveEventWindowOutcome,
 	type EventWindowMeterSnapshot,
 	type EventWindowOutcome,
+	type EventWindowProjectedMetrics,
 	type EventWindowStakeOption
 } from './thumper/eventWindowOutcome.js';
 export {
@@ -307,10 +309,22 @@ export {
 	type ResolveThumperStateInput,
 	type ResolveThumperStateResult
 } from './thumper/resolveThumperState';
+export {
+	overallThumperCondition,
+	getPartConditionBand,
+	getConditionColorClass,
+	type OverallThumperCondition,
+	type ThumperConditionBand
+} from './thumper/overallThumperCondition.js';
 export type {
 	ThumperComplicationId,
 	ThumperEventActionId,
 	ThumperEventWindow,
 	ThumperEventWindowPlan,
-	ThumperSafetyChoiceId
+	ThumperQuietWindow,
+	ThumperSafetyChoiceId,
+	ThumperScheduledWindow
+} from './thumper/types';
+export {
+	EVENT_WINDOW_TRIGGER_PROBABILITY
 } from './thumper/types';

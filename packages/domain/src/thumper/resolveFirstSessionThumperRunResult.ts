@@ -52,7 +52,7 @@ export function resolveFirstSessionThumperRunResult(input: {
 
 	const eventWindows =
 		input.eventWindows ??
-		generateFirstSessionEventWindows({ targetResourceId: input.targetResourceId }).windows;
+		(generateFirstSessionEventWindows({ targetResourceId: input.targetResourceId }).windows as ThumperEventWindowSnapshot[]);
 
 	return resolveThumperRunResult({
 		runConfig: {

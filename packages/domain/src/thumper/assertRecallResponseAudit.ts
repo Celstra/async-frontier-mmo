@@ -1,14 +1,20 @@
-import type { ThumperEventWindowSnapshot } from './resolveThumperRunResult.js';
-import type { ThumperEventWindowResponse } from './resolveThumperRunResult.js';
+import type { ThumperScheduledWindow } from './types.js';
+import type { ThumperEventWindowSnapshot, ThumperEventWindowResponse } from './resolveThumperRunResult.js';
 
 /**
  * Decision 005 — recall ends the run: one recall row, all prior windows answered,
  * no complication responses after the recall window.
+ *
+ * Quiet windows are filtered out since they don't require responses.
  */
 export function assertRecallResponseAudit(input: {
-	eventWindows: ThumperEventWindowSnapshot[];
+	eventWindows: ThumperScheduledWindow[] | ThumperEventWindowSnapshot[];
 	responses: ThumperEventWindowResponse[];
 }): void {
+	// Filter out quiet windows since they don't need responses
+	const eventWindows = input.eventWindows.filter(
+		(w): w is ThumperEventWindowSnapshot => !('quiet' in w) || w.quiet === false
+	);
 	const recallResponses = input.responses.filter(
 		(response) => response.chosenResponse === 'recall_early'
 	);
@@ -22,7 +28,7 @@ export function assertRecallResponseAudit(input: {
 		return;
 	}
 
-	for (const window of input.eventWindows) {
+	for (const window of eventWindows) {
 		if (window.windowIndex < recallWindowIndex) {
 			const response = input.responses.find((row) => row.windowIndex === window.windowIndex);
 			if (!response || response.chosenResponse === 'recall_early') {

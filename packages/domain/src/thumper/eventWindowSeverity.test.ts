@@ -16,7 +16,11 @@ describe('rollEventWindowSeverity', () => {
 			targetResourceId: 'keth_iron',
 			isPushRun: true
 		});
-		const severities = plan.windows.map((window) => window.severity);
+		// Filter for event windows only (quiet windows have no severity)
+		const eventWindows = plan.windows.filter((w) => !w.quiet);
+		const severities = eventWindows.map((window) =>
+			'severity' in window ? window.severity : 'minor'
+		);
 		expect(severities.every((severity) => severity === 'minor' || severity === 'serious')).toBe(
 			true
 		);
@@ -24,6 +28,8 @@ describe('rollEventWindowSeverity', () => {
 
 	it('tutorial first-session windows are always minor', () => {
 		const plan = generateFirstSessionEventWindows({ targetResourceId: 'veyrith_copper' });
-		expect(plan.windows.every((window) => window.severity === 'minor')).toBe(true);
+		// Tutorial has no quiet windows
+		const eventWindows = plan.windows.filter((w) => !w.quiet);
+		expect(eventWindows.every((window) => 'severity' in window && window.severity === 'minor')).toBe(true);
 	});
 });

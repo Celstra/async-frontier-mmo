@@ -85,6 +85,28 @@ function metersWithComplicationOnset(
 export type EventWindowStakeOption = {
 	id: ThumperWindowResponseOptionId;
 	effectLine: string;
+	/** Extended stakes info with concrete projected numbers (Item 3 UX pass). */
+	projected?: EventWindowProjectedMetrics;
+};
+
+/** Projected meter values for a response option to show concrete consequences. */
+export type EventWindowProjectedMetrics = {
+	/** Primary meter affected by this complication (e.g., hullCondition). */
+	primaryMeterKey: PrimaryMeterKey;
+	/** Current meter value before any response (after complication onset). */
+	beforeValue: number;
+	/** Projected meter value after choosing this response. */
+	afterValue: number;
+	/** Human-readable meter label. */
+	meterLabel: string;
+	/** Recovery penalty for this response (negative means loss). */
+	recoveryDelta: number;
+	/** Frame bonus recovery if matching action. */
+	frameBonus?: number;
+	/** Part wear condition loss if matching action (excluding field_repair). */
+	partWear?: number;
+	/** Whether this response would leave the meter in "danger" zone (<25%). */
+	isDangerous: boolean;
 };
 
 export type EventWindowOutcome = {
@@ -151,8 +173,88 @@ function recallEffectLine(input: {
 }
 
 /**
+ * Compute projected metrics for a response option using the same math as claim resolution.
+ * This gives players concrete numbers to make informed choices (Item 3 UX pass).
+ */
+export function computeEventWindowProjectedMetrics(input: {
+	optionId: ThumperWindowResponseOptionId;
+	complication: ThumperComplicationId;
+	matchingAction: ThumperEventActionId;
+	severity: EventWindowSeverity;
+	pilotFrame: FrameId;
+	currentMeters: EventWindowMeterSnapshot;
+	windowIndex: number;
+	totalWindowCount: number;
+}): EventWindowProjectedMetrics {
+	const key = COMPLICATION_PRIMARY_METER[input.complication];
+	const meterLabel =
+		key === 'signalLock'
+			? 'Signal Lock'
+			: key === 'pumpFlow'
+				? 'Pump Flow'
+				: key === 'threatPressure'
+					? 'Threat Pressure'
+					: 'Hull Condition';
+
+	// Calculate onset (what the player currently sees after complication fired)
+	const onsetMeters = metersWithComplicationOnset(input.currentMeters, input.complication);
+	const beforeValue = onsetMeters[key];
+
+	let afterValue = beforeValue;
+	let recoveryDelta = 0;
+	let frameBonus = 0;
+	let partWear: number | undefined;
+
+	if (input.optionId === 'recall_early') {
+		const forfeited = computeRecallForfeitedRecovery({
+			projectedRecovery: onsetMeters.projectedRecovery,
+			recallWindowIndex: input.windowIndex,
+			totalWindowCount: input.totalWindowCount
+		});
+		recoveryDelta = -forfeited;
+	} else if (input.optionId === input.matchingAction) {
+		// Matching action: restore the meter
+		afterValue = clampMeter(beforeValue + COMPLICATION_METER_MATCHING_RESTORE[input.complication]);
+		frameBonus = getFrameMatchingBonusRecovery(input.pilotFrame, input.matchingAction);
+		recoveryDelta = frameBonus;
+		if (input.matchingAction !== 'field_repair') {
+			partWear = MATCHING_ACTION_WEAR_CONDITION;
+		}
+	} else if (input.optionId === 'hold') {
+		// Hold: meter stays at onset, waste penalty
+		recoveryDelta = -penaltyWasteForResponse(
+			input.complication,
+			input.matchingAction,
+			'hold',
+			input.severity
+		);
+	} else {
+		// Wrong action: meter stays at onset, bigger waste penalty
+		recoveryDelta = -penaltyWasteForResponse(
+			input.complication,
+			input.matchingAction,
+			input.optionId as Exclude<ThumperWindowChosenResponse, 'recall_early'>,
+			input.severity
+		);
+	}
+
+	return {
+		primaryMeterKey: key,
+		beforeValue,
+		afterValue,
+		meterLabel,
+		recoveryDelta,
+		frameBonus: frameBonus > 0 ? frameBonus : undefined,
+		partWear,
+		isDangerous: afterValue < 25
+	};
+}
+
+/**
  * Plain-language stakes for each enabled response option on an event window.
  * Recovery penalties use the same constants as claim-time resolution.
+ *
+ * Enhanced with projected metrics (Item 3 UX pass) to show concrete consequences.
  */
 export function describeEventWindowStakes(input: {
 	complication: ThumperComplicationId;
@@ -171,8 +273,24 @@ export function describeEventWindowStakes(input: {
 	});
 
 	return options.map((option) => {
+		// Compute projected metrics for this option
+		const projected = computeEventWindowProjectedMetrics({
+			optionId: option.id,
+			complication: input.complication,
+			matchingAction: input.matchingAction,
+			severity: input.severity,
+			pilotFrame: input.pilotFrame,
+			currentMeters: input.currentMeters,
+			windowIndex: input.windowIndex,
+			totalWindowCount: input.totalWindowCount
+		});
+
 		if (option.id === 'hold') {
-			return { id: option.id, effectLine: holdEffectLine(input.severity) };
+			return {
+				id: option.id,
+				effectLine: holdEffectLine(input.severity),
+				projected
+			};
 		}
 		if (option.id === 'recall_early') {
 			return {
@@ -181,7 +299,8 @@ export function describeEventWindowStakes(input: {
 					projectedRecovery: input.currentMeters.projectedRecovery,
 					windowIndex: input.windowIndex,
 					totalWindowCount: input.totalWindowCount
-				})
+				}),
+				projected
 			};
 		}
 		if (option.id === input.matchingAction) {
@@ -191,7 +310,8 @@ export function describeEventWindowStakes(input: {
 					complication: input.complication,
 					matchingAction: input.matchingAction,
 					pilotFrame: input.pilotFrame
-				})
+				}),
+				projected
 			};
 		}
 		const penalty = penaltyWasteForResponse(
@@ -202,7 +322,8 @@ export function describeEventWindowStakes(input: {
 		);
 		return {
 			id: option.id,
-			effectLine: `Wrong action — costs about ${penalty} units of projected recovery`
+			effectLine: `Wrong action — costs about ${penalty} units of projected recovery`,
+			projected
 		};
 	});
 }

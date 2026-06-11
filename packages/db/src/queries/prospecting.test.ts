@@ -48,11 +48,13 @@ describeDb('prospecting persistence', () => {
 
 		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
 		expect(bloom).not.toBeNull();
+		// Use the resource's actual prospectingCycle so spot IDs match
 		const spots = generateDepositSpots({
 			resourceSlug: veyrithSlug,
 			bloomGenerationSeed: bloom!.generationSeed,
 			concentrationMinPercent: veyrith!.concentrationMinPercent,
-			concentrationMaxPercent: veyrith!.concentrationMaxPercent
+			concentrationMaxPercent: veyrith!.concentrationMaxPercent,
+			prospectingCycle: veyrith!.prospectingCycle
 		});
 		expect(spots.length).toBeGreaterThan(0);
 		firstSpotId = spots[0]!.spotId;
@@ -230,11 +232,14 @@ describeDb('prospecting persistence', () => {
 		expect(sample.statsRevealedThisSample).toBe(true);
 
 		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
+		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
+		expect(veyrith).not.toBeNull();
 		const spots = generateDepositSpots({
 			resourceSlug: veyrithSlug,
 			bloomGenerationSeed: bloom!.generationSeed,
 			concentrationMinPercent: 30,
-			concentrationMaxPercent: 67
+			concentrationMaxPercent: 67,
+			prospectingCycle: veyrith!.prospectingCycle
 		});
 		const otherSpot = spots.find((spot) => spot.spotId !== firstSpotId);
 		expect(otherSpot).toBeDefined();
@@ -293,11 +298,14 @@ describeDb('prospecting persistence', () => {
 
 		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
 		expect(bloom).not.toBeNull();
+		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
+		expect(veyrith).not.toBeNull();
 		const spots = generateDepositSpots({
 			resourceSlug: veyrithSlug,
 			bloomGenerationSeed: bloom!.generationSeed,
 			concentrationMinPercent: 30,
-			concentrationMaxPercent: 67
+			concentrationMaxPercent: 67,
+			prospectingCycle: veyrith!.prospectingCycle
 		});
 		expect(spots.length).toBeGreaterThan(1);
 

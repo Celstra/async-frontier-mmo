@@ -252,6 +252,15 @@ describeDb('transactional claim reward', () => {
 		});
 		const deployedAt = new Date(Date.now() - 120_000);
 
+		// Filter out quiet windows for DB persistence (quiet windows don't create rows)
+		const eventWindows = plan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
+
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: seededPilotId,
 			pilotFrameId: 'recon',
@@ -260,10 +269,10 @@ describeDb('transactional claim reward', () => {
 			isPushRun: plan.isPushRun,
 			deployedAt,
 			durationSeconds: 60,
-			windows: plan.windows
+			windows: eventWindows
 		});
 
-		for (const window of plan.windows) {
+		for (const window of eventWindows) {
 			await recordThumperEventWindowResponse(db, {
 				thumperRunId: run.id,
 				windowIndex: window.windowIndex,

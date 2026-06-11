@@ -6,9 +6,11 @@ import {
 } from './resolveFirstSessionThumperRunResult.js';
 import { resolveThumperRunResult } from './resolveThumperRunResult.js';
 
+import type { ThumperEventWindowSnapshot } from './resolveThumperRunResult.js';
+
 const firstSessionWindows = generateFirstSessionEventWindows({
 	targetResourceId: 'veyrith_copper'
-}).windows;
+}).windows as ThumperEventWindowSnapshot[];
 
 const runConfig = {
 	targetResourceId: 'veyrith_copper' as const,

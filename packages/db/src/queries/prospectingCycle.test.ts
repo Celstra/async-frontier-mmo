@@ -167,6 +167,15 @@ describeDb('prospecting cycle after claim', () => {
 			isPushRun: false
 		});
 		const deployedAt = new Date(Date.now() - 120_000);
+		// Filter quiet windows for DB (quiet windows don't create rows)
+		const eventWindows = plan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
+
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
 			pilotFrameId: 'recon',
@@ -179,10 +188,10 @@ describeDb('prospecting cycle after claim', () => {
 			trueConcentrationPercent,
 			extractionTailMinutes: 60,
 			resourceInstanceId: veyrithInstanceId,
-			windows: plan.windows
+			windows: eventWindows
 		});
 
-		for (const window of plan.windows) {
+		for (const window of eventWindows) {
 			await recordThumperEventWindowResponse(db, {
 				thumperRunId: run.id,
 				windowIndex: window.windowIndex,
@@ -371,6 +380,14 @@ describeDb('prospecting cycle after claim', () => {
 			targetResourceId: veyrithSlug as NamedResourceId,
 			isPushRun: false
 		});
+		// Filter quiet windows for DB (quiet windows don't create rows)
+		const eventWindows = plan.windows
+			.filter((w) => !w.quiet)
+			.map((w) => ({
+				windowIndex: w.windowIndex,
+				complication: 'complication' in w ? w.complication : 'signal_drift',
+				matchingAction: 'matchingAction' in w ? w.matchingAction : 'signal_tune'
+			}));
 		const deployedAt = new Date(Date.now() - 120_000);
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
@@ -384,10 +401,10 @@ describeDb('prospecting cycle after claim', () => {
 			trueConcentrationPercent: sample.trueConcentrationPercent,
 			extractionTailMinutes: 60,
 			resourceInstanceId: veyrithInstanceId,
-			windows: plan.windows
+			windows: eventWindows
 		});
 
-		for (const window of plan.windows) {
+		for (const window of eventWindows) {
 			await recordThumperEventWindowResponse(db, {
 				thumperRunId: run.id,
 				windowIndex: window.windowIndex,
