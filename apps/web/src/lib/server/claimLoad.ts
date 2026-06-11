@@ -76,6 +76,7 @@ export async function loadClaimScreen(
 			mode: 'pending' as const,
 			targetDisplayName,
 			thumperDemo,
+			secondsRemaining: thumperDemo.status === 'active' ? thumperDemo.secondsRemaining : undefined,
 			runReadyToResolve,
 			message: runReadyToResolve
 				? 'Thumper timer has not finished yet.'
@@ -90,7 +91,10 @@ export async function loadClaimScreen(
 			targetDisplayName,
 			targetResourceId: displayRun.targetResourceId,
 			thumperDemo,
-			windowCount: windows.length
+			windowCount: windows.length,
+			// Projected recovery would come from run meters, but we don't have them here
+			// The UI will handle missing projectedRecovery gracefully
+			projectedRecovery: undefined as number | undefined
 		};
 	}
 

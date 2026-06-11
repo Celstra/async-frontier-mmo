@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
-	import type { PageProps } from './$types';
-	import type { ResourceStatCode } from 'shared';
+import { enhance } from '$app/forms';
+import { invalidateAll } from '$app/navigation';
+import { formatDuration } from '$lib/formatDuration';
+import type { PageProps } from './$types';
+import type { ResourceStatCode } from 'shared';
 
 	let { data, form }: PageProps = $props();
 
@@ -103,13 +104,9 @@
 				<dt>Resources</dt>
 				<dd>
 					{#if resourceSummary.length === 0}
-						None yet — survey and claim to fill inventory.
+						None yet — <a href="/survey">survey</a> and claim to fill inventory.
 					{:else}
-						<ul>
-							{#each resourceSummary as stack}
-								<li>{stack.displayName} × {stack.quantity}</li>
-							{/each}
-						</ul>
+						<a href="/inventory">View inventory</a> — {resourceSummary.length} type{resourceSummary.length === 1 ? '' : 's'}, {resourceSummary.reduce((sum, s) => sum + s.quantity, 0)} total units
 					{/if}
 				</dd>
 			</div>
@@ -158,7 +155,7 @@
 				<p><small>Recalled early — claim when ready.</small></p>
 			{:else if thumperDemo.status === 'active'}
 				<p>
-					<small>~{displaySeconds ?? thumperDemo.secondsRemaining}s remaining</small>
+					<small>~{formatDuration(displaySeconds ?? thumperDemo.secondsRemaining)} remaining</small>
 				</p>
 			{/if}
 			<p><a href="/run"><strong>Open Thumper Run screen →</strong></a></p>
@@ -223,11 +220,6 @@
 
 	.pilot-home-summary dd {
 		margin: 0.15rem 0 0;
-	}
-
-	.pilot-home-summary ul {
-		margin: 0.25rem 0 0;
-		padding-left: 1.25rem;
 	}
 
 	.frame-choice form {

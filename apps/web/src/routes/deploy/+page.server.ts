@@ -240,10 +240,13 @@ export const actions: Actions = {
 				trueConcentrationPercent: sample.trueConcentrationPercent,
 				extractionTailMinutes,
 				resourceInstanceId,
-				windows: plan.windows.map((window) => ({
-					windowIndex: window.windowIndex,
-					complication: window.complication,
-					matchingAction: window.matchingAction
+			// Filter quiet windows for DB (quiet windows don't create rows)
+			windows: plan.windows
+				.filter((w) => !w.quiet)
+				.map((w) => ({
+					windowIndex: w.windowIndex,
+					complication: w.complication,
+					matchingAction: w.matchingAction
 				}))
 			});
 		} catch (error) {
@@ -264,6 +267,6 @@ export const actions: Actions = {
 			extractionTailMinutes
 		});
 
-		redirect(303, '/');
+		redirect(303, '/run');
 	}
 };

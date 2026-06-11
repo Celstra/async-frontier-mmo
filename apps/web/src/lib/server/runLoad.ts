@@ -14,6 +14,9 @@ import {
 	describeEventWindowStakes,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	formatEventWindowOutcomeLine,
+	generateSeededThumperEventWindows,
+	generateThumperEventWindows,
+	overallThumperCondition,
 	parseEventWindowSeverity,
 	frameFlavoredActionLabel,
 	getEventWindowResponseOptions,
@@ -30,6 +33,7 @@ import {
 	validateEventWindowResponse
 } from '@async-frontier-mmo/domain';
 import { parseFrameId, type FrameId } from 'shared';
+import type { NamedResourceId } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
 
 export function parseWindowIndex(value: FormDataEntryValue | null): number | null {
@@ -135,23 +139,128 @@ export function currentRunMetersFromWindows(
 	return parsed ?? deployMeters;
 }
 
+export type EventWindowForUi = {
+	windowIndex: number;
+	quiet: boolean;
+	complication?: ThumperComplicationId;
+	matchingAction?: ThumperEventActionId;
+	severity?: 'minor' | 'serious';
+	matchingActionLabel?: string;
+	chosenResponse: string | null;
+	responded: boolean;
+	responseOptions: Array<{
+		id: string;
+		label: string;
+		enabled: boolean;
+		disabledReason?: string;
+		effectLine: string;
+		projected?: import('@async-frontier-mmo/domain').EventWindowProjectedMetrics;
+	}>;
+	outcomeLine: string | null;
+	quietMessage?: string;
+};
+
 export function mapEventWindowsForUi(
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
 	fieldRepairKitCount: number,
 	pilotFrameId: FrameId,
-	deployMeters: EventWindowMeterSnapshot
-) {
-	const totalWindowCount = windows.length;
+	deployMeters: EventWindowMeterSnapshot,
+	// For non-tutorial runs, we regenerate the full plan to include quiet windows
+	runSeed?: string,
+	isPushRun?: boolean,
+	targetResourceId?: NamedResourceId,
+	isTutorialRun?: boolean
+): EventWindowForUi[] {
+	// Build lookup map of stored event windows
+	const storedWindows = new Map(windows.map((w) => [w.windowIndex, w]));
 
-	return windows.map((window) => {
-		const matchingAction = window.matchingAction as ThumperEventActionId;
-		const complication = window.complication as ThumperComplicationId;
-		const metersForWindow = currentRunMetersFromWindows(
-			deployMeters,
-			windows.filter((row) => row.windowIndex < window.windowIndex)
+	// Regenerate full plan to include quiet windows (deterministic from seed)
+	let fullPlan: Array<
+		| { windowIndex: number; quiet: true }
+		| {
+				windowIndex: number;
+				quiet: false;
+				complication: ThumperComplicationId;
+				matchingAction: ThumperEventActionId;
+				severity: 'minor' | 'serious';
+		  }
+	>;
+
+	if (isTutorialRun && targetResourceId) {
+		// Tutorial: regenerate from plan (no quiet windows)
+		const tutorial = generateThumperEventWindows({
+			targetResourceId,
+			runSeed: TUTORIAL_RUN_SEED,
+			isPushRun: false,
+			isTutorialRun: true
+		});
+		fullPlan = tutorial.windows.map((w) =>
+			w.quiet
+				? { windowIndex: w.windowIndex, quiet: true }
+				: {
+						windowIndex: w.windowIndex,
+						quiet: false,
+						complication: w.complication,
+						matchingAction: w.matchingAction,
+						severity: w.severity
+					}
 		);
+	} else if (runSeed && targetResourceId) {
+		// Seeded run: regenerate full plan including quiet windows
+		const seeded = generateSeededThumperEventWindows({
+			runSeed,
+			targetResourceId,
+			isPushRun: isPushRun ?? false
+		});
+		fullPlan = seeded.windows.map((w) =>
+			w.quiet
+				? { windowIndex: w.windowIndex, quiet: true }
+				: {
+						windowIndex: w.windowIndex,
+						quiet: false,
+						complication: w.complication,
+						matchingAction: w.matchingAction,
+						severity: w.severity
+					}
+		);
+	} else {
+		// Fallback: just use stored windows (no quiet windows shown)
+		fullPlan = windows.map((w) => ({
+			windowIndex: w.windowIndex,
+			quiet: false as const,
+			complication: w.complication as ThumperComplicationId,
+			matchingAction: w.matchingAction as ThumperEventActionId,
+			severity: parseEventWindowSeverity(w.severity)
+		}));
+	}
 
-		const severity = parseEventWindowSeverity(window.severity);
+	const totalWindowCount = fullPlan.length;
+
+	return fullPlan.map((plannedWindow) => {
+		// Handle quiet windows
+		if (plannedWindow.quiet) {
+			const stored = storedWindows.get(plannedWindow.windowIndex);
+			return {
+				windowIndex: plannedWindow.windowIndex,
+				quiet: true,
+				chosenResponse: stored?.chosenResponse ?? null,
+				responded: stored?.chosenResponse !== null && stored?.chosenResponse !== undefined,
+				responseOptions: [],
+				outcomeLine: null,
+				quietMessage: 'All quiet — the thumper hums along, no action needed'
+			};
+		}
+
+		// Event window
+		const window = storedWindows.get(plannedWindow.windowIndex);
+		const matchingAction = plannedWindow.matchingAction;
+		const complication = plannedWindow.complication;
+
+		// Get all previous windows (from stored + plan) for meter calculation
+		const previousStored = windows.filter((row) => row.windowIndex < plannedWindow.windowIndex);
+		const metersForWindow = currentRunMetersFromWindows(deployMeters, previousStored);
+
+		const severity = plannedWindow.severity;
 		const stakes = describeEventWindowStakes({
 			complication,
 			matchingAction,
@@ -159,14 +268,14 @@ export function mapEventWindowsForUi(
 			pilotFrame: pilotFrameId,
 			fieldRepairKitCount,
 			currentMeters: metersForWindow,
-			windowIndex: window.windowIndex,
+			windowIndex: plannedWindow.windowIndex,
 			totalWindowCount
 		});
 
-		const beforeState = parseMeterSnapshot(window.beforeState);
-		const afterState = parseMeterSnapshot(window.afterState);
+		const beforeState = parseMeterSnapshot(window?.beforeState);
+		const afterState = parseMeterSnapshot(window?.afterState);
 		const outcomeLine =
-			window.chosenResponse && beforeState && afterState
+			window?.chosenResponse && beforeState && afterState
 				? formatEventWindowOutcomeLine({
 						complication,
 						matchingAction,
@@ -178,23 +287,38 @@ export function mapEventWindowsForUi(
 				: null;
 
 		return {
-			windowIndex: window.windowIndex,
+			windowIndex: plannedWindow.windowIndex,
+			quiet: false,
 			complication,
 			matchingAction,
 			severity,
 			matchingActionLabel: frameFlavoredActionLabel(pilotFrameId, matchingAction),
-			chosenResponse: window.chosenResponse,
-			responded: window.chosenResponse !== null,
-			responseOptions: getEventWindowResponseOptions({
-				complication,
-				matchingAction,
-				fieldRepairKitCount
-			}).map((option) => ({
-				...option,
-				effectLine: stakes.find((stake) => stake.id === option.id)?.effectLine ?? ''
-			})),
-			outcomeLine
-		};
+			chosenResponse: window?.chosenResponse ?? null,
+			responded: window?.chosenResponse !== null && window?.chosenResponse !== undefined,
+		responseOptions: getEventWindowResponseOptions({
+			complication,
+			matchingAction,
+			fieldRepairKitCount
+		}).map((option) => {
+			const stake = stakes.find((s) => s.id === option.id);
+			// Map kind to display label
+			const label =
+				option.id === 'hold'
+					? 'Hold'
+					: option.id === 'recall_early'
+						? 'Recall Early'
+						: frameFlavoredActionLabel(pilotFrameId, option.id as ThumperEventActionId);
+			return {
+				id: option.id,
+				label,
+				enabled: option.enabled,
+				disabledReason: option.disabledReason,
+				effectLine: stake?.effectLine ?? '',
+				projected: stake?.projected
+			};
+		}),
+		outcomeLine
+	};
 	});
 }
 
@@ -225,6 +349,7 @@ export async function loadOpenRunState(
 	const pilotFrameId = parseFrameId(run.pilotFrameId);
 
 	let runMeters = null;
+	let overallCondition = null;
 	if (options?.includeRunMeters) {
 		const equipped = await getEquippedThumperPartsForPilot(db, run.pilotId);
 		const scanner = await getEquippedScannerForPilot(db, run.pilotId);
@@ -247,6 +372,28 @@ export async function loadOpenRunState(
 			},
 			runHullCondition: run.runHullCondition,
 			recoveryFloor: options.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined
+		});
+
+		// Calculate overall thumper condition from equipped parts
+		overallCondition = overallThumperCondition({
+			drill: equipped.drill
+				? {
+						...equippedPartSnapshots({ drill: equipped.drill, pump: null, hull: null })[0]!,
+						slot: 'drill'
+					}
+				: undefined,
+			pump: equipped.pump
+				? {
+						...equippedPartSnapshots({ drill: null, pump: equipped.pump, hull: null })[0]!,
+						slot: 'pump'
+					}
+				: undefined,
+			hull: equipped.hull
+				? {
+						...equippedPartSnapshots({ drill: null, pump: null, hull: equipped.hull })[0]!,
+						slot: 'hull'
+					}
+				: undefined
 		});
 	}
 
@@ -278,13 +425,18 @@ export async function loadOpenRunState(
 				pumpFlow: 0,
 				threatPressure: 0,
 				hullCondition: run.runHullCondition
-			}
+			},
+			run.runSeed,
+			run.isPushRun,
+			run.targetResourceId as NamedResourceId,
+			options?.isTutorialRun
 		),
 		runHullCondition: run.runHullCondition,
 		runHullIntegrity: run.runHullIntegrity,
 		fieldRepairKitCount,
 		runReadyToResolve: isThumperRunReadyToResolve(eventWindowsRaw),
-		runMeters: displayMeters
+		runMeters: displayMeters,
+		overallThumperCondition: overallCondition
 	};
 }
 

@@ -2,6 +2,7 @@
 import { enhance } from '$app/forms';
 import { invalidateAll } from '$app/navigation';
 import { complicationDisplayName } from '@async-frontier-mmo/domain';
+import { formatDuration } from '$lib/formatDuration';
 import type { PageProps } from './$types';
 
 let { data, form }: PageProps = $props();
@@ -112,10 +113,10 @@ $effect(() => {
 				<strong>Run In Progress</strong>
 				<span class="status-detail">Thumper active on {openRun.targetDisplayName}</span>
 			</div>
-			<div class="timer-display">
-				<span class="timer-value">{displaySeconds ?? thumperDemo.secondsRemaining}s</span>
-				<span class="timer-label">remaining</span>
-			</div>
+<div class="timer-display">
+			<span class="timer-value">{formatDuration(displaySeconds ?? thumperDemo.secondsRemaining)}</span>
+			<span class="timer-label">remaining</span>
+		</div>
 		</div>
 	{/if}
 </header>
@@ -127,6 +128,17 @@ $effect(() => {
 		<span class="push-tag">Push Run ({eventWindows.length} windows)</span>
 	{/if}
 </p>
+
+<!-- Thumper Condition Summary -->
+{#if data.overallThumperCondition}
+	<div class="thumper-condition-bar">
+		<span class="condition-label">Thumper condition</span>
+		<span class="condition-value" class:condition-value--solid={data.overallThumperCondition.band === 'Solid'} class:condition-value--worn={data.overallThumperCondition.band === 'Worn'} class:condition-value--failing={data.overallThumperCondition.band === 'Failing'}>
+			{data.overallThumperCondition.band} ({data.overallThumperCondition.percent}%)
+		</span>
+		<span class="condition-weakest">— {data.overallThumperCondition.displayLine.split('—')[1]?.trim() ?? ''}</span>
+	</div>
+{/if}
 
 <!-- Run Meters -->
 {#if runMeters}
@@ -187,28 +199,41 @@ $effect(() => {
 
 	<div class="windows-list">
 		{#each eventWindows as window}
-			<article class="window-card {severityClass(window.severity)}" class:window-card--pending={!window.responded && isActiveWindow(window.windowIndex)} class:window-card--resolved={window.responded}>
+			<article
+				class="window-card {window.quiet ? 'window-card--quiet' : severityClass(window.severity ?? 'minor')}"
+				class:window-card--pending={!window.quiet && !window.responded && isActiveWindow(window.windowIndex)}
+				class:window-card--resolved={window.responded}
+			>
 				<!-- Window Header -->
 				<header class="window-header">
 					<h3 class="window-title">
 						<span class="window-number">#{window.windowIndex}</span>
-						<span class="complication-name" class:complication-name--serious={window.severity === 'serious'}>
-							{severityTitle(window.severity, window.complication)}
-						</span>
+						{#if window.quiet}
+							<span class="complication-name complication-name--quiet">All Quiet</span>
+						{:else}
+							<span class="complication-name" class:complication-name--serious={window.severity === 'serious'}>
+								{severityTitle(window.severity ?? 'minor', window.complication ?? 'signal_drift')}
+							</span>
+						{/if}
 					</h3>
-					{#if window.severity === 'serious'}
+					{#if window.quiet}
+						<span class="severity-badge severity-badge--quiet">Quiet</span>
+					{:else if window.severity === 'serious'}
 						<span class="severity-badge severity-badge--serious">SERIOUS</span>
 					{:else}
 						<span class="severity-badge severity-badge--minor">Minor</span>
 					{/if}
 				</header>
 
-				{#if window.responded}
+				{#if window.quiet}
+					<p class="window-quiet-message">{window.quietMessage}</p>
+
+				{:else if window.responded}
 					<!-- Resolved State -->
 					<div class="resolution-summary">
 						<div class="response-taken">
 							<span class="response-label">Response:</span>
-							<strong class="response-choice">{optionHeaderLabel(window.chosenResponse ?? '', window.matchingActionLabel)}</strong>
+							<strong class="response-choice">{optionHeaderLabel(window.chosenResponse ?? '', window.matchingActionLabel ?? '')}</strong>
 						</div>
 						{#if window.outcomeLine}
 							<div class="outcome-details flash flash--success">
@@ -252,20 +277,50 @@ $effect(() => {
 									class:decision-card--disabled={!option.enabled}
 								>
 									<div class="decision-card__header">
-										<span class="decision-card__title">{optionHeaderLabel(option.id, window.matchingActionLabel)}</span>
+										<span class="decision-card__title">{optionHeaderLabel(option.id, window.matchingActionLabel ?? '')}</span>
 										{#if isMatchingAction && option.id !== 'field_repair'}
 											<span class="decision-card__badge">Recommended</span>
 										{/if}
 									</div>
 
-									{#if optionSubheader(option.id, window.matchingActionLabel)}
-										<span class="decision-card__subheader">{optionSubheader(option.id, window.matchingActionLabel)}</span>
+									{#if optionSubheader(option.id, window.matchingActionLabel ?? '')}
+										<span class="decision-card__subheader">{optionSubheader(option.id, window.matchingActionLabel ?? '')}</span>
 									{/if}
 
 									{#if option.effectLine}
 										<div class="decision-card__stakes">
 											<span class="stakes-label">Outcome:</span>
 											<span class="stakes-value">{option.effectLine}</span>
+										</div>
+									{/if}
+
+									{#if 'projected' in option && option.projected}
+										{@const optionProjected = option.projected}
+										<div class="decision-card__projected">
+											<span class="projected-meter" class:projected-meter--danger={optionProjected.isDangerous}>
+												{optionProjected.meterLabel}
+												{optionProjected.beforeValue}% → {optionProjected.afterValue}%
+											</span>
+											{#if optionProjected.recoveryDelta !== 0}
+												<span class="projected-recovery" class:projected-recovery--negative={optionProjected.recoveryDelta < 0} class:projected-recovery--positive={optionProjected.recoveryDelta > 0}>
+													{#if optionProjected.recoveryDelta > 0}
+														+{optionProjected.recoveryDelta} recovery
+													{:else}
+														{optionProjected.recoveryDelta} recovery
+													{/if}
+												</span>
+											{/if}
+											{#if optionProjected.partWear && optionProjected.primaryMeterKey !== 'hullCondition' && option.id !== 'field_repair'}
+												{@const actionSlot = option.id === 'signal_tune' ? 'drill' : option.id === 'clear_pump_problem' ? 'pump' : 'hull'}
+												<span class="projected-wear">
+													· {actionSlot.charAt(0).toUpperCase() + actionSlot.slice(1)} −{optionProjected.partWear} Condition
+												</span>
+											{/if}
+											{#if optionProjected.partWear && optionProjected.primaryMeterKey === 'hullCondition' && option.id !== 'field_repair'}
+												<span class="projected-wear">
+													· Hull −{optionProjected.partWear} Condition
+												</span>
+											{/if}
 										</div>
 									{/if}
 
@@ -408,6 +463,47 @@ $effect(() => {
 	letter-spacing: 0.05em;
 }
 
+/* Thumper Condition Bar */
+.thumper-condition-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	background: #f9fafb;
+	border: 1px solid #e5e7eb;
+	border-radius: 0.375rem;
+	font-size: 0.875rem;
+	margin: 0.5rem 0;
+	flex-wrap: wrap;
+}
+
+.condition-label {
+	color: #6b7280;
+	font-weight: 500;
+}
+
+.condition-value {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.condition-value--solid {
+	color: #16a34a;
+}
+
+.condition-value--worn {
+	color: #ca8a04;
+}
+
+.condition-value--failing {
+	color: #dc2626;
+}
+
+.condition-weakest {
+	color: #6b7280;
+	font-size: 0.8125rem;
+}
+
 /* Run Meters */
 .run-meters {
 	margin: 1.5rem 0;
@@ -541,6 +637,12 @@ $effect(() => {
 	background: #fef2f2;
 }
 
+.window-card--quiet {
+	border-color: #d1d5db;
+	background: #f3f4f6;
+	opacity: 0.85;
+}
+
 .window-card--resolved {
 	opacity: 0.85;
 	background: #f9fafb;
@@ -603,6 +705,23 @@ $effect(() => {
 	background: #fee2e2;
 	color: #dc2626;
 	border: 1px solid #fecaca;
+}
+
+.severity-badge--quiet {
+	background: #e5e7eb;
+	color: #6b7280;
+}
+
+.complication-name--quiet {
+	color: #6b7280;
+	font-style: italic;
+}
+
+.window-quiet-message {
+	margin: 0;
+	font-size: 0.875rem;
+	color: #6b7280;
+	font-style: italic;
 }
 
 /* Resolution Summary */
@@ -767,6 +886,46 @@ $effect(() => {
 	font-size: 0.875rem;
 	color: #374151;
 	line-height: 1.4;
+}
+
+.decision-card__projected {
+	margin-top: 0.5rem;
+	padding-top: 0.5rem;
+	border-top: 1px solid #e5e7eb;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	align-items: center;
+	font-size: 0.8125rem;
+}
+
+.projected-meter {
+	font-weight: 600;
+	color: #1f2937;
+	font-variant-numeric: tabular-nums;
+}
+
+.projected-meter--danger {
+	color: #dc2626;
+	background: #fef2f2;
+	padding: 0.125rem 0.375rem;
+	border-radius: 0.25rem;
+}
+
+.projected-recovery {
+	font-variant-numeric: tabular-nums;
+}
+
+.projected-recovery--negative {
+	color: #dc2626;
+}
+
+.projected-recovery--positive {
+	color: #16a34a;
+}
+
+.projected-wear {
+	color: #6b7280;
 }
 
 .decision-card--disabled .stakes-value {

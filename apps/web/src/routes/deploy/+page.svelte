@@ -171,7 +171,7 @@
 	<button type="submit">Deploy thumper on this spot</button>
 </form>
 
-<p><small>After deploy, return to Pilot Home to monitor the run and respond to event windows.</small></p>
+<p><small>After deploy, you'll be taken to the run screen to monitor and respond to event windows.</small></p>
 
 <style>
 	.signal-detail dl {

@@ -48,6 +48,14 @@
 					</a>
 				{/if}
 			{/each}
+			<span class="loop-nav__sep" aria-hidden="true">·</span>
+			<a
+				href="/inventory"
+				class="loop-nav__link"
+				class:loop-nav__link--active={pathname === '/inventory'}
+			>
+				Inventory
+			</a>
 		</nav>
 	</header>
 
