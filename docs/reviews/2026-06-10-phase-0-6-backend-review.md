@@ -420,3 +420,73 @@ deployable at the same %. Now each claim ends the prospecting cycle for that res
 - Ryan's own survey patch (hasFamilyScan gating + invalidateAll) kept and wired to the
   server mechanism that makes it true.
 - Verified: check clean; domain 142/142; db 32/32; smoke ok; build ok.
+
+---
+
+## CP12 — Playtest Round 3 (2026-06-11)
+
+Owner-approved UX/game-feel pass. Seven items implemented.
+
+### 1. Countdown formatting (hours/minutes/seconds)
+- **Changed**: Raw seconds display (`45s`) now uses human-readable format
+- **Format**: `>= 1h` → "2h 14m"; `>= 1m` → "14m 05s"; else "45s"
+- **Files**: `apps/web/src/lib/formatDuration.ts` (new), `apps/web/src/routes/run/+page.svelte`, `apps/web/src/routes/+page.svelte`
+
+### 2. Random events in windows (55% trigger probability)
+- **Rule change**: Each scheduled window rolls deterministically from run seed whether an event fires (`EVENT_WINDOW_TRIGGER_PROBABILITY = 0.55`)
+- **Quiet windows**: Appear in plan as `quiet: true`, require no response, incur no penalty, do NOT create `thumper_event_windows` DB rows
+- **Tutorial preserved**: First-session windows stay scripted (100% fire rate)
+- **Decision log**: Amendment note added to Decision 005
+- **Files**: `packages/domain/src/thumper/types.ts`, `packages/domain/src/thumper/generateSeededThumperEventWindows.ts`, `packages/domain/src/thumper/generateFirstSessionEventWindows.ts`, `packages/db/src/queries/thumperRunWorkflow.ts`, `apps/web/src/lib/server/runLoad.ts`, `apps/web/src/routes/run/+page.svelte`
+
+### 3. Show event consequences before choice
+- **UX enhancement**: Decision cards now display projected meter values per option
+- **Hold card**: Shows "Hull stays at X% · −16 recovery"
+- **Repair card**: Shows "Hull back to ~31% · Drill wear −3"
+- **Computed in domain**: `computeEventWindowProjectedMetrics()` in `eventWindowOutcome.ts`
+- **Danger highlighting**: Values below 25% shown in red
+- **Files**: `packages/domain/src/thumper/eventWindowOutcome.ts`, `apps/web/src/lib/server/runLoad.ts`, `apps/web/src/routes/run/+page.svelte`
+
+### 4. Dedicated Inventory screen
+- **New route**: `/inventory` with resource stacks, scanners, thumper parts, repair kits
+- **Grouped by family**: Resources organized by Conductive Metal/Structural Alloy/Reactive Crystal
+- **Equipped status**: Visual badges for equipped items
+- **Navigation**: Secondary link added to persistent nav (outside core loop sequence)
+- **Pilot Home**: Simplified to one-line summary linking to inventory
+- **Files**: `apps/web/src/routes/inventory/+page.server.ts` (new), `apps/web/src/routes/inventory/+page.svelte` (new), `apps/web/src/routes/+layout.svelte`, `apps/web/src/routes/+page.svelte`
+
+### 5. Deploy redirect to /run
+- **Changed**: Deploy action now redirects to `/run` instead of `/`
+- **Files**: `apps/web/src/routes/deploy/+page.server.ts`, `apps/web/src/routes/deploy/+page.svelte`
+
+### 6. Claim celebration moment
+- **Pre-claim state**: Shows projected recovery with prominent "Collect haul" button
+- **Celebration reveal**: CSS-only staged animations (fade/slide-in, number pop)
+- **Payout reveal**: Big resource name, animated unit count, quality band badge
+- **Next-step CTAs**: Clear actions to Crafting, Survey, or Inventory
+- **Reduced motion**: Respects `prefers-reduced-motion`
+- **Files**: `apps/web/src/routes/claim/+page.svelte` (complete rewrite)
+- **Domain support**: Added `qualityBand` to `ThumperClaimResultExplanation`
+
+### 7. Overall thumper condition
+- **Domain helper**: `overallThumperCondition()` in new file
+- **Algorithm**: Weighted average emphasizing weakest part (chain-is-only-as-strong-as-weakest-link)
+- **Bands**: Solid (≥70%), Worn (40-69%), Failing (<40%)
+- **Display**: Run screen header shows "Thumper condition 72% (Solid) — weakest: Pump 55%"
+- **Files**: `packages/domain/src/thumper/overallThumperCondition.ts` (new), `packages/domain/src/thumper/overallThumperCondition.test.ts` (new), `apps/web/src/lib/server/runLoad.ts`, `apps/web/src/routes/run/+page.svelte`
+
+### Four-complication pool (as built)
+1. **Signal Drift** → Signal Tune (scanners, resource lock)
+2. **Hull Damage** → Field Repair (kits, hull plate)
+3. **Threat Surge** → Suppress Threat (Vanguard value, hull survival)
+4. **Pump Strain** → Clear Pump Problem (pump quality, recovery efficiency)
+
+### Fixes applied during CP12
+- **Domain test**: Updated `overallThumperCondition.test.ts` expectations to match weighted average calculation (63% not 72%; 65% is <70 not <50); added band label to displayLine output
+- **DB tests**: Fixed `prospecting.test.ts` to include `prospectingCycle` from resource row when generating spots (was defaulting to 1 but DB query uses actual row value)
+- **DB test**: Updated `depositSpotYields.test.ts` expectations for new trickle amounts
+- **overallThumperCondition**: Fixed orphaned code line (line 97), added band label to displayLine format
+
+**Files touched**: 30 changed + 4 new (formatDuration.ts, inventory/*, overallThumperCondition.ts + test)
+
+**Verification**: pnpm check; pnpm --filter @async-frontier-mmo/domain test (153 tests); pnpm --filter @async-frontier-mmo/db test (32 tests); pnpm --filter @async-frontier-mmo/db db:smoke; pnpm --filter web build — all pass.
