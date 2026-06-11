@@ -212,8 +212,8 @@
 	const handleSubmit: SubmitFunction = () => {
 		crafting = true;
 		return async ({ update }) => {
-			// CRITICAL: reset: false prevents scroll jump
-			await update({ reset: false, invalidateAll: false });
+			// CRITICAL: reset: false prevents scroll jump; invalidateAll defaults to true so inventory refreshes
+			await update({ reset: false });
 			crafting = false;
 			// Generate new key for next craft attempt
 			idempotencyKey = generateIdempotencyKey();

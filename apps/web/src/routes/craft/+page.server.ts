@@ -131,10 +131,7 @@ export const actions: Actions = {
 			itemDisplayName: outcome.item.displayName
 		});
 
-		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
-
 		return {
-			...screen,
 			craftOutcome: {
 				status: outcome.status,
 				item: outcome.item,
@@ -165,9 +162,7 @@ export const actions: Actions = {
 			displayName: outcome.item.displayName
 		});
 
-		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 		return {
-			...screen,
 			equipOutcome: {
 				displayName: outcome.item.displayName,
 				surveyClarity: outcome.item.propertyScores.survey_clarity ?? 0
@@ -207,9 +202,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 		return {
-			...screen,
 			equipThumperOutcome:
 				outcome.status === 'equipped'
 					? {
@@ -242,9 +235,7 @@ export const actions: Actions = {
 			return fail(400, { message: outcome.reason });
 		}
 
-		const screen = await loadCraftScreenWithTelemetry(db, pilotId, event.url);
 		return {
-			...screen,
 			repairOutcome: {
 				displayName: outcome.item.displayName,
 				condition: outcome.item.condition,

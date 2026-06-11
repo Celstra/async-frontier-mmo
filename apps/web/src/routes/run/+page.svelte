@@ -27,9 +27,9 @@ const latestRespondedWindow = $derived(
 function isActiveWindow(windowIndex: number): boolean {
 	if (openRun.recalled) return false;
 	const prior = eventWindows.filter((window) => window.windowIndex < windowIndex);
-	if (!prior.every((window) => window.responded)) return false;
+	if (!prior.every((window) => window.quiet || window.responded)) return false;
 	const current = eventWindows.find((window) => window.windowIndex === windowIndex);
-	return current ? !current.responded : false;
+	return current ? !current.quiet && !current.responded : false;
 }
 
 function severityTitle(severity: string, complication: string): string {
@@ -202,7 +202,7 @@ $effect(() => {
 			<article
 				class="window-card {window.quiet ? 'window-card--quiet' : severityClass(window.severity ?? 'minor')}"
 				class:window-card--pending={!window.quiet && !window.responded && isActiveWindow(window.windowIndex)}
-				class:window-card--resolved={window.responded}
+				class:window-card--resolved={window.responded && !window.quiet}
 			>
 				<!-- Window Header -->
 				<header class="window-header">

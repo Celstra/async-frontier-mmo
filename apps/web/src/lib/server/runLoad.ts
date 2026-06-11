@@ -239,12 +239,12 @@ export function mapEventWindowsForUi(
 	return fullPlan.map((plannedWindow) => {
 		// Handle quiet windows
 		if (plannedWindow.quiet) {
-			const stored = storedWindows.get(plannedWindow.windowIndex);
 			return {
 				windowIndex: plannedWindow.windowIndex,
 				quiet: true,
-				chosenResponse: stored?.chosenResponse ?? null,
-				responded: stored?.chosenResponse !== null && stored?.chosenResponse !== undefined,
+				chosenResponse: null,
+				// Quiet windows never create DB rows — they auto-pass and must not block later events.
+				responded: true,
 				responseOptions: [],
 				outcomeLine: null,
 				quietMessage: 'All quiet — the thumper hums along, no action needed'

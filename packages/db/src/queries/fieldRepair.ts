@@ -35,9 +35,9 @@ function isRepairKitTargetSchematic(schematicId: string): boolean {
 
 function kitScoresFromItem(propertyScores: Record<string, number>) {
 	return {
-		conditionRestored: propertyScores.condition_restored ?? 0,
-		integritySafety: propertyScores.integrity_safety ?? 0,
-		fieldReliability: propertyScores.field_reliability ?? 0
+		conditionRestored: Math.round(propertyScores.condition_restored ?? 0),
+		integritySafety: Math.round(propertyScores.integrity_safety ?? 0),
+		fieldReliability: Math.round(propertyScores.field_reliability ?? 0)
 	};
 }
 

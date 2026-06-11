@@ -45,7 +45,7 @@ export function buildSuggestedNextAction(input: {
 	openRun: { targetDisplayName: string; recalled: boolean } | null;
 	thumperDemo: { status: string; secondsRemaining: number } | null;
 	runReadyToResolve: boolean;
-	eventWindows: ReadonlyArray<{ responded: boolean; windowIndex: number }>;
+	eventWindows: ReadonlyArray<{ responded: boolean; windowIndex: number; quiet?: boolean }>;
 	hasCompletedTutorial: boolean;
 	equippedScanner: unknown | null;
 	scannerItems: ReadonlyArray<{ id: string }>;
@@ -58,7 +58,7 @@ export function buildSuggestedNextAction(input: {
 	}
 
 	if (input.openRun && input.thumperDemo?.status === 'active' && !input.openRun.recalled) {
-		const pendingWindow = input.eventWindows.find((window) => !window.responded);
+		const pendingWindow = input.eventWindows.find((window) => !window.quiet && !window.responded);
 		if (pendingWindow) {
 			return {
 				label: 'Respond to thumper event',
