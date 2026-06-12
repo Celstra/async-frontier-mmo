@@ -1453,7 +1453,8 @@ The slice is: settlement ledger, sampling minigame, tutorial bootstrap, one watc
 
 Decisions 001–022 are locked (022 locked 2026-06-12 per Ryan, balance constants sim-verified same day). Remaining:
 
-1. **Build the First-Thump Slice** per `FIRST_THUMP_SLICE_SPEC.md`, then re-test with 3–5 external testers on the §9 funnel.
-2. **Post-MVP Layer Gate**, including the combat-socket question above, thumper slot tiers, and the timed rotation scheduler.
-3. **Scope-change review** per the Decision 022 scope statement.
+1. **Re-test with 3–5 external testers** on the slice spec §9 funnel (build + review pass complete 2026-06-12; energy-budget amendment: first sample of a resource is energy-free, SA tutorial stack 20→15 — see tutorialEnergyBudget.test.ts).
+2. **Decision 023 candidate — the Reclaimer (SWG recycler).** Stranded stacks of expired resources convert, lossy (~2:1), into family-generic "Reclaimed" units with fixed floor stats, usable in any family slot. Unlocks at the first bloom rotation — stranding cannot occur before a rotation, so it stays out of the tutorial and never competes with the single-stack lesson. Decide after external round 2.
+3. **Post-MVP Layer Gate**, including the combat-socket question above, thumper slot tiers, and the timed rotation scheduler.
+4. **Scope-change review** per the Decision 022 scope statement.
 ---
