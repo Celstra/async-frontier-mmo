@@ -17,6 +17,7 @@ import {
 	generateThumperEventWindows,
 	isTutorialThumperDeploy,
 	parseExtractionTailMinutes,
+	TUTORIAL_EXTRACTION_TAIL_OPTION,
 	TUTORIAL_RUN_SEED,
 	type NamedResourceId
 } from '@async-frontier-mmo/domain';
@@ -54,8 +55,6 @@ export const load: PageServerLoad = async (event) => {
 	const pilotId = resolvePilotId(event);
 	const resourceInstanceId = event.url.searchParams.get('resourceInstanceId');
 	const spotId = event.url.searchParams.get('spotId');
-	const selectedTailId = event.url.searchParams.get('tail') ?? '1h';
-	const extractionTailMinutes = parseExtractionTailMinutes(selectedTailId);
 	const previewPushRun = event.url.searchParams.get('push') === 'true';
 
 	if (!resourceInstanceId || !spotId) {
@@ -98,10 +97,15 @@ export const load: PageServerLoad = async (event) => {
 		targetResourceId: resource.resourceSlug as NamedResourceId,
 		hasCompletedTutorial
 	});
+	const defaultTailId = isTutorialRun ? TUTORIAL_EXTRACTION_TAIL_OPTION.id : '1h';
+	const selectedTailId = isTutorialRun
+		? TUTORIAL_EXTRACTION_TAIL_OPTION.id
+		: (event.url.searchParams.get('tail') ?? defaultTailId);
+	const extractionTailMinutes = parseExtractionTailMinutes(selectedTailId, { isTutorialRun });
 	const isPushRun = !isTutorialRun && previewPushRun;
 	const recommendedResourceSlug = recommendedResourceSlugForBloom(resource.bloomId, hasCompletedTutorial);
 
-	const { equippedParts, preview: rawPreview } = await loadDeployPreviewForPilot(db, {
+	const { equippedParts, preview: rawPreview, gearYieldPenalty } = await loadDeployPreviewForPilot(db, {
 		pilotId,
 		trueConcentrationPercent: sample.trueConcentrationPercent,
 		extractionTailMinutes,
@@ -140,11 +144,15 @@ export const load: PageServerLoad = async (event) => {
 		hasCompletedTutorial,
 		isTutorialRun,
 		showPushRunToggle: !isTutorialRun,
+		defaultTailId,
 		selectedTailId,
 		selectedPushRun: isPushRun,
-		extractionTailOptions: EXTRACTION_TAIL_OPTIONS,
+		extractionTailOptions: isTutorialRun
+			? [TUTORIAL_EXTRACTION_TAIL_OPTION]
+			: EXTRACTION_TAIL_OPTIONS,
 		equippedParts,
-		preview
+		preview,
+		gearYieldPenalty
 	};
 };
 
@@ -164,10 +172,6 @@ export const actions: Actions = {
 		const targetResourceId = await resolveDeployTargetSlug(db, formData.get('targetResourceId'));
 		const resourceInstanceId = formData.get('resourceInstanceId');
 		const spotId = formData.get('spotId');
-		const extractionTailMinutes = parseExtractionTailMinutes(
-			formData.get('extractionTail')?.toString()
-		);
-
 		if (!targetResourceId || typeof resourceInstanceId !== 'string' || typeof spotId !== 'string') {
 			return fail(400, { message: 'Invalid deploy target' });
 		}
@@ -191,6 +195,9 @@ export const actions: Actions = {
 			targetResourceId: targetResourceId as NamedResourceId,
 			hasCompletedTutorial
 		});
+		const extractionTailMinutes = isTutorialRun
+			? TUTORIAL_EXTRACTION_TAIL_OPTION.minutes
+			: parseExtractionTailMinutes(formData.get('extractionTail')?.toString());
 		const isPushRun = !isTutorialRun && formData.get('isPushRun') === 'true';
 
 		const resource = await getResourceInstanceById(db, resourceInstanceId);

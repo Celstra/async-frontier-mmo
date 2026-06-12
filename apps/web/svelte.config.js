@@ -8,6 +8,9 @@ const config = {
 	},
 	kit: {
 		adapter: adapter(),
+		csrf: {
+			checkOrigin: false
+		},
 		alias: {
 			'@async-frontier-mmo/db': '../../packages/db/src/index.ts',
 			'@async-frontier-mmo/domain': '../../packages/domain/src/index.ts',

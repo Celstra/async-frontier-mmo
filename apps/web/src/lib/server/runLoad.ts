@@ -10,6 +10,7 @@ import {
 } from '@async-frontier-mmo/db';
 import {
 	buildActiveRunMeters,
+	buildGearYieldPenaltySummary,
 	computeThumperPartRunModifiers,
 	describeEventWindowStakes,
 	FIRST_SESSION_SCANNER_MINIMUM,
@@ -350,6 +351,7 @@ export async function loadOpenRunState(
 
 	let runMeters = null;
 	let overallCondition = null;
+	let gearYieldPenalty = null;
 	if (options?.includeRunMeters) {
 		const equipped = await getEquippedThumperPartsForPilot(db, run.pilotId);
 		const scanner = await getEquippedScannerForPilot(db, run.pilotId);
@@ -363,6 +365,7 @@ export async function loadOpenRunState(
 			trueConcentrationPercent: run.trueConcentrationPercent ?? 67,
 			extractionTailMinutes: run.extractionTailMinutes,
 			isPushRun: run.isPushRun,
+			isTutorialRun: options.isTutorialRun,
 			partModifiers,
 			surveyClarityScore: scanner?.propertyScores.survey_clarity ?? 0,
 			equippedParts: {
@@ -371,6 +374,15 @@ export async function loadOpenRunState(
 				hull: partSummary(equipped.hull)
 			},
 			runHullCondition: run.runHullCondition,
+			recoveryFloor: options.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined
+		});
+
+		gearYieldPenalty = buildGearYieldPenaltySummary({
+			isPushRun: run.isPushRun,
+			trueConcentrationPercent: run.trueConcentrationPercent ?? 67,
+			extractionTailMinutes: run.extractionTailMinutes,
+			isTutorialRun: options.isTutorialRun,
+			partModifiers,
 			recoveryFloor: options.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined
 		});
 
@@ -436,7 +448,8 @@ export async function loadOpenRunState(
 		fieldRepairKitCount,
 		runReadyToResolve: isThumperRunReadyToResolve(eventWindowsRaw),
 		runMeters: displayMeters,
-		overallThumperCondition: overallCondition
+		overallThumperCondition: overallCondition,
+		gearYieldPenalty
 	};
 }
 

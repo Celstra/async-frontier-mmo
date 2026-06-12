@@ -47,6 +47,7 @@ async function buildTutorialClaimResult(
 		isPushRun: run.isPushRun,
 		trueConcentrationPercent: run.trueConcentrationPercent,
 		extractionTailMinutes: run.extractionTailMinutes,
+		isTutorialRun: true,
 		partModifiers,
 		recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
 	});

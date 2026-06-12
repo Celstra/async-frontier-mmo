@@ -91,7 +91,7 @@
 	</div>
 
 	<p class="tuning-help">
-		Spend exactly {TUNING_POINTS_TOTAL} points across properties. Points boost each property by 5% of its base value.
+		You have a pool of {TUNING_POINTS_TOTAL} tuning points — use +/− to place them where you want. Each point boosts that property by 5% of its base. Spend the full pool before crafting.
 	</p>
 
 	<div class="property-lines">
@@ -169,16 +169,16 @@
 	{#if remainingPoints !== 0}
 		<p class="allocation-warning">
 			{remainingPoints > 0 
-				? `Spend ${remainingPoints} more point${remainingPoints === 1 ? '' : 's'} to craft.` 
-				: `Remove ${-remainingPoints} point${-remainingPoints === 1 ? '' : 's'} to craft.`}
+				? `${remainingPoints} point${remainingPoints === 1 ? '' : 's'} left in your pool — assign them before crafting.` 
+				: `${-remainingPoints} point${-remainingPoints === 1 ? '' : 's'} over your pool — remove some before crafting.`}
 		</p>
 	{/if}
 </div>
 
 <style>
 	.tuning-panel {
-		background: #f8f9fa;
-		border: 1px solid #e0e0e0;
+		background: var(--surface-inset);
+		border: 1px solid var(--border-subtle);
 		border-radius: 8px;
 		padding: 1rem;
 		margin: 1rem 0;
@@ -201,38 +201,38 @@
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.35rem 0.75rem;
-		background: #fff3cd;
-		border: 1px solid #ffc107;
+		background: var(--accent-warning-bg);
+		border: 1px solid var(--accent-warning);
 		border-radius: 4px;
 	}
 
 	.points-indicator.complete {
-		background: #d4edda;
-		border-color: #28a745;
+		background: var(--accent-success-bg);
+		border-color: rgba(74, 222, 128, 0.3);
 	}
 
 	.points-count {
 		font-size: 1.25rem;
 		font-weight: 700;
-		color: #856404;
+		color: var(--accent-warning);
 	}
 
 	.points-indicator.complete .points-count {
-		color: #155724;
+		color: var(--accent-success-text);
 	}
 
 	.points-label {
 		font-size: 0.8rem;
-		color: #856404;
+		color: var(--accent-warning);
 	}
 
 	.points-indicator.complete .points-label {
-		color: #155724;
+		color: var(--accent-success-text);
 	}
 
 	.tuning-help {
 		font-size: 0.85rem;
-		color: #666;
+		color: var(--text-muted);
 		margin: 0 0 1rem 0;
 	}
 
@@ -243,16 +243,16 @@
 	}
 
 	.property-line {
-		background: white;
-		border: 1px solid #ddd;
+		background: var(--surface-raised);
+		border: 1px solid var(--border-subtle);
 		border-radius: 6px;
 		padding: 0.75rem;
 		transition: border-color 0.15s ease;
 	}
 
 	.property-line.has-points {
-		border-color: #4a90d9;
-		background: #f8fbff;
+		border-color: var(--accent-info);
+		background: var(--accent-info-bg);
 	}
 
 	.property-header {
@@ -275,12 +275,12 @@
 		font-weight: 600;
 	}
 
-	.band-badge.poor { background: #e9ecef; color: #495057; }
-	.band-badge.basic { background: #dee2e6; color: #343a40; }
-	.band-badge.solid { background: #fff3cd; color: #856404; }
-	.band-badge.strong { background: #d4edda; color: #155724; }
-	.band-badge.excellent { background: #cce5ff; color: #004085; }
-	.band-badge.exceptional { background: #e2e3f3; color: #383d7a; }
+	.band-badge.poor { background: var(--surface-hover); color: var(--text-muted); }
+	.band-badge.basic { background: var(--surface-inset); color: var(--text-secondary); }
+	.band-badge.solid { background: var(--accent-warning-bg); color: var(--accent-warning); }
+	.band-badge.strong { background: var(--accent-success-bg); color: var(--accent-success-text); }
+	.band-badge.excellent { background: var(--accent-info-bg); color: var(--accent-info); }
+	.band-badge.exceptional { background: #2a1f3d; color: #c084fc; }
 
 	.property-details {
 		display: flex;
@@ -299,9 +299,10 @@
 	.stepper-btn {
 		width: 2.25rem;
 		height: 2.25rem;
-		border: 1px solid #ccc;
+		border: 1px solid var(--border-subtle);
 		border-radius: 4px;
-		background: white;
+		background: var(--surface-raised);
+		color: var(--text-primary);
 		font-size: 1.1rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -312,12 +313,12 @@
 	}
 
 	.stepper-btn:hover:not(:disabled) {
-		background: #f0f0f0;
-		border-color: #999;
+		background: var(--surface-hover);
+		border-color: var(--border-muted);
 	}
 
 	.stepper-btn:active:not(:disabled) {
-		background: #e0e0e0;
+		background: var(--surface-inset);
 	}
 
 	.stepper-btn:disabled {
@@ -338,7 +339,7 @@
 	}
 
 	.score-display.unavailable {
-		color: #999;
+		color: var(--text-muted);
 		font-size: 0.85rem;
 		font-style: italic;
 	}
@@ -353,23 +354,23 @@
 
 	.score-base {
 		font-size: 0.85rem;
-		color: #666;
+		color: var(--text-muted);
 	}
 
 	.score-arrow {
 		font-size: 0.85rem;
-		color: #999;
+		color: var(--border-muted);
 	}
 
 	.score-tuned {
 		font-size: 1.1rem;
 		font-weight: 700;
-		color: #333;
+		color: var(--text-primary);
 		transition: color 0.3s ease;
 	}
 
 	.score-tuned.recent {
-		color: #2c5aa0;
+		color: var(--accent-info);
 	}
 
 	.delta {
@@ -380,11 +381,11 @@
 	}
 
 	.delta.positive {
-		color: #28a745;
+		color: var(--accent-success);
 	}
 
 	.delta.negative {
-		color: #dc3545;
+		color: var(--accent-danger);
 	}
 
 	@keyframes fadeOut {
@@ -395,11 +396,11 @@
 
 	.ceiling-hint {
 		font-size: 0.75rem;
-		color: #888;
+		color: var(--text-muted);
 	}
 
 	.near-cap {
-		color: #b35900;
+		color: var(--accent-warning);
 		font-weight: 500;
 		margin-left: 0.35rem;
 	}
@@ -407,10 +408,10 @@
 	.allocation-warning {
 		margin: 1rem 0 0 0;
 		padding: 0.75rem;
-		background: #fff3cd;
-		border: 1px solid #ffc107;
+		background: var(--accent-warning-bg);
+		border: 1px solid #854d0e;
 		border-radius: 4px;
-		color: #856404;
+		color: var(--accent-warning);
 		font-size: 0.9rem;
 		text-align: center;
 	}
@@ -423,7 +424,7 @@
 
 		.score-display {
 			text-align: left;
-			border-top: 1px solid #eee;
+			border-top: 1px solid var(--border-subtle);
 			padding-top: 0.5rem;
 			margin-top: 0.5rem;
 		}

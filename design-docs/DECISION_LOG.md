@@ -1240,6 +1240,12 @@ There is deliberately **no single run length**: the active phase is fixed-short 
 
 SWG balanced around fleets of harvesters; we balance around one thumper. Recipe input quantities are expressed in **claims, not units: ~2 typical casual claims ≈ 1 craft** (prototype: recipe ≈ 120 units, repair kit ≈ 60, 1 h tail ≈ 45 units at concentration 1.0). At these numbers a casual player affords ~1.2 crafts/day and an active player ~2.1 — progression every session for everyone, surplus for nobody. All values are knobs in `run_duration_sim.py`.
 
+### Amendment to Decision 017 (tutorial)
+
+**Date:** 2026-06-11
+
+Tutorial (first-session) runs use a fixed **2-minute** extraction tail so the first loop closes in one sitting. This tail is tutorial-only — it is never offered on regular runs. Tutorial runs are exempt from the sublinear passive-yield penalty: compressed training time still yields at least the 1-hour baseline haul so the first Survey Scanner Mk I craft clears its 30-unit Conductive Metal slot core. Regular runs keep 15 min / 1 h / 4 h / 8 h tail options unchanged.
+
 ---
 
 ## Decision 018 — Seeded Random Bloom Variance in MVP
@@ -1396,11 +1402,52 @@ Monte Carlo (8,000 random blooms, 3 per family, 016+021 weights): median best cr
 
 ---
 
+## Decision 022 — Post-Feedback Reset: the Settlement Slice
+
+**Status:** Locked (2026-06-12, per Ryan; trickle rate 0.5 samples/hr confirmed same day after the energy sim). Full flow/UX detail lives in `FIRST_THUMP_SLICE_SPEC.md`.
+
+### Evidence that forced this
+
+Two external testers (2026-06-11/12, verbal + written feedback) plus `playtest_events` telemetry:
+
+- **Comprehension failed before fun could be tested.** Both testers needed out-of-band context from Ryan to navigate at all; neither could name the toy. Jargon (red mesa, conductive slag, threat pressure) landed with no frame; the signal choice and the frame choice both read as unmotivated.
+- **The funnel dies at the wait, not before deploy.** Six external pilots: time-to-first-deploy 1.7–5.6 min for most, but 4 of 5 external deploys were never claimed. The single claim came 7h17m after deploy, under social pressure. One pilot set up a second run after claiming (sampled spots, chose extraction tail) and abandoned without deploying — even a completed loop did not produce a voluntary second deploy. No external player has experienced the reward beat unprompted.
+- **The UI reads as menus, not a game.** Dropdown-driven screens; the only interaction testers called clear was the pilot pick — the one element that does nothing.
+
+### What this decision does
+
+**Reopens** Decision 008 (UI proof and first click-path), Decision 011 (onboarding and first-session script), and the Decision 015 scope freeze (superseded by the scope statement below). **Keeps** the economy core — Decisions 010, 016, 017, 018, 019, 020, 021 — as structures, with their quantities and ratios demoted to tunable data pending the sampling/thumping balance sim. Blooms, hidden lifespans, concentration ranges, class-call slots, and the nine-resource seed bloom are all unchanged.
+
+### Locked elements (pending Ryan's confirmation)
+
+1. **Settlement premise.** The player is part of a small settlement bringing thumper production back online. In the slice the settlement is a narrative frame plus a turn-in ledger — posted needs by resource family, visible contribution bars, visible unlocks when bars fill — not a simulated economy. The settlement is the standing answer to "why am I thumping."
+2. **One thumper; fleet size is settlement progression.** The slice has exactly one thumper slot. Additional slots are future settlement-infrastructure unlocks (Workshop tiers), a post-production-point layer. Noted constraint for that layer: event-window check-in burden multiplies with fleet size and needs a cap design.
+3. **Sampling is the synchronous toy** (extends 019). An ASCII field map gradient hunt: scan shows concentration at your position, move, re-scan, converge on a peak that may or may not be high this rotation; first scan lands low in the rolled range. Sampling a spot is a short (~10s) commitment whose yield scales with local concentration. **Map topology is generated per resource instance at spawn** — peak count and maxima rolled per Decision 019's grounding, so every resource is its own terrain to learn. Sampling and thumping are the same verb at two time scales — hand-scale and industrial-scale — and the tutorial says so explicitly.
+4. **Anti-substitution guards** so sampling can never replace thumping: (a) sampling spends pilot energy, thumping does not — energy regenerates as a **continuous trickle: cap 10 samples, 0.5 samples/hr** (sim-confirmed over daily reset; the most diligent player tops out at ~16 samples/day, holding the guard); (b) each spot holds a finite per-pilot hand-sample pool (4–5), separate from its thumpable units; (c) ratio verified by simulation: sampling yield/hour = 6.4–8.5% of thumping yield/hour at the locked quantities (sample yield 5u × concentration, 20u turn-in stacks).
+5. **Frame choice is cut from the slice.** Not deferred within session one — removed. Frames return, if ever, as a backlog layer behind the production point.
+6. **Tutorial = the settlement bootstrap.** Prologue (three lines) → foreman posts family needs → player chooses which family to hunt first (CM/SA/RC order is their call) → gradient hunt + sampling with the Decision 019 stat-reveal wow beat intact → turn-ins bring production online → the player assembles the first thumper themselves through the full crafting flow, slotting components (including the settlement's worn drill head and a scavenged hull) into the chassis. The first craft is the thumper. **Turn-ins require a single stack**: e.g. 30 units of *one* Structural Alloy resource, any quality — mixing resources within a family is rejected, and the board says so explicitly. This teaches the SWG rule the whole economy runs on (a crafting slot consumes one homogeneous stack) and forces the within-family commitment decision at minute two.
+7. **The first run fails on purpose; the second run pays.** The scavenged hull is at ~5% integrity. First deploy lands on the player's best-sampled waypoint and is watched live; partway in, the hull gives out and the **fail-safe auto-recall fires on screen** — explained immediately as the rig protecting itself, with partial yield kept and carried home. This is the live demonstration of element 9 and of why hull quality matters. The foreman patches the hull to ~30% ("you can craft better ones — more durability, longer runs") and the second watched run (~5 min, two scripted event windows: Signal Drift, Pump Strain) completes on the same waypoint with a full in-session claim. Run durations then ramp across day one (~5 → 15 → 20+ min, tuned by simulation) before hour-scale runs appear; the async wait is introduced only after the reward beat has been felt twice. Framing constraint: the recall must read as the system working ("RIG SECURED — fail-safe nominal"), never as player error, and the partial yield must clear a felt-reward floor.
+8. **Known-spot redeploy.** A pilot's sampled spots are persistent waypoints (already per-pilot in `pilot_deposit_spot_samples`; capacity already in `deposit_spot_yields`). A known spot can be redeployed on without resurveying until it is exhausted **or its resource instance expires** (Decision 020 lifespan) — expiry kills the waypoint, preserving stockpiling pressure.
+9. **No thumper destruction.** Hull at 0% triggers a fail-safe auto-recall: the run ends early, partial yield is kept, the rig returns with a repair debt. Hull quality governs run duration and risk appetite; components wear, the chassis never dies. Destruction may return only as opt-in stakes (overdriven push runs) in a future layer.
+10. **UI/UX direction.** No dropdown menus anywhere in the slice. Diegetic terminal/console aesthetic — every screen is the settlement's field console. One primary field screen carries scan/move/sample/deploy/guard; crafting shows physical component slots; every screen states its next action explicitly. ASCII art where it carries meaning (the field map, the rig), never as decoration.
+
+### Scope statement (supersedes Decision 015's freeze)
+
+The slice is: settlement ledger, sampling minigame, tutorial bootstrap, one watched run, ramped async runs, known-spot redeploy, and the UI rewrite that carries them. Nothing else enters until external testers complete the new funnel voluntarily. The Stage 6 fun/not-fun evidence (Decision 013) is unchanged in kind; the funnel events are redefined in the slice spec.
+
+### Simulation results (2026-06-12 — scripts in `design-docs/`, full detail in slice spec §8)
+
+- **Ratio sim:** sample yield 5u × concentration, pool 4–5/spot, turn-in stack 20u → sampler holds at 6.4–8.5% of thumper units/hour; Repair Kit pinch-affordable (1.3 days), Hull Plate thumper-bound (2.7 days). Tutorial stack anchored to bulk concentrations (Keth/Slag), Veyrith stays the prize.
+- **Run-ramp sim:** `max_run_minutes = TIER_BASE × (integrity/100)^1.2` — 5% scavenged ≈ 2 min and 30% patched ≈ 7 min fall out of the formula, crafted tiers reach 3–11 h. Duration picker: 15 min / 1 h / 4 h (20-min tier cut as a non-choice). Short-run spam = 1.9× active premium with natural 3-min redeploy friction — accepted, no cooldown; per-run wear floor is the reserve knob.
+- **Energy sim:** trickle+cap beats daily reset decisively (reset strands spaced visitors at 33–50% coverage). Trickle rate **locked at 0.5/hr, cap 10** (Ryan, 2026-06-12, on recommendation): preserves the anti-substitution guard (Hull Plate stays ~2 days of pure sampling); later check-ins are for tending thumpers, claims, and turn-ins rather than sampling. Existing `surveyEnergyOutlook` regen (~10 samples/hr) must come down ~20× to match.
+
+---
+
 ## Current next decision candidates
 
-Decisions 001–021 are locked (017–021 locked 2026-06-10 per Ryan). Remaining:
+Decisions 001–022 are locked (022 locked 2026-06-12 per Ryan, balance constants sim-verified same day). Remaining:
 
-1. **MVP Presentation Slice Detail, if Stage 5 needs it.**
-2. **Post-MVP Layer Gate**, including the combat-socket question above and the timed rotation scheduler.
-3. **Scope-change review** only per the Decision 015 rule.
+1. **Build the First-Thump Slice** per `FIRST_THUMP_SLICE_SPEC.md`, then re-test with 3–5 external testers on the §9 funnel.
+2. **Post-MVP Layer Gate**, including the combat-socket question above, thumper slot tiers, and the timed rotation scheduler.
+3. **Scope-change review** per the Decision 022 scope statement.
 ---

@@ -140,6 +140,22 @@ $effect(() => {
 	</div>
 {/if}
 
+{#if data.gearYieldPenalty?.isPenalized}
+	<aside class="gear-penalty-callout" role="status">
+		<p class="gear-penalty-title">Worn gear is cutting your yield</p>
+		<p class="gear-penalty-body">
+			This run projects <strong>{data.gearYieldPenalty.projectedRecovery}</strong> units instead of
+			<strong>{data.gearYieldPenalty.recoveryAtFullPerformance}</strong> with repaired parts — about
+			<strong>{data.gearYieldPenalty.unitsLostToWear} fewer units</strong>
+			({data.gearYieldPenalty.performancePercent}% gear efficiency).
+		</p>
+		<p class="gear-penalty-foot">
+			Condition on drill, pump, and hull all feed into extraction.
+			<a href="/craft">Repair at Workbench</a> before your next deploy when you can.
+		</p>
+	</aside>
+{/if}
+
 <!-- Run Meters -->
 {#if runMeters}
 	<section class="run-meters">
@@ -176,7 +192,7 @@ $effect(() => {
 				<span class="meter-value">{runMeters.threatPressure}%</span>
 			</div>
 			<div class="meter">
-				<span class="meter-label">Hull Condition</span>
+				<span class="meter-label">Run hull</span>
 				<span class="meter-value">{runMeters.hullCondition}%</span>
 			</div>
 		</div>
@@ -371,18 +387,18 @@ $effect(() => {
 }
 
 .status-banner--active {
-	background: #f0f9ff;
-	border-color: #0ea5e9;
+	background: var(--accent-info-bg);
+	border-color: var(--accent-info);
 }
 
 .status-banner--finished {
-	background: #f0fdf4;
-	border-color: #22c55e;
+	background: var(--accent-success-bg);
+	border-color: var(--accent-success);
 }
 
 .status-banner--recalled {
-	background: #fef9c3;
-	border-color: #eab308;
+	background: var(--accent-warning-bg);
+	border-color: var(--accent-warning);
 }
 
 .status-indicator {
@@ -393,7 +409,7 @@ $effect(() => {
 .timer-pulse {
 	width: 0.75rem;
 	height: 0.75rem;
-	background: #0ea5e9;
+	background: var(--accent-info);
 	border-radius: 50%;
 	animation: pulse 2s ease-in-out infinite;
 }
@@ -412,7 +428,7 @@ $effect(() => {
 
 .status-detail {
 	font-size: 0.875rem;
-	color: #666;
+	color: var(--text-muted);
 }
 
 .timer-display {
@@ -426,20 +442,20 @@ $effect(() => {
 	font-size: 1.5rem;
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
-	color: #0ea5e9;
+	color: var(--accent-info);
 }
 
 .timer-label {
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
-	color: #666;
+	color: var(--text-muted);
 }
 
 .claim-link {
 	padding: 0.5rem 1rem;
-	background: #22c55e;
-	color: white;
+	background: var(--accent-success);
+	color: #052e16;
 	text-decoration: none;
 	border-radius: 0.25rem;
 	font-weight: 500;
@@ -448,7 +464,7 @@ $effect(() => {
 /* Frame Context */
 .frame-context {
 	font-size: 0.875rem;
-	color: #666;
+	color: var(--text-muted);
 	margin: 0.5rem 0;
 }
 
@@ -456,7 +472,7 @@ $effect(() => {
 	display: inline-block;
 	margin-left: 0.5rem;
 	padding: 0.125rem 0.5rem;
-	background: #f3f4f6;
+	background: var(--surface-hover);
 	border-radius: 0.25rem;
 	font-size: 0.75rem;
 	text-transform: uppercase;
@@ -469,8 +485,8 @@ $effect(() => {
 	align-items: center;
 	gap: 0.5rem;
 	padding: 0.5rem 0.75rem;
-	background: #f9fafb;
-	border: 1px solid #e5e7eb;
+	background: var(--surface-inset);
+	border: 1px solid var(--border-subtle);
 	border-radius: 0.375rem;
 	font-size: 0.875rem;
 	margin: 0.5rem 0;
@@ -478,7 +494,7 @@ $effect(() => {
 }
 
 .condition-label {
-	color: #6b7280;
+	color: var(--text-muted);
 	font-weight: 500;
 }
 
@@ -488,29 +504,56 @@ $effect(() => {
 }
 
 .condition-value--solid {
-	color: #16a34a;
+	color: var(--accent-success);
 }
 
 .condition-value--worn {
-	color: #ca8a04;
+	color: var(--accent-warning);
 }
 
 .condition-value--failing {
-	color: #dc2626;
+	color: var(--accent-danger);
 }
 
 .condition-weakest {
-	color: #6b7280;
+	color: var(--text-muted);
 	font-size: 0.8125rem;
+}
+
+.gear-penalty-callout {
+	margin: 0 0 1rem 0;
+	padding: 0.875rem 1rem;
+	border-radius: 0.5rem;
+	border: 1px solid rgba(251, 191, 36, 0.35);
+	background: var(--accent-warning-bg, rgba(251, 191, 36, 0.12));
+	color: var(--text-primary);
+}
+
+.gear-penalty-title {
+	margin: 0 0 0.35rem 0;
+	font-weight: 600;
+	color: var(--accent-warning, #fbbf24);
+}
+
+.gear-penalty-body,
+.gear-penalty-foot {
+	margin: 0.35rem 0 0;
+	font-size: 0.9rem;
+	color: var(--text-secondary);
+	line-height: 1.45;
+}
+
+.gear-penalty-foot a {
+	color: var(--accent-link, #60a5fa);
 }
 
 /* Run Meters */
 .run-meters {
 	margin: 1.5rem 0;
 	padding: 1rem;
-	background: #f9fafb;
+	background: var(--surface-inset);
 	border-radius: 0.5rem;
-	border: 1px solid #e5e7eb;
+	border: 1px solid var(--border-subtle);
 }
 
 .meter {
@@ -523,12 +566,12 @@ $effect(() => {
 	justify-content: space-between;
 	padding-bottom: 0.75rem;
 	margin-bottom: 0.75rem;
-	border-bottom: 1px solid #e5e7eb;
+	border-bottom: 1px solid var(--border-subtle);
 }
 
 .meter-label {
 	font-size: 0.875rem;
-	color: #6b7280;
+	color: var(--text-muted);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 }
@@ -536,24 +579,24 @@ $effect(() => {
 .meter--primary .meter-label {
 	font-size: 1rem;
 	font-weight: 500;
-	color: #374151;
+	color: var(--text-secondary);
 }
 
 .meter-value {
 	font-weight: 600;
-	color: #374151;
+	color: var(--text-secondary);
 }
 
 .meter-value--primary {
 	font-size: 2rem;
 	font-weight: 700;
-	color: #111827;
+	color: var(--text-primary);
 }
 
 .meter-unit {
 	font-size: 1rem;
 	font-weight: 400;
-	color: #6b7280;
+	color: var(--text-muted);
 }
 
 .meter-delta {
@@ -565,13 +608,13 @@ $effect(() => {
 }
 
 .meter-delta--negative {
-	color: #dc2626;
-	background: #fee2e2;
+	color: var(--accent-danger);
+	background: var(--accent-danger-bg);
 }
 
 .meter-delta--positive {
-	color: #16a34a;
-	background: #dcfce7;
+	color: var(--accent-success-text);
+	background: rgba(74, 222, 128, 0.15);
 }
 
 .meters-secondary {
@@ -611,7 +654,7 @@ $effect(() => {
 .section-help {
 	margin: 0;
 	font-size: 0.875rem;
-	color: #666;
+	color: var(--text-muted);
 }
 
 .windows-list {
@@ -622,30 +665,30 @@ $effect(() => {
 
 /* Window Cards */
 .window-card {
-	border: 2px solid #e5e7eb;
+	border: 2px solid var(--border-subtle);
 	border-radius: 0.5rem;
 	padding: 1rem;
-	background: white;
+	background: var(--surface-raised);
 }
 
 .window-card--minor {
-	border-color: #d1d5db;
+	border-color: var(--border-muted);
 }
 
 .window-card--serious {
-	border-color: #dc2626;
-	background: #fef2f2;
+	border-color: var(--accent-danger);
+	background: var(--accent-danger-bg);
 }
 
 .window-card--quiet {
-	border-color: #d1d5db;
-	background: #f3f4f6;
+	border-color: var(--border-muted);
+	background: var(--surface-hover);
 	opacity: 0.85;
 }
 
 .window-card--resolved {
 	opacity: 0.85;
-	background: #f9fafb;
+	background: var(--surface-inset);
 }
 
 .window-card--pending {
@@ -659,7 +702,7 @@ $effect(() => {
 	gap: 0.75rem;
 	margin-bottom: 1rem;
 	padding-bottom: 0.75rem;
-	border-bottom: 1px solid #e5e7eb;
+	border-bottom: 1px solid var(--border-subtle);
 }
 
 .window-title {
@@ -673,17 +716,17 @@ $effect(() => {
 .window-number {
 	font-size: 0.875rem;
 	font-weight: 400;
-	color: #9ca3af;
+	color: var(--text-muted);
 	font-variant-numeric: tabular-nums;
 }
 
 .complication-name {
 	font-weight: 600;
-	color: #374151;
+	color: var(--text-secondary);
 }
 
 .complication-name--serious {
-	color: #991b1b;
+	color: var(--accent-danger);
 	font-weight: 700;
 }
 
@@ -697,30 +740,30 @@ $effect(() => {
 }
 
 .severity-badge--minor {
-	background: #f3f4f6;
-	color: #6b7280;
+	background: var(--surface-hover);
+	color: var(--text-muted);
 }
 
 .severity-badge--serious {
-	background: #fee2e2;
-	color: #dc2626;
-	border: 1px solid #fecaca;
+	background: var(--accent-danger-bg);
+	color: var(--accent-danger);
+	border: 1px solid rgba(248, 113, 113, 0.3);
 }
 
 .severity-badge--quiet {
-	background: #e5e7eb;
-	color: #6b7280;
+	background: var(--surface-inset);
+	color: var(--text-muted);
 }
 
 .complication-name--quiet {
-	color: #6b7280;
+	color: var(--text-muted);
 	font-style: italic;
 }
 
 .window-quiet-message {
 	margin: 0;
 	font-size: 0.875rem;
-	color: #6b7280;
+	color: var(--text-muted);
 	font-style: italic;
 }
 
@@ -739,11 +782,11 @@ $effect(() => {
 
 .response-label {
 	font-size: 0.875rem;
-	color: #6b7280;
+	color: var(--text-muted);
 }
 
 .response-choice {
-	color: #111827;
+	color: var(--text-primary);
 }
 
 .outcome-details {
@@ -757,7 +800,7 @@ $effect(() => {
 .window-waiting {
 	margin: 0;
 	font-size: 0.875rem;
-	color: #6b7280;
+	color: var(--text-muted);
 	font-style: italic;
 }
 
@@ -777,9 +820,9 @@ $effect(() => {
 	flex-direction: column;
 	gap: 0.375rem;
 	padding: 1rem;
-	border: 2px solid #e5e7eb;
+	border: 2px solid var(--border-subtle);
 	border-radius: 0.5rem;
-	background: white;
+	background: var(--surface-raised);
 	cursor: pointer;
 	text-align: left;
 	font-family: inherit;
@@ -787,9 +830,9 @@ $effect(() => {
 }
 
 .decision-card:hover:not(:disabled) {
-	border-color: #9ca3af;
+	border-color: var(--border-muted);
 	transform: translateY(-1px);
-	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
 }
 
 .decision-card:active:not(:disabled) {
@@ -797,39 +840,39 @@ $effect(() => {
 }
 
 .decision-card--matching {
-	border-color: #22c55e;
-	background: #f0fdf4;
+	border-color: var(--accent-success);
+	background: var(--accent-success-bg);
 }
 
 .decision-card--matching:hover:not(:disabled) {
-	border-color: #16a34a;
+	border-color: var(--accent-success);
 }
 
 .decision-card--recall {
-	border-color: #eab308;
-	background: #fefce8;
+	border-color: var(--accent-warning);
+	background: var(--accent-warning-bg);
 }
 
 .decision-card--recall:hover:not(:disabled) {
-	border-color: #ca8a04;
+	border-color: #d97706;
 }
 
 .decision-card--hold {
-	border-color: #d1d5db;
-	background: #f9fafb;
+	border-color: var(--border-muted);
+	background: var(--surface-inset);
 }
 
 .decision-card--hold:hover:not(:disabled) {
-	border-color: #9ca3af;
+	border-color: var(--text-muted);
 }
 
 .decision-card--field-repair {
-	border-color: #0ea5e9;
-	background: #f0f9ff;
+	border-color: var(--accent-info);
+	background: var(--accent-info-bg);
 }
 
 .decision-card--field-repair:hover:not(:disabled) {
-	border-color: #0284c7;
+	border-color: #3b82f6;
 }
 
 .decision-card--disabled {
@@ -847,13 +890,13 @@ $effect(() => {
 .decision-card__title {
 	font-weight: 600;
 	font-size: 1rem;
-	color: #111827;
+	color: var(--text-primary);
 }
 
 .decision-card__badge {
 	padding: 0.125rem 0.375rem;
-	background: #22c55e;
-	color: white;
+	background: var(--accent-success);
+	color: #052e16;
 	font-size: 0.625rem;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -863,7 +906,7 @@ $effect(() => {
 
 .decision-card__subheader {
 	font-size: 0.75rem;
-	color: #6b7280;
+	color: var(--text-muted);
 }
 
 .decision-card__stakes {
@@ -872,26 +915,26 @@ $effect(() => {
 	gap: 0.125rem;
 	margin-top: 0.5rem;
 	padding-top: 0.5rem;
-	border-top: 1px solid #e5e7eb;
+	border-top: 1px solid var(--border-subtle);
 }
 
 .stakes-label {
 	font-size: 0.625rem;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
-	color: #9ca3af;
+	color: var(--text-muted);
 }
 
 .stakes-value {
 	font-size: 0.875rem;
-	color: #374151;
+	color: var(--text-secondary);
 	line-height: 1.4;
 }
 
 .decision-card__projected {
 	margin-top: 0.5rem;
 	padding-top: 0.5rem;
-	border-top: 1px solid #e5e7eb;
+	border-top: 1px solid var(--border-subtle);
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.35rem;
@@ -901,13 +944,13 @@ $effect(() => {
 
 .projected-meter {
 	font-weight: 600;
-	color: #1f2937;
+	color: var(--text-primary);
 	font-variant-numeric: tabular-nums;
 }
 
 .projected-meter--danger {
-	color: #dc2626;
-	background: #fef2f2;
+	color: var(--accent-danger);
+	background: var(--accent-danger-bg);
 	padding: 0.125rem 0.375rem;
 	border-radius: 0.25rem;
 }
@@ -917,24 +960,24 @@ $effect(() => {
 }
 
 .projected-recovery--negative {
-	color: #dc2626;
+	color: var(--accent-danger);
 }
 
 .projected-recovery--positive {
-	color: #16a34a;
+	color: var(--accent-success-text);
 }
 
 .projected-wear {
-	color: #6b7280;
+	color: var(--text-muted);
 }
 
 .decision-card--disabled .stakes-value {
-	color: #9ca3af;
+	color: var(--text-muted);
 }
 
 .decision-card__disabled-reason {
 	font-size: 0.75rem;
-	color: #dc2626;
+	color: var(--accent-danger);
 	margin-top: 0.25rem;
 }
 
@@ -942,8 +985,8 @@ $effect(() => {
 .footer-claim {
 	margin: 2rem 0;
 	padding: 1.5rem;
-	background: #f0fdf4;
-	border: 2px solid #22c55e;
+	background: var(--accent-success-bg);
+	border: 2px solid var(--accent-success);
 	border-radius: 0.5rem;
 	text-align: center;
 }
@@ -951,26 +994,26 @@ $effect(() => {
 .footer-claim__prompt {
 	margin: 0 0 1rem 0;
 	font-size: 1.125rem;
-	color: #166534;
+	color: var(--accent-success-text);
 }
 
 .claim-button {
 	display: inline-block;
 	padding: 0.75rem 1.5rem;
-	background: #22c55e;
-	color: white;
+	background: var(--accent-success);
+	color: #052e16;
 	text-decoration: none;
 	border-radius: 0.375rem;
 	font-weight: 600;
 }
 
 .claim-button:hover {
-	background: #16a34a;
+	background: #86efac;
 }
 
 .footer-note {
 	font-size: 0.875rem;
-	color: #6b7280;
+	color: var(--text-muted);
 	margin: 1.5rem 0;
 }
 
@@ -982,15 +1025,15 @@ $effect(() => {
 }
 
 .flash--success {
-	background: #f0fdf4;
-	border: 1px solid #bbf7d0;
-	color: #166534;
+	background: var(--accent-success-bg);
+	border: 1px solid rgba(74, 222, 128, 0.3);
+	color: var(--accent-success-text);
 }
 
 .flash--error {
-	background: #fef2f2;
-	border: 1px solid #fecaca;
-	color: #991b1b;
+	background: var(--accent-danger-bg);
+	border: 1px solid rgba(248, 113, 113, 0.3);
+	color: var(--accent-danger);
 }
 
 /* Mobile adjustments */

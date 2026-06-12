@@ -10,6 +10,17 @@ export {
 	type InventoryStackWithStats,
 	type StackAllocationHint
 } from './crafting/buildResourceAllocationHints.js';
+export {
+	analyzeSchematicReadiness,
+	type OwnedResourceStack,
+	type SchematicReadinessAnalysis,
+	type SchematicSlotReadiness
+} from './crafting/schematicReadiness.js';
+export {
+	availableQuantityForSlot,
+	canFillSlotWithStack,
+	reservedQuantityForInstance
+} from './crafting/craftSlotAllocation.js';
 export type {
 	CraftPropertyDriver,
 	CraftPropertyExplanation,
@@ -146,6 +157,7 @@ export {
 	sampleDepositSpot,
 	PROSPECTING_CYCLE_SCATTER_LINE,
 	SURVEY_ENERGY_CAP,
+	SURVEY_ENERGY_REGEN_PER_MINUTE,
 	unsampledSpotConcentrationBand,
 	type DepositSpot,
 	type DepositSpotYieldPresentation,
@@ -153,6 +165,10 @@ export {
 	type PilotSurveyProgress,
 	type SampleDepositSpotResult
 } from './survey/prospectingSampling.js';
+export {
+	surveyEnergyOutlook,
+	type SurveyEnergyOutlook
+} from './survey/surveyEnergyOutlook.js';
 export { surveyRedMesaFirstSession } from './survey/redMesaSurvey';
 export {
 	applySurveyClarityToResult,
@@ -194,9 +210,11 @@ export {
 	buildActiveRunMeters,
 	buildDeployPreview,
 	computeDeployProjectedRecovery,
+	effectiveExtractionTailYieldMultiplier,
 	EXTRACTION_TAIL_OPTIONS,
 	extractionTailYieldMultiplier,
 	parseExtractionTailMinutes,
+	TUTORIAL_EXTRACTION_TAIL_OPTION,
 	projectedRecoveryForStoredRun,
 	totalRunDurationSeconds,
 	type ActiveRunMeterPreview,
@@ -204,6 +222,10 @@ export {
 	type DeployRunMeterPreview,
 	type ExtractionTailId
 } from './thumper/deployPreview.js';
+export {
+	buildGearYieldPenaltySummary,
+	type GearYieldPenaltySummary
+} from './thumper/gearYieldPenalty.js';
 export {
 	complicationDisplayName,
 	eventActionLabel,

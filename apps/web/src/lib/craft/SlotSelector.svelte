@@ -1,5 +1,17 @@
 <script lang="ts">
-	import { previewCraftProperties, type CraftPropertyPreview, type ResourceFamily, type SchematicSlotFill, type TuningAllocation, type SchematicDefinition, type SchematicSlotDefinition } from '@async-frontier-mmo/domain';
+	import {
+		availableQuantityForSlot,
+		canFillSlotWithStack,
+		previewCraftProperties,
+		type CraftPropertyPreview,
+		type ResourceFamily,
+		type SchematicSlotFill,
+		type SchematicSlotReadiness,
+		type TuningAllocation,
+		type SchematicDefinition,
+		type SchematicSlotDefinition
+	} from '@async-frontier-mmo/domain';
+	import { familyDisplayLabel } from '$lib/displayLabels';
 
 	interface InventoryStack {
 		resourceInstanceId: string;
@@ -36,15 +48,36 @@
 		slot: SchematicSlotDefinition;
 		stacks: InventoryStack[];
 		hints: AllocationHint[];
+		allSlotSelections: Record<string, string>;
 		selectedInstanceId: string | null;
 		onSelect: (instanceId: string) => void;
 		// Live preview data for delta calculation
 		currentSlotFills?: SchematicSlotFill[] | null;
 		tuning?: TuningAllocation;
 		livePreview?: CraftPropertyPreview | null;
+		slotReadiness?: SchematicSlotReadiness;
 	}
 
-	let { schematic, slot, stacks, hints, selectedInstanceId, onSelect, currentSlotFills, tuning = {}, livePreview }: Props = $props();
+	let {
+		schematic,
+		slot,
+		stacks,
+		hints,
+		allSlotSelections,
+		selectedInstanceId,
+		onSelect,
+		currentSlotFills,
+		tuning = {},
+		livePreview,
+		slotReadiness
+	}: Props = $props();
+
+	function missingHintHref(readiness: SchematicSlotReadiness): string {
+		if (readiness.missing?.sourceHint.includes('thumper haul')) {
+			return '/';
+		}
+		return '/survey';
+	}
 
 	// Determine which stats actually matter for this slot by examining property weights
 	function getRelevantStatsForSlot(schematic: SchematicDefinition, slotId: string): Array<{ stat: string; weightPercent: number; propertyName: string }> {
@@ -95,9 +128,25 @@
 		return hints.find(h => h.resourceInstanceId === instanceId);
 	}
 
-	// Check if stack has sufficient quantity
+	function availableForStack(stack: InventoryStack): number {
+		return availableQuantityForSlot({
+			schematic,
+			slotSelections: allSlotSelections,
+			slotId: slot.id,
+			resourceInstanceId: stack.resourceInstanceId,
+			stackQuantity: stack.quantity
+		});
+	}
+
+	// Check if stack has sufficient quantity after other slots reserve the same stack
 	function hasEnoughQuantity(stack: InventoryStack): boolean {
-		return stack.quantity >= slot.inputQuantity;
+		return canFillSlotWithStack({
+			schematic,
+			slotSelections: allSlotSelections,
+			slotId: slot.id,
+			resourceInstanceId: stack.resourceInstanceId,
+			stackQuantity: stack.quantity
+		});
 	}
 
 	// Build hypothetical slot fills replacing this slot with the given stack
@@ -184,12 +233,20 @@
 <div class="slot-selector">
 	<div class="slot-header">
 		<h4>{slot.displayName}</h4>
-		<span class="family-tag">{slot.requiredFamily.replace('_', ' ')}</span>
+		<span class="family-tag">{familyDisplayLabel(slot.requiredFamily)}</span>
 		<span class="quantity-req">×{slot.inputQuantity}</span>
 	</div>
 
+	{#if slotReadiness && !slotReadiness.satisfiable && slotReadiness.missing}
+		<p class="slot-missing">
+			Needs {slotReadiness.quantityNeeded} {slotReadiness.familyNeeded} —
+			{slotReadiness.missing.sourceHint}
+			<a href={missingHintHref(slotReadiness)}>Go →</a>
+		</p>
+	{/if}
+
 	{#if stacks.length === 0}
-		<p class="no-stacks">No {slot.requiredFamily.replace('_', ' ')} resources available. Survey and claim first.</p>
+		<p class="no-stacks">No {familyDisplayLabel(slot.requiredFamily)} stacks available. Survey and claim first.</p>
 	{:else}
 		<div class="stack-cards">
 			{#each stacks as stack}
@@ -207,12 +264,21 @@
 					<div class="card-header">
 						<span class="stack-name">{stack.displayName}</span>
 						<span class="stack-qty" class:insufficient={!hasEnough}>
-							{stack.quantity} / {slot.inputQuantity}
+							{availableForStack(stack)} / {slot.inputQuantity}
+							{#if availableForStack(stack) < stack.quantity}
+								<span class="reserved-note">({stack.quantity} in stack)</span>
+							{/if}
 						</span>
 					</div>
 
 					{#if !hasEnough}
-						<p class="insufficient-reason">Not enough quantity</p>
+						<p class="insufficient-reason">
+							{#if availableForStack(stack) < stack.quantity && availableForStack(stack) > 0}
+								{stack.quantity - availableForStack(stack)} reserved for another slot — need {slot.inputQuantity} here
+							{:else}
+								Not enough quantity — need {slot.inputQuantity} in one craft
+							{/if}
+						</p>
 					{/if}
 
 					<div class="stat-row">
@@ -290,23 +356,39 @@
 	.family-tag {
 		font-size: 0.75rem;
 		text-transform: uppercase;
-		color: #666;
-		background: #f0f0f0;
+		color: var(--text-muted);
+		background: var(--surface-inset);
 		padding: 0.15rem 0.4rem;
 		border-radius: 3px;
 	}
 
 	.quantity-req {
 		font-size: 0.85rem;
-		color: #444;
+		color: var(--text-secondary);
 		font-weight: 500;
 	}
 
+	.slot-missing {
+		margin: 0 0 0.75rem;
+		padding: 0.65rem 0.75rem;
+		font-size: 0.85rem;
+		line-height: 1.4;
+		color: #fca5a5;
+		background: #1f1010;
+		border: 1px solid #7f1d1d;
+		border-radius: 4px;
+	}
+
+	.slot-missing a {
+		white-space: nowrap;
+		font-weight: 600;
+	}
+
 	.no-stacks {
-		color: #666;
+		color: var(--text-muted, #9ca3af);
 		font-style: italic;
 		padding: 1rem;
-		background: #f5f5f5;
+		background: var(--surface-inset, #2a2a2a);
 		border-radius: 4px;
 	}
 
@@ -322,9 +404,10 @@
 		align-items: stretch;
 		text-align: left;
 		padding: 0.75rem;
-		border: 2px solid #ddd;
+		border: 2px solid var(--border-subtle);
 		border-radius: 6px;
-		background: white;
+		background: var(--surface-raised);
+		color: var(--text-primary);
 		cursor: pointer;
 		transition: all 0.15s ease;
 		font-family: inherit;
@@ -332,20 +415,20 @@
 	}
 
 	.stack-card:hover:not(:disabled) {
-		border-color: #4a90d9;
-		background: #f8fbff;
+		border-color: var(--accent-info);
+		background: var(--accent-info-bg);
 	}
 
 	.stack-card.selected {
-		border-color: #2c5aa0;
-		background: #eef4fc;
-		box-shadow: 0 2px 4px rgba(44, 90, 160, 0.15);
+		border-color: var(--accent-info);
+		background: var(--accent-info-bg);
+		box-shadow: 0 2px 4px rgba(96, 165, 250, 0.15);
 	}
 
 	.stack-card.insufficient {
 		opacity: 0.6;
 		cursor: not-allowed;
-		background: #fafafa;
+		background: var(--surface-inset);
 	}
 
 	.card-header {
@@ -362,17 +445,23 @@
 
 	.stack-qty {
 		font-size: 0.85rem;
-		color: #444;
+		color: var(--text-secondary);
 	}
 
 	.stack-qty.insufficient {
-		color: #c00;
+		color: var(--accent-danger);
 		font-weight: 500;
+	}
+
+	.reserved-note {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: 400;
 	}
 
 	.insufficient-reason {
 		font-size: 0.8rem;
-		color: #c00;
+		color: var(--accent-danger);
 		margin: 0 0 0.5rem 0;
 		font-style: italic;
 	}
@@ -389,17 +478,17 @@
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.25rem 0.5rem;
-		background: #f5f5f5;
+		background: var(--surface-inset);
 		border-radius: 4px;
 		font-size: 0.8rem;
 	}
 
 	.stat-pill.highlight {
-		background: #dbe6f7;
+		background: var(--accent-info-bg);
 	}
 
 	.stat-name {
-		color: #666;
+		color: var(--text-muted);
 		text-transform: capitalize;
 	}
 
@@ -407,17 +496,17 @@
 		font-weight: 600;
 	}
 
-	.stat-value.exceptional { color: #7b2cbf; }
-	.stat-value.excellent { color: #2c5aa0; }
-	.stat-value.strong { color: #2d7d46; }
-	.stat-value.solid { color: #b35900; }
-	.stat-value.weak { color: #666; }
-	.stat-value.poor { color: #999; }
+	.stat-value.exceptional { color: #a78bfa; }
+	.stat-value.excellent { color: var(--accent-info); }
+	.stat-value.strong { color: var(--accent-success); }
+	.stat-value.solid { color: var(--accent-warning); }
+	.stat-value.weak { color: var(--text-muted); }
+	.stat-value.poor { color: var(--text-muted); }
 
 	.weight-badge {
 		font-size: 0.7rem;
-		background: #4a90d9;
-		color: white;
+		background: var(--accent-info);
+		color: var(--surface-base);
 		padding: 0.1rem 0.3rem;
 		border-radius: 3px;
 		font-weight: 500;
@@ -429,16 +518,16 @@
 		gap: 0.15rem;
 		font-size: 0.75rem;
 		padding-top: 0.4rem;
-		border-top: 1px solid #eee;
+		border-top: 1px solid var(--border-subtle);
 	}
 
 	.hint-best {
-		color: #2d7d46;
+		color: var(--accent-success);
 		font-weight: 500;
 	}
 
 	.hint-also {
-		color: #666;
+		color: var(--text-muted);
 	}
 
 	.comparison-row {
@@ -447,12 +536,12 @@
 		gap: 0.35rem;
 		margin-top: 0.5rem;
 		padding-top: 0.5rem;
-		border-top: 1px dashed #ddd;
+		border-top: 1px dashed var(--border-subtle);
 	}
 
 	.comparison-label {
 		font-size: 0.7rem;
-		color: #888;
+		color: var(--text-muted);
 		text-transform: uppercase;
 		font-weight: 500;
 	}
@@ -467,33 +556,33 @@
 		font-size: 0.75rem;
 		padding: 0.2rem 0.4rem;
 		border-radius: 4px;
-		background: #f5f5f5;
-		border: 1px solid #e0e0e0;
-		color: #555;
+		background: var(--surface-inset);
+		border: 1px solid var(--border-subtle);
+		color: var(--text-secondary);
 	}
 
 	.chip.current {
-		background: #d4edda;
-		border-color: #28a745;
-		color: #155724;
+		background: var(--accent-success-bg);
+		border-color: rgba(74, 222, 128, 0.3);
+		color: var(--accent-success-text);
 	}
 
 	.chip.positive {
-		background: #d4edda;
-		border-color: #28a745;
-		color: #155724;
+		background: var(--accent-success-bg);
+		border-color: rgba(74, 222, 128, 0.3);
+		color: var(--accent-success-text);
 	}
 
 	.chip.negative {
-		background: #f8d7da;
-		border-color: #dc3545;
-		color: #721c24;
+		background: var(--accent-danger-bg);
+		border-color: var(--accent-danger-border);
+		color: var(--accent-danger);
 	}
 
 	.chip.neutral {
-		background: #f8f9fa;
-		border-color: #dee2e6;
-		color: #6c757d;
+		background: var(--surface-inset);
+		border-color: var(--border-subtle);
+		color: var(--text-muted);
 	}
 
 	.chip .delta {

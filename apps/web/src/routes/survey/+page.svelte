@@ -2,11 +2,11 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { familyDisplayLabel } from '$lib/displayLabels';
+	import SurveyEnergyMeter from '$lib/SurveyEnergyMeter.svelte';
 	import {
-		FAMILY_SCAN_ENERGY_LABEL,
-		SAMPLE_SPOT_ENERGY_LABEL,
-		SURVEY_ENERGY_CAP
-	} from '$lib/surveyScreen';
+		FAMILY_SCAN_ENERGY_COST,
+		SAMPLE_ENERGY_COST
+	} from '@async-frontier-mmo/domain';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -17,6 +17,8 @@
 		hasFamilyScan ? (form?.resources ?? data.resources) : []
 	);
 	const surveyEnergy = $derived(form?.surveyEnergy ?? data.surveyEnergy);
+	const surveyEnergyCap = $derived(data.surveyEnergyCap);
+	const surveyEnergyOutlook = $derived(data.surveyEnergyOutlook);
 	const selectedFamily = $derived(form?.selectedFamily ?? data.selectedFamily);
 	const message = $derived(form?.message ?? null);
 	const sampleOutcome = $derived(form?.sampleOutcome ?? null);
@@ -58,7 +60,13 @@
 	<p><small>Basic Scanner Mk 0 — wider concentration bands until you craft and equip a scanner.</small></p>
 {/if}
 
-<p>Survey energy: {surveyEnergy} / {SURVEY_ENERGY_CAP}</p>
+<section class="energy-section" aria-label="Survey energy">
+	<SurveyEnergyMeter
+		energy={surveyEnergy}
+		cap={surveyEnergyCap}
+		outlook={surveyEnergyOutlook}
+	/>
+</section>
 
 <form method="GET" action="/survey">
 	<label>
@@ -86,11 +94,17 @@
 	}}
 >
 	<input type="hidden" name="family" value={selectedFamily} />
-	<button type="submit">Scan {familyDisplayLabel(selectedFamily)} family — {FAMILY_SCAN_ENERGY_LABEL}</button>
+	{#if surveyEnergyOutlook.canScanNow}
+		<button type="submit">Scan {familyDisplayLabel(selectedFamily)} family — costs {FAMILY_SCAN_ENERGY_COST} energy</button>
+	{:else}
+		<button type="submit" disabled>
+			Need {FAMILY_SCAN_ENERGY_COST} energy — ready in {surveyEnergyOutlook.minutesUntilNextScan}m
+		</button>
+	{/if}
 </form>
 
 {#if !hasFamilyScan}
-	<p><em>Scan a family to reveal resources and deposit spots. {FAMILY_SCAN_ENERGY_LABEL}.</em></p>
+	<p><em>Scan a family to reveal resources and deposit spots. Costs {FAMILY_SCAN_ENERGY_COST} energy.</em></p>
 {:else}
 	<p>
 		<small>
@@ -165,7 +179,13 @@
 									<input type="hidden" name="family" value={selectedFamily} />
 									<input type="hidden" name="resourceInstanceId" value={resource.resourceInstanceId} />
 									<input type="hidden" name="spotId" value={spot.spotId} />
-									<button type="submit">Sample — {SAMPLE_SPOT_ENERGY_LABEL}</button>
+									{#if surveyEnergyOutlook.canSampleNow}
+										<button type="submit">Sample — costs {SAMPLE_ENERGY_COST} energy</button>
+									{:else}
+										<button type="submit" disabled>
+											Need {SAMPLE_ENERGY_COST} energy — ready in {surveyEnergyOutlook.minutesUntilNextSample}m
+										</button>
+									{/if}
 								</form>
 							{/if}
 							{#if sampleOutcome?.status === 'ok' && lastSampledResourceId === resource.resourceInstanceId && lastSampledSpotId === spot.spotId}
@@ -185,6 +205,15 @@
 {/if}
 
 <style>
+	.energy-section {
+		margin: 1rem 0 1.25rem;
+		padding: 0.85rem;
+		border: 1px solid var(--border-subtle, #2e2e2e);
+		border-radius: 0.5rem;
+		background: var(--surface-raised, #1a1a1a);
+		max-width: 24rem;
+	}
+
 	.resource-cards {
 		list-style: none;
 		padding: 0;
@@ -193,8 +222,10 @@
 	}
 
 	.resource-card {
-		border: 1px solid #ccc;
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		padding: 0.75rem;
+		border-radius: 0.35rem;
+		background: var(--surface-raised, #1a1a1a);
 	}
 
 	.spot-list {

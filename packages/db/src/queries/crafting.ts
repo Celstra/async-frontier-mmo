@@ -84,6 +84,7 @@ async function resolveSlotFills(
 	const slotFills: SchematicSlotFill[] = [];
 	const provenance: CraftSlotProvenance[] = [];
 	const selections: CraftSlotSelection[] = [];
+	const reservedByInstance = new Map<string, number>();
 
 	for (const slot of schematic.slots) {
 		const input = slotInputs.find((candidate) => candidate.slotId === slot.id);
@@ -103,11 +104,18 @@ async function resolveSlotFills(
 		}
 
 		const stack = await getResourceStackForPilotInstance(db, pilotId, instance.id);
-		if (!stack || stack.quantity < slot.inputQuantity) {
-			throw new InsufficientResourceError(
-				`Insufficient ${instance.displayName} for slot "${slot.id}"`
-			);
+		const alreadyReserved = reservedByInstance.get(instance.id) ?? 0;
+		const available = (stack?.quantity ?? 0) - alreadyReserved;
+
+		if (!stack || available < slot.inputQuantity) {
+			const reason =
+				alreadyReserved > 0
+					? `Not enough ${instance.displayName} left for ${slot.displayName} — ${alreadyReserved} units are already assigned to another slot in this craft. Pick a second stack or top up this one.`
+					: `Insufficient ${instance.displayName} for ${slot.displayName} (need ${slot.inputQuantity}, have ${stack?.quantity ?? 0}).`;
+			throw new InsufficientResourceError(reason);
 		}
+
+		reservedByInstance.set(instance.id, alreadyReserved + slot.inputQuantity);
 
 		slotFills.push({
 			slotId: slot.id,

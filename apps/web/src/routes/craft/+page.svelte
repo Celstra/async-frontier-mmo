@@ -1,19 +1,60 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { familyDisplayLabel, thumperPartSlotLabel } from '$lib/displayLabels';
+	import type { ResourceFamily } from '@async-frontier-mmo/domain';
 	import CraftWorkbench from '$lib/craft/CraftWorkbench.svelte';
+	import type { EquipCandidateComparison } from '$lib/server/craftLoad';
 	import type { PageProps } from './$types';
 	import type { SubmitFunction } from '@sveltejs/kit';
+
+	const CRAFT_FRAMING =
+		'Better gear closes the loop — a crafted scanner reads richer deposits on your next survey.';
 
 	let { data, form }: PageProps = $props();
 
 	// Inline flash states for equip/repair actions
 	let equipFlash = $state<{ message: string; type: 'success' | 'error' } | null>(null);
 	let repairFlash = $state<{ message: string; type: 'success' | 'error' } | null>(null);
+	let celebratingCraft = $state(false);
+	let gearPanelEl = $state<HTMLElement | null>(null);
+
+	function scrollToBanner(bannerId: string) {
+		requestAnimationFrame(() => {
+			document.getElementById(bannerId)?.scrollIntoView({
+				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+					? 'auto'
+					: 'smooth',
+				block: 'start'
+			});
+		});
+	}
 
 	const craftOutcome = $derived(
 		form && 'craftOutcome' in form ? form.craftOutcome : undefined
 	);
+
+	$effect(() => {
+		if (craftOutcome) {
+			celebratingCraft = true;
+		}
+	});
+
+	$effect(() => {
+		if (form?.message && !form?.craftOutcome) {
+			requestAnimationFrame(() => {
+				document.getElementById('craft-error')?.scrollIntoView({
+					behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+						? 'auto'
+						: 'smooth',
+					block: 'start'
+				});
+			});
+		}
+	});
+
+	function dismissCraftCelebration() {
+		celebratingCraft = false;
+	}
 
 	const equipOutcome = $derived(
 		form && 'equipOutcome' in form ? form.equipOutcome : undefined
@@ -25,22 +66,26 @@
 		form && 'repairOutcome' in form ? form.repairOutcome : undefined
 	);
 
-	// Show flashes from form results
+	// Show flashes from form results — pinned at top so equip isn't missed at bottom of page
 	$effect(() => {
 		if (equipOutcome) {
+			celebratingCraft = false;
 			equipFlash = {
-				message: `Equipped ${equipOutcome.displayName} — Survey Clarity ${equipOutcome.surveyClarity}`,
+				message: `Equipped ${equipOutcome.displayName} — Survey Clarity ${equipOutcome.surveyClarity}. Ready for your next survey.`,
 				type: 'success'
 			};
+			scrollToBanner('equip-banner');
 		}
 	});
 
 	$effect(() => {
 		if (equipThumperOutcome && 'displayName' in equipThumperOutcome) {
+			celebratingCraft = false;
 			equipFlash = {
-				message: `Equipped ${equipThumperOutcome.displayName} (${thumperPartSlotLabel(equipThumperOutcome.slot)}) — condition ${equipThumperOutcome.condition}, integrity ${equipThumperOutcome.integrity}`,
+				message: `Equipped ${equipThumperOutcome.displayName} (${thumperPartSlotLabel(equipThumperOutcome.slot)}) — condition ${equipThumperOutcome.condition}, integrity ${equipThumperOutcome.integrity}. Ready for your next thump.`,
 				type: 'success'
 			};
+			scrollToBanner('equip-banner');
 		}
 	});
 
@@ -50,6 +95,7 @@
 				message: `Repaired ${repairOutcome.displayName} — condition ${repairOutcome.condition}, integrity ${repairOutcome.integrity}. Kits remaining: ${repairOutcome.fieldRepairKitCount}`,
 				type: 'success'
 			};
+			scrollToBanner('repair-banner');
 		}
 	});
 
@@ -57,30 +103,42 @@
 		return data.fieldRepairKitCount > 0 && (condition < 100 || integrity < 100);
 	}
 
-	// Enhance handlers for inline feedback
-	const handleEquipScanner: SubmitFunction = () => {
-		return async ({ result, update }) => {
-			await update();
-			if (result.type === 'failure') {
-				equipFlash = { message: String(result.data?.message ?? 'Equip failed'), type: 'error' };
-			}
-		};
-	};
+	function equipButtonLabel(
+		keyPropertyDisplayName: string,
+		equippedValue: number | null,
+		candidate: EquipCandidateComparison
+	): string {
+		const from = equippedValue ?? 0;
+		return `Equip — ${keyPropertyDisplayName} ${from} → ${candidate.value}`;
+	}
 
-	const handleEquipThumperPart: SubmitFunction = () => {
+	function deltaClass(delta: number | null): string {
+		if (delta === null || delta === 0) return 'delta-neutral';
+		return delta > 0 ? 'delta-positive' : 'delta-negative';
+	}
+
+	function formatDelta(delta: number | null): string {
+		if (delta === null) return '';
+		if (delta > 0) return `+${delta}`;
+		return String(delta);
+	}
+
+	const handleEquip: SubmitFunction = () => {
 		return async ({ result, update }) => {
-			await update();
+			await update({ reset: false });
 			if (result.type === 'failure') {
 				equipFlash = { message: String(result.data?.message ?? 'Equip failed'), type: 'error' };
+				scrollToBanner('equip-banner');
 			}
 		};
 	};
 
 	const handleRepair: SubmitFunction = () => {
 		return async ({ result, update }) => {
-			await update();
+			await update({ reset: false });
 			if (result.type === 'failure') {
 				repairFlash = { message: String(result.data?.message ?? 'Repair failed'), type: 'error' };
+				scrollToBanner('repair-banner');
 			}
 		};
 	};
@@ -90,15 +148,28 @@
 
 <h1>Crafting + Gear</h1>
 
-<p class="intro">
-	<small>
-		Your resources' stats set what's possible. The schematic's weights decide which stats matter.
-		Three tuning points let you choose where the quality goes.
-	</small>
-</p>
+<p class="craft-framing">{CRAFT_FRAMING}</p>
 
 {#if form?.message && !form?.craftOutcome && !form?.equipOutcome && !form?.equipThumperOutcome && !form?.repairOutcome}
-	<p class="flash flash--error">{form.message}</p>
+	<p class="flash flash--error" id="craft-error">{form.message}</p>
+{/if}
+
+{#if equipFlash}
+	<div class="page-flash flash flash--{equipFlash.type}" id="equip-banner" role="status">
+		{equipFlash.message}
+		<button type="button" class="dismiss-btn" onclick={() => (equipFlash = null)} aria-label="Dismiss"
+			>×</button
+		>
+	</div>
+{/if}
+
+{#if repairFlash}
+	<div class="page-flash flash flash--{repairFlash.type}" id="repair-banner" role="status">
+		{repairFlash.message}
+		<button type="button" class="dismiss-btn" onclick={() => (repairFlash = null)} aria-label="Dismiss"
+			>×</button
+		>
+	</div>
 {/if}
 
 <!-- Crafting Section -->
@@ -128,17 +199,28 @@
 			allocationHints={data.allocationHints}
 			defaultSelections={data.slotSelections}
 			craftOutcome={craftOutcome}
+			schematicReadiness={data.schematicReadiness}
+			onCelebrateDismiss={dismissCraftCelebration}
+			onEquipCrafted={handleEquip}
 		/>
 	</div>
 </section>
 
+{#if !celebratingCraft}
 <!-- Inventory Section -->
 <section class="inventory-panel">
 	<h2>Owned Resources</h2>
+	<p class="inventory-help">
+		Each schematic slot asks for a <strong>family</strong> (Conductive Metal, Structural Alloy, or
+		Reactive Crystal). Any named resource in that family can fill a slot — you need enough units in
+		<strong>one stack</strong>. Short a few? Thump the same resource again to top up that stack.
+	</p>
 	{#if data.veyrithStack}
 		<p class="highlight-stack">
-			<strong>Veyrith Copper:</strong> {data.veyrithStack.quantity} units — conductivity
-			{data.veyrithStack.stats.conductivity}, OQ {data.veyrithStack.stats.OQ}
+			<strong>Veyrith Copper</strong>
+			<span class="family-pill">{familyDisplayLabel('conductive_metal')}</span>
+			— {data.veyrithStack.quantity} units · conductivity {data.veyrithStack.stats.conductivity}, OQ
+			{data.veyrithStack.stats.OQ}
 		</p>
 	{/if}
 	{#if data.inventory.length === 0}
@@ -148,6 +230,7 @@
 			<thead>
 				<tr>
 					<th>Resource</th>
+					<th>Family</th>
 					<th>Qty</th>
 					<th>Key stats</th>
 					<th>Best use</th>
@@ -158,6 +241,9 @@
 				{#each data.allocationHints as hint}
 					<tr>
 						<td>{hint.displayName}</td>
+						<td>
+							<span class="family-pill">{familyDisplayLabel(hint.family as ResourceFamily)}</span>
+						</td>
 						<td>{hint.quantity}</td>
 						<td>
 							OQ {hint.stats.OQ}, Cond {hint.stats.conductivity}, Heat
@@ -173,7 +259,7 @@
 </section>
 
 <!-- Gear + Repair Section -->
-<section class="gear-panel">
+<section bind:this={gearPanelEl} class="gear-panel" id="gear-panel">
 	<h2>Gear + Repair</h2>
 	<p class="kit-count">Field Repair kits owned: {data.fieldRepairKitCount}</p>
 
@@ -184,33 +270,38 @@
 			Equipped: <strong>{data.equippedScanner?.displayName ?? 'Basic Scanner Mk 0'}</strong>
 		</p>
 
-		{#if equipFlash}
-			<div class="inline-flash flash--{equipFlash.type}">
-				{equipFlash.message}
-				<button type="button" class="dismiss-btn" onclick={() => equipFlash = null}>×</button>
-			</div>
-		{/if}
-
 		{#if data.scannerItems.length > 0}
+			{@const scannerComparison = data.equipComparisons.scanner}
 			<ul class="item-list">
 				{#each data.scannerItems as scanner}
+					{@const candidate = scannerComparison?.candidates.find((row) => row.itemId === scanner.id)}
 					<li class="item-row" class:equipped={scanner.equipped}>
 						<div class="item-info">
 							<span class="item-name">{scanner.displayName}</span>
 							<span class="item-stats">
-								Survey Clarity {scanner.surveyClarity}, 
-								condition {scanner.condition}, 
-								integrity {scanner.integrity}
+								{scannerComparison?.keyPropertyDisplayName ?? 'Survey Clarity'}
+								{scanner.surveyClarity} · condition {scanner.condition} · integrity {scanner.integrity}
 							</span>
 							{#if scanner.equipped}
 								<span class="equipped-badge">(equipped)</span>
 							{/if}
 						</div>
 						<div class="item-actions">
-							{#if !scanner.equipped}
-								<form method="POST" action="?/equipScanner" use:enhance={handleEquipScanner}>
+							{#if !scanner.equipped && candidate && scannerComparison}
+								<form method="POST" action="?/equipScanner" use:enhance={handleEquip}>
 									<input type="hidden" name="itemId" value={scanner.id} />
-									<button type="submit" class="action-btn equip-btn">Equip</button>
+									<button type="submit" class="action-btn equip-btn">
+										{equipButtonLabel(
+											scannerComparison.keyPropertyDisplayName,
+											scannerComparison.equipped?.value ?? null,
+											candidate
+										)}
+										{#if candidate.deltaVsEquipped !== null}
+											<span class={deltaClass(candidate.deltaVsEquipped)}>
+												({formatDelta(candidate.deltaVsEquipped)})
+											</span>
+										{/if}
+									</button>
 								</form>
 							{/if}
 							{#if canRepairItem(scanner.condition, scanner.integrity)}
@@ -259,30 +350,43 @@
 			</p>
 		</div>
 
-		{#if repairFlash}
-			<div class="inline-flash flash--{repairFlash.type}">
-				{repairFlash.message}
-				<button type="button" class="dismiss-btn" onclick={() => repairFlash = null}>×</button>
-			</div>
-		{/if}
 
 		{#if data.thumperPartItems.length > 0}
 			<ul class="item-list">
 				{#each data.thumperPartItems as part}
+					{@const partComparison = data.equipComparisons.thumperParts[part.slot]}
+					{@const candidate = partComparison?.candidates.find((row) => row.itemId === part.id)}
 					<li class="item-row">
 						<div class="item-info">
 							<span class="item-name">{part.displayName}</span>
 							<span class="item-slot">({thumperPartSlotLabel(part.slot)})</span>
 							<span class="item-stats">
+								{#if partComparison}
+									{partComparison.keyPropertyDisplayName}
+									{Math.round(part.propertyScores[partComparison.keyPropertyId] ?? 0)} ·
+								{/if}
 								condition {part.condition}, integrity {part.integrity}
 							</span>
 						</div>
 						<div class="item-actions">
-							<form method="POST" action="?/equipThumperPart" use:enhance={handleEquipThumperPart}>
-								<input type="hidden" name="slot" value={part.slot} />
-								<input type="hidden" name="itemId" value={part.id} />
-								<button type="submit" class="action-btn equip-btn">Equip</button>
-							</form>
+							{#if candidate && partComparison}
+								<form method="POST" action="?/equipThumperPart" use:enhance={handleEquip}>
+									<input type="hidden" name="slot" value={part.slot} />
+									<input type="hidden" name="itemId" value={part.id} />
+									<button type="submit" class="action-btn equip-btn">
+										{equipButtonLabel(
+											partComparison.keyPropertyDisplayName,
+											partComparison.equipped?.value ?? null,
+											candidate
+										)}
+										{#if candidate.deltaVsEquipped !== null}
+											<span class={deltaClass(candidate.deltaVsEquipped)}>
+												({formatDelta(candidate.deltaVsEquipped)})
+											</span>
+										{/if}
+									</button>
+								</form>
+							{/if}
 							{#if canRepairItem(part.condition, part.integrity)}
 								<form method="POST" action="?/repairItem" use:enhance={handleRepair}>
 									<input type="hidden" name="itemId" value={part.id} />
@@ -298,11 +402,22 @@
 		{/if}
 	</div>
 </section>
+{/if}
 
 <style>
-	.intro {
-		color: #555;
-		margin-bottom: 1.5rem;
+	.gear-panel {
+		scroll-margin-top: 1rem;
+	}
+
+	.craft-framing {
+		margin: 0 0 1.25rem;
+		padding: 0.75rem 0.85rem;
+		border: 1px solid var(--accent-info-border, #3b5998);
+		border-radius: 0.5rem;
+		background: var(--accent-info-bg, #1a2332);
+		color: var(--text-secondary, #c4c4c4);
+		font-size: 0.95rem;
+		line-height: 1.45;
 	}
 
 	/* Craft Section */
@@ -314,7 +429,8 @@
 	}
 
 	.schematic-list {
-		background: #f8f9fa;
+		background: var(--surface-raised, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		padding: 1rem;
 		border-radius: 8px;
 	}
@@ -340,29 +456,30 @@
 	.schematic-list a {
 		display: block;
 		padding: 0.5rem 0.75rem;
-		background: white;
-		border: 1px solid #ddd;
+		background: var(--surface-inset, #2a2a2a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		border-radius: 4px;
 		text-decoration: none;
-		color: #333;
+		color: var(--text-primary, #f3f4f6);
 		font-size: 0.9rem;
 		transition: all 0.15s ease;
 	}
 
 	.schematic-list a:hover {
-		border-color: #4a90d9;
-		background: #f8fbff;
+		border-color: var(--accent-info, #60a5fa);
+		background: var(--surface-hover, #1f1f1f);
 	}
 
 	.schematic-list a[aria-current="page"] {
-		background: #2c5aa0;
-		color: white;
-		border-color: #2c5aa0;
+		background: var(--accent-info-bg);
+		color: var(--accent-info);
+		border-color: var(--accent-info);
 		font-weight: 500;
 	}
 
 	.workbench-area {
-		background: #f8f9fa;
+		background: var(--surface-raised, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		padding: 1rem;
 		border-radius: 8px;
 	}
@@ -374,7 +491,8 @@
 
 	/* Inventory Panel */
 	.inventory-panel {
-		background: #f8f9fa;
+		background: var(--surface-raised, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		padding: 1rem;
 		border-radius: 8px;
 		margin-bottom: 2rem;
@@ -385,15 +503,37 @@
 		font-size: 1.1rem;
 	}
 
+	.inventory-help {
+		margin: 0 0 1rem;
+		font-size: 0.9rem;
+		color: var(--text-secondary);
+		line-height: 1.45;
+	}
+
+	.family-pill {
+		display: inline-block;
+		margin-left: 0.35rem;
+		padding: 0.1rem 0.45rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		border-radius: 3px;
+		background: var(--surface-inset);
+		color: var(--text-muted);
+		vertical-align: middle;
+	}
+
 	.highlight-stack {
-		background: #fff3cd;
+		background: var(--accent-warning-bg);
+		color: var(--accent-warning);
 		padding: 0.75rem;
 		border-radius: 4px;
 		margin: 0 0 1rem 0;
 	}
 
 	.empty-state {
-		color: #666;
+		color: var(--text-muted);
 		font-style: italic;
 		padding: 1rem 0;
 	}
@@ -406,20 +546,21 @@
 
 	.comparison-table th,
 	.comparison-table td {
-		border: 1px solid #ddd;
+		border: 1px solid var(--border-subtle);
 		padding: 0.5rem;
 		text-align: left;
 		vertical-align: top;
 	}
 
 	.comparison-table th {
-		background: #e9ecef;
+		background: var(--surface-inset);
 		font-weight: 600;
 	}
 
 	/* Gear Panel */
 	.gear-panel {
-		background: #f8f9fa;
+		background: var(--surface-raised, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		padding: 1rem;
 		border-radius: 8px;
 	}
@@ -431,7 +572,7 @@
 
 	.kit-count {
 		font-size: 0.9rem;
-		color: #444;
+		color: var(--text-secondary);
 		margin: 0 0 1rem 0;
 	}
 
@@ -442,7 +583,7 @@
 	.gear-category h3 {
 		margin: 0 0 0.75rem 0;
 		font-size: 1rem;
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--border-subtle);
 		padding-bottom: 0.5rem;
 	}
 
@@ -453,7 +594,7 @@
 
 	.equipped-parts {
 		font-size: 0.85rem;
-		color: #555;
+		color: var(--text-secondary);
 		margin: 0 0 1rem 0;
 	}
 
@@ -461,27 +602,12 @@
 		margin: 0.35rem 0;
 	}
 
-	/* Inline flashes */
-	.inline-flash {
+	.page-flash {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 0.75rem;
-		margin: 0.75rem 0;
-		border-radius: 4px;
-		font-size: 0.9rem;
-	}
-
-	.inline-flash.flash--success {
-		background: #d4edda;
-		color: #155724;
-		border: 1px solid #c3e6cb;
-	}
-
-	.inline-flash.flash--error {
-		background: #f8d7da;
-		color: #721c24;
-		border: 1px solid #f5c6cb;
+		gap: 0.75rem;
+		margin: 0 0 1rem 0;
 	}
 
 	.dismiss-btn {
@@ -511,16 +637,16 @@
 		align-items: center;
 		gap: 1rem;
 		padding: 0.75rem;
-		background: white;
-		border: 1px solid #ddd;
+		background: var(--surface-inset, #2a2a2a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		border-radius: 6px;
 		margin-bottom: 0.5rem;
 		flex-wrap: wrap;
 	}
 
 	.item-row.equipped {
-		border-color: #28a745;
-		background: #f8fff8;
+		border-color: var(--accent-success, #4ade80);
+		background: var(--accent-success-bg, #0f1f14);
 	}
 
 	.item-info {
@@ -537,17 +663,17 @@
 
 	.item-slot {
 		font-size: 0.85rem;
-		color: #666;
+		color: var(--text-muted);
 	}
 
 	.item-stats {
 		font-size: 0.8rem;
-		color: #666;
+		color: var(--text-muted);
 	}
 
 	.equipped-badge {
 		font-size: 0.75rem;
-		color: #28a745;
+		color: var(--accent-success);
 		font-weight: 600;
 		text-transform: uppercase;
 	}
@@ -560,33 +686,48 @@
 	.action-btn {
 		padding: 0.4rem 0.75rem;
 		font-size: 0.85rem;
-		border: 1px solid #ccc;
+		border: 1px solid var(--border-subtle);
 		border-radius: 4px;
-		background: white;
+		background: var(--surface-raised);
+		color: var(--text-primary);
 		cursor: pointer;
 		transition: all 0.15s ease;
 	}
 
 	.action-btn:hover {
-		background: #f0f0f0;
+		background: var(--surface-hover);
 	}
 
 	.action-btn.equip-btn {
-		border-color: #2c5aa0;
-		color: #2c5aa0;
+		border-color: var(--accent-info);
+		color: var(--accent-info);
 	}
 
 	.action-btn.equip-btn:hover {
-		background: #eef4fc;
+		background: var(--accent-info-bg);
+	}
+
+	.delta-positive {
+		color: var(--accent-success);
+		font-weight: 700;
+	}
+
+	.delta-negative {
+		color: var(--accent-danger);
+		font-weight: 700;
+	}
+
+	.delta-neutral {
+		color: var(--text-muted, #9ca3af);
 	}
 
 	.action-btn.repair-btn {
-		border-color: #b35900;
-		color: #b35900;
+		border-color: var(--accent-warning);
+		color: var(--accent-warning);
 	}
 
 	.action-btn.repair-btn:hover {
-		background: #fff8f0;
+		background: var(--accent-warning-bg);
 	}
 
 	@media (min-width: 640px) {

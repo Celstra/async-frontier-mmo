@@ -4,6 +4,7 @@ import {
 } from '@async-frontier-mmo/db';
 import {
 	buildDeployPreview,
+	buildGearYieldPenaltySummary,
 	computeThumperPartRunModifiers,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	type ThumperPartSnapshot
@@ -66,16 +67,27 @@ export async function loadDeployPreviewForPilot(
 		hull: partSummary(equipped.hull)
 	};
 
+	const recoveryFloor = input.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined;
+
 	return {
 		equippedParts,
 		preview: buildDeployPreview({
 			trueConcentrationPercent: input.trueConcentrationPercent,
 			extractionTailMinutes: input.extractionTailMinutes,
 			isPushRun: input.isPushRun,
+			isTutorialRun: input.isTutorialRun,
 			partModifiers,
 			surveyClarityScore,
 			equippedParts,
-			recoveryFloor: input.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined
+			recoveryFloor
+		}),
+		gearYieldPenalty: buildGearYieldPenaltySummary({
+			isPushRun: input.isPushRun,
+			trueConcentrationPercent: input.trueConcentrationPercent,
+			extractionTailMinutes: input.extractionTailMinutes,
+			isTutorialRun: input.isTutorialRun,
+			partModifiers,
+			recoveryFloor
 		}),
 		partModifiers
 	};

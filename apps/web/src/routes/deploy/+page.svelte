@@ -64,6 +64,22 @@
 			{data.equippedParts.hull?.condition ?? '—'}
 		</li>
 	</ul>
+	<p class="parts-help">
+		Worn parts lower <strong>projected recovery</strong> — not just event risk. Repair at the
+		<a href="/craft">Workbench</a> when condition drops.
+	</p>
+
+	{#if data.gearYieldPenalty?.isPenalized}
+		<aside class="gear-penalty-callout" role="status">
+			<p class="gear-penalty-title">Wear penalty on this deploy</p>
+			<p class="gear-penalty-body">
+				With current gear you expect <strong>{data.gearYieldPenalty.projectedRecovery}</strong> units.
+				Repaired parts would yield about <strong>{data.gearYieldPenalty.recoveryAtFullPerformance}</strong>
+				(~{data.gearYieldPenalty.unitsLostToWear} more, {data.gearYieldPenalty.performancePercent}% gear
+				efficiency).
+			</p>
+		</aside>
+	{/if}
 
 	<h3>Run preview</h3>
 	<p>
@@ -174,6 +190,34 @@
 <p><small>After deploy, you'll be taken to the run screen to monitor and respond to event windows.</small></p>
 
 <style>
+	.parts-help {
+		margin: 0.5rem 0 1rem;
+		font-size: 0.9rem;
+		color: var(--text-secondary, #c4c4c4);
+		line-height: 1.45;
+	}
+
+	.gear-penalty-callout {
+		margin: 0 0 1rem 0;
+		padding: 0.875rem 1rem;
+		border-radius: 0.5rem;
+		border: 1px solid rgba(251, 191, 36, 0.35);
+		background: var(--accent-warning-bg, rgba(251, 191, 36, 0.12));
+	}
+
+	.gear-penalty-title {
+		margin: 0 0 0.35rem 0;
+		font-weight: 600;
+		color: var(--accent-warning, #fbbf24);
+	}
+
+	.gear-penalty-body {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--text-secondary, #c4c4c4);
+		line-height: 1.45;
+	}
+
 	.signal-detail dl {
 		display: grid;
 		gap: 0.5rem;
@@ -184,10 +228,22 @@
 	}
 
 	.preview-controls fieldset {
-		border: 1px solid #ccc;
+		border: 1px solid var(--border-muted, #555);
 		padding: 0.75rem;
 		margin: 1rem 0;
 		display: grid;
 		gap: 0.35rem;
+		background: var(--surface-raised, #1a1a1a);
+	}
+
+	.preview-controls legend {
+		color: var(--text-secondary, #c4c4c4);
+	}
+
+	.preview-controls label {
+		color: var(--text-primary, #f3f4f6);
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 </style>

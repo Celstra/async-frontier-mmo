@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	FIRST_SCANNER_SUGGESTED_TUNING,
+	REINFORCED_HULL_PLATE,
 	SURVEY_SCANNER_MK_I
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -11,7 +12,7 @@ import { items } from '../schema/items.js';
 import { pilots } from '../schema/pilots.js';
 import { resourceStacks } from '../schema/resourceStacks.js';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
-import { craftSurveyScannerForPilot } from './crafting.js';
+import { craftSchematicForPilot, craftSurveyScannerForPilot } from './crafting.js';
 import { grantResourceToPilot } from './resourceGrants.js';
 import { ensureBloomOneResourceInstances, getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import { ensureStarterStockpileForPilot } from './starterStockpile.js';
@@ -234,5 +235,42 @@ describeDb('transactional scanner craft', () => {
 				quantityConsumed: scannerSlotQuantity('frame_mount')
 			})
 		]);
+	});
+
+	it('rejects reusing one stack across two slots when combined quantity is short', async () => {
+		const hullPilotId = `hull-craft-${Date.now()}`;
+		await db.insert(pilots).values({ id: hullPilotId, frameId: 'recon' }).onConflictDoNothing();
+
+		const craftSetup = { type: 'test_grant' as const, id: 'hull-craft-setup' };
+		await grantResourceToPilot(db, {
+			pilotId: hullPilotId,
+			resourceInstanceId: kethInstanceId,
+			quantity: 70,
+			source: craftSetup
+		});
+		await grantResourceToPilot(db, {
+			pilotId: hullPilotId,
+			resourceInstanceId: paleInstanceId,
+			quantity: 20,
+			source: craftSetup
+		});
+
+		const result = await craftSchematicForPilot(db, {
+			pilotId: hullPilotId,
+			idempotencyKey: `hull-short-${Date.now()}`,
+			schematic: REINFORCED_HULL_PLATE,
+			slotInputs: [
+				{ slotId: 'outer_plate', resourceInstanceId: kethInstanceId },
+				{ slotId: 'bracing_layer', resourceInstanceId: kethInstanceId },
+				{ slotId: 'bonding_matrix', resourceInstanceId: paleInstanceId }
+			],
+			tuning: { max_condition: 1, damage_reduction: 1, repairability: 1 },
+			craftMode: 'safe_craft'
+		});
+
+		expect(result.status).toBe('invalid_craft');
+		if (result.status === 'invalid_craft') {
+			expect(result.reason).toContain('already assigned');
+		}
 	});
 });

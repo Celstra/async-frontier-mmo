@@ -135,19 +135,19 @@
 	.inventory-section {
 		margin: 1.5rem 0;
 		padding: 1rem;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-subtle);
 		border-radius: 0.5rem;
-		background: white;
+		background: var(--surface-raised);
 	}
 
 	.inventory-section h2 {
 		margin: 0 0 1rem 0;
 		font-size: 1.125rem;
-		color: #1f2937;
+		color: var(--text-primary);
 	}
 
 	.empty-state {
-		color: #6b7280;
+		color: var(--text-muted);
 		font-style: italic;
 		margin: 0;
 	}
@@ -155,13 +155,13 @@
 	/* Family Groups */
 	.family-group {
 		margin: 0.75rem 0;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-subtle);
 		border-radius: 0.375rem;
 	}
 
 	.family-group summary {
 		padding: 0.75rem;
-		background: #f9fafb;
+		background: var(--surface-inset);
 		cursor: pointer;
 		display: flex;
 		justify-content: space-between;
@@ -171,13 +171,13 @@
 
 	.family-label {
 		font-weight: 600;
-		color: #374151;
+		color: var(--text-primary);
 	}
 
 	.family-count {
 		font-size: 0.875rem;
-		color: #6b7280;
-		background: #e5e7eb;
+		color: var(--text-muted);
+		background: var(--surface-hover);
 		padding: 0.125rem 0.5rem;
 		border-radius: 0.25rem;
 	}
@@ -190,7 +190,7 @@
 
 	.stack-card {
 		padding: 0.5rem 0.75rem;
-		background: #f9fafb;
+		background: var(--surface-inset);
 		border-radius: 0.25rem;
 		display: flex;
 		justify-content: space-between;
@@ -205,17 +205,17 @@
 
 	.stack-name {
 		font-weight: 500;
-		color: #1f2937;
+		color: var(--text-primary);
 	}
 
 	.stack-quantity {
-		color: #6b7280;
+		color: var(--text-muted);
 		font-variant-numeric: tabular-nums;
 	}
 
 	.stack-slug {
 		font-size: 0.75rem;
-		color: #9ca3af;
+		color: var(--text-muted);
 		font-family: monospace;
 	}
 
@@ -225,8 +225,8 @@
 		align-items: center;
 		gap: 0.75rem;
 		padding: 1rem;
-		background: #f0fdf4;
-		border: 1px solid #bbf7d0;
+		background: var(--accent-success-bg);
+		border: 1px solid rgba(74, 222, 128, 0.3);
 		border-radius: 0.375rem;
 	}
 
@@ -237,12 +237,12 @@
 	.kit-count {
 		font-size: 1.5rem;
 		font-weight: 700;
-		color: #166534;
+		color: var(--accent-success-text);
 		font-variant-numeric: tabular-nums;
 	}
 
 	.kit-label {
-		color: #15803d;
+		color: var(--accent-success);
 	}
 
 	/* Gear Cards */
@@ -254,14 +254,14 @@
 
 	.gear-card {
 		padding: 0.875rem;
-		border: 2px solid #e5e7eb;
+		border: 2px solid var(--border-subtle);
 		border-radius: 0.375rem;
-		background: white;
+		background: var(--surface-raised);
 	}
 
 	.gear-card--equipped {
-		border-color: #22c55e;
-		background: #f0fdf4;
+		border-color: var(--accent-success);
+		background: var(--accent-success-bg);
 	}
 
 	.gear-header {
@@ -271,21 +271,21 @@
 		align-items: center;
 		margin-bottom: 0.5rem;
 		padding-bottom: 0.5rem;
-		border-bottom: 1px solid #e5e7eb;
+		border-bottom: 1px solid var(--border-subtle);
 	}
 
 	.gear-name {
 		font-weight: 600;
-		color: #1f2937;
+		color: var(--text-primary);
 		flex: 1;
 	}
 
 	.gear-slot {
 		font-size: 0.75rem;
-		color: #6b7280;
+		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		background: #f3f4f6;
+		background: var(--surface-inset);
 		padding: 0.125rem 0.375rem;
 		border-radius: 0.25rem;
 	}
@@ -295,8 +295,8 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		background: #22c55e;
-		color: white;
+		background: var(--accent-success);
+		color: #052e16;
 		padding: 0.125rem 0.375rem;
 		border-radius: 0.25rem;
 	}
@@ -317,13 +317,13 @@
 		font-size: 0.625rem;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		color: #9ca3af;
+		color: var(--text-muted);
 	}
 
 	.stat-value {
 		font-size: 0.875rem;
 		font-weight: 600;
-		color: #374151;
+		color: var(--text-primary);
 		font-variant-numeric: tabular-nums;
 	}
 </style>

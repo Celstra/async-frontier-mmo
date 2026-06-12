@@ -8,8 +8,12 @@ import {
 	previewFamilyScanForPilot,
 	getPilotProspectingProgress
 } from '@async-frontier-mmo/db';
-import { TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
-import type { ResourceFamily } from '@async-frontier-mmo/domain';
+import {
+	SURVEY_ENERGY_CAP,
+	surveyEnergyOutlook,
+	TUTORIAL_RUN_SEED,
+	type ResourceFamily
+} from '@async-frontier-mmo/domain';
 import { activeBloomDisplayName } from '$lib/pilotHome';
 import {
 	recommendedResourceSlugForBloom,
@@ -47,7 +51,14 @@ export async function loadSurveyScreenData(
 		bloomId: activeBloomId,
 		family: selectedFamily
 	});
-	const prospectingProgress = await getPilotProspectingProgress(db, pilotId, new Date(), activeBloomId);
+	const now = new Date();
+	const prospectingProgress = await getPilotProspectingProgress(db, pilotId, now, activeBloomId);
+	const surveyEnergyOutlookData = surveyEnergyOutlook({
+		storedEnergy: prospectingProgress.surveyEnergy,
+		lastUpdatedAtMs: prospectingProgress.lastEnergyUpdatedAtMs,
+		nowMs: now.getTime(),
+		cap: SURVEY_ENERGY_CAP
+	});
 
 	const preview = hasFamilyScan
 		? await previewFamilyScanForPilot(db, {
@@ -71,6 +82,8 @@ export async function loadSurveyScreenData(
 		recommendedResourceSlug,
 		hasFamilyScan,
 		surveyEnergy: preview?.surveyEnergy ?? prospectingProgress.surveyEnergy,
+		surveyEnergyCap: SURVEY_ENERGY_CAP,
+		surveyEnergyOutlook: surveyEnergyOutlookData,
 		equippedScanner: equippedScanner
 			? {
 					displayName: equippedScanner.displayName,

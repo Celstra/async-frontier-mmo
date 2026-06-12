@@ -16,6 +16,13 @@ export const EXTRACTION_TAIL_OPTIONS = [
 	{ id: '8h', minutes: 480, label: '8 hours' }
 ] as const;
 
+/** Tutorial-only tail — never in EXTRACTION_TAIL_OPTIONS (Decision 017 amendment 2026-06-11). */
+export const TUTORIAL_EXTRACTION_TAIL_OPTION = {
+	id: '2m',
+	minutes: 2,
+	label: '2 min (training)'
+} as const;
+
 export type ExtractionTailId = (typeof EXTRACTION_TAIL_OPTIONS)[number]['id'];
 
 export type DeployEquippedPartSummary = {
@@ -49,7 +56,14 @@ export type DeployPreview = DeployRunMeterPreview & {
 	isPushRun: boolean;
 };
 
-export function parseExtractionTailMinutes(value: string | null | undefined): number {
+export function parseExtractionTailMinutes(
+	value: string | null | undefined,
+	options?: { isTutorialRun?: boolean }
+): number {
+	if (options?.isTutorialRun && value === TUTORIAL_EXTRACTION_TAIL_OPTION.id) {
+		return TUTORIAL_EXTRACTION_TAIL_OPTION.minutes;
+	}
+
 	const match = EXTRACTION_TAIL_OPTIONS.find((option) => option.id === value);
 	return match?.minutes ?? 60;
 }
@@ -57,6 +71,18 @@ export function parseExtractionTailMinutes(value: string | null | undefined): nu
 /** Decision 017 — sublinear passive yield vs 1 h baseline: (minutes/60)^0.5 */
 export function extractionTailYieldMultiplier(tailMinutes: number): number {
 	return Math.pow(tailMinutes / 60, 0.5);
+}
+
+/**
+ * Tutorial runs compress wall-clock time but keep at least 1 h baseline yield
+ * (Decision 017 amendment 2026-06-11).
+ */
+export function effectiveExtractionTailYieldMultiplier(
+	tailMinutes: number,
+	isTutorialRun?: boolean
+): number {
+	const raw = extractionTailYieldMultiplier(tailMinutes);
+	return isTutorialRun ? Math.max(1, raw) : raw;
 }
 
 export function totalRunDurationSeconds(
@@ -74,13 +100,17 @@ export function computeDeployProjectedRecovery(input: {
 	baseProjectedRecovery: number;
 	trueConcentrationPercent: number;
 	extractionTailMinutes: number;
+	isTutorialRun?: boolean;
 	partModifiers?: ThumperPartRunModifiers;
 	recoveryFloor?: number;
 }): number {
 	const concentrationMultiplier = concentrationPercentToExtractionMultiplier(
 		input.trueConcentrationPercent
 	);
-	const tailMultiplier = extractionTailYieldMultiplier(input.extractionTailMinutes);
+	const tailMultiplier = effectiveExtractionTailYieldMultiplier(
+		input.extractionTailMinutes,
+		input.isTutorialRun
+	);
 	const pumpBonus = input.partModifiers?.pumpRecoveryBonus ?? 0;
 	const performance = input.partModifiers?.performanceMultiplier ?? 1;
 
@@ -100,6 +130,7 @@ export function projectedRecoveryForStoredRun(input: {
 	isPushRun: boolean;
 	trueConcentrationPercent?: number | null;
 	extractionTailMinutes?: number | null;
+	isTutorialRun?: boolean;
 	partModifiers?: ThumperPartRunModifiers;
 	recoveryFloor?: number;
 }): number {
@@ -107,6 +138,7 @@ export function projectedRecoveryForStoredRun(input: {
 		baseProjectedRecovery: baseProjectedRecoveryForRun(input.isPushRun),
 		trueConcentrationPercent: input.trueConcentrationPercent ?? 67,
 		extractionTailMinutes: input.extractionTailMinutes ?? 60,
+		isTutorialRun: input.isTutorialRun,
 		partModifiers: input.partModifiers,
 		recoveryFloor: input.recoveryFloor
 	});
@@ -120,6 +152,7 @@ export function buildDeployPreview(input: {
 	trueConcentrationPercent: number;
 	extractionTailMinutes: number;
 	isPushRun: boolean;
+	isTutorialRun?: boolean;
 	partModifiers: ThumperPartRunModifiers;
 	surveyClarityScore?: number;
 	equippedParts: {
@@ -133,11 +166,15 @@ export function buildDeployPreview(input: {
 	const concentrationMultiplier = concentrationPercentToExtractionMultiplier(
 		input.trueConcentrationPercent
 	);
-	const tailYieldMultiplier = extractionTailYieldMultiplier(input.extractionTailMinutes);
+	const tailYieldMultiplier = effectiveExtractionTailYieldMultiplier(
+		input.extractionTailMinutes,
+		input.isTutorialRun
+	);
 	const projectedRecovery = computeDeployProjectedRecovery({
 		baseProjectedRecovery,
 		trueConcentrationPercent: input.trueConcentrationPercent,
 		extractionTailMinutes: input.extractionTailMinutes,
+		isTutorialRun: input.isTutorialRun,
 		partModifiers: input.partModifiers,
 		recoveryFloor: input.recoveryFloor
 	});
@@ -202,6 +239,7 @@ export function buildActiveRunMeters(input: {
 	trueConcentrationPercent: number;
 	extractionTailMinutes: number;
 	isPushRun: boolean;
+	isTutorialRun?: boolean;
 	partModifiers: ThumperPartRunModifiers;
 	surveyClarityScore?: number;
 	equippedParts: {
@@ -216,6 +254,7 @@ export function buildActiveRunMeters(input: {
 		trueConcentrationPercent: input.trueConcentrationPercent,
 		extractionTailMinutes: input.extractionTailMinutes,
 		isPushRun: input.isPushRun,
+		isTutorialRun: input.isTutorialRun,
 		partModifiers: input.partModifiers,
 		surveyClarityScore: input.surveyClarityScore,
 		equippedParts: input.equippedParts,

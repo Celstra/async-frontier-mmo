@@ -28,7 +28,7 @@
 <div class="property-preview">
 	<h4>Property Preview</h4>
 	<p class="preview-help">
-		Base scores from your resource choices. Tuning points boost by 5% each.
+		Base scores from your resource choices. Allocated tuning points boost by 5% each — unspent pool points do not apply until you assign them.
 	</p>
 
 	<div class="preview-lines">
@@ -76,8 +76,8 @@
 
 <style>
 	.property-preview {
-		background: #f0f4f8;
-		border: 1px solid #d0d7de;
+		background: var(--surface-inset);
+		border: 1px solid var(--border-subtle);
 		border-radius: 8px;
 		padding: 1rem;
 		margin: 1rem 0;
@@ -86,13 +86,13 @@
 	.property-preview h4 {
 		margin: 0 0 0.25rem 0;
 		font-size: 1rem;
-		color: #333;
+		color: var(--text-primary);
 	}
 
 	.preview-help {
 		margin: 0 0 0.75rem 0;
 		font-size: 0.8rem;
-		color: #666;
+		color: var(--text-muted);
 	}
 
 	.preview-lines {
@@ -102,16 +102,16 @@
 	}
 
 	.preview-line {
-		background: white;
-		border: 1px solid #e0e0e0;
+		background: var(--surface-raised);
+		border: 1px solid var(--border-subtle);
 		border-radius: 6px;
 		padding: 0.625rem 0.75rem;
 		transition: border-color 0.15s ease;
 	}
 
 	.preview-line.has-tuning {
-		border-color: #4a90d9;
-		background: #f8fbff;
+		border-color: var(--accent-info);
+		background: var(--accent-info-bg);
 	}
 
 	.preview-header {
@@ -124,7 +124,7 @@
 	.property-name {
 		font-weight: 600;
 		font-size: 0.9rem;
-		color: #333;
+		color: var(--text-primary);
 	}
 
 	.band-badge {
@@ -135,12 +135,12 @@
 		font-weight: 600;
 	}
 
-	.band-badge.poor { background: #e9ecef; color: #495057; }
-	.band-badge.basic { background: #dee2e6; color: #343a40; }
-	.band-badge.solid { background: #fff3cd; color: #856404; }
-	.band-badge.strong { background: #d4edda; color: #155724; }
-	.band-badge.excellent { background: #cce5ff; color: #004085; }
-	.band-badge.exceptional { background: #e2e3f3; color: #383d7a; }
+	.band-badge.poor { background: var(--surface-hover); color: var(--text-muted); }
+	.band-badge.basic { background: var(--surface-inset); color: var(--text-secondary); }
+	.band-badge.solid { background: var(--accent-warning-bg); color: var(--accent-warning); }
+	.band-badge.strong { background: var(--accent-success-bg); color: var(--accent-success-text); }
+	.band-badge.excellent { background: var(--accent-info-bg); color: var(--accent-info); }
+	.band-badge.exceptional { background: #2a1f3d; color: #c084fc; }
 
 	.score-flow {
 		display: flex;
@@ -152,34 +152,34 @@
 	}
 
 	.base-score {
-		color: #666;
+		color: var(--text-muted);
 		font-weight: 500;
 	}
 
 	.arrow {
-		color: #999;
+		color: var(--border-muted);
 	}
 
 	.tuned-score {
 		font-weight: 700;
-		color: #2c5aa0;
+		color: var(--accent-info);
 	}
 
 	.tuning-boost {
 		font-size: 0.75rem;
-		color: #28a745;
-		background: #e8f5e9;
+		color: var(--accent-success);
+		background: var(--accent-success-bg);
 		padding: 0.1rem 0.3rem;
 		border-radius: 3px;
 	}
 
 	.ceiling-note {
 		font-size: 0.75rem;
-		color: #888;
+		color: var(--text-muted);
 	}
 
 	.near-cap {
-		color: #b35900;
+		color: var(--accent-warning);
 		font-weight: 500;
 		margin-left: 0.35rem;
 	}
@@ -187,18 +187,18 @@
 	.tuning-status {
 		margin-top: 0.75rem;
 		padding: 0.5rem 0.75rem;
-		background: #fff3cd;
-		border: 1px solid #ffc107;
+		background: var(--accent-warning-bg);
+		border: 1px solid var(--accent-warning);
 		border-radius: 4px;
 		font-size: 0.85rem;
-		color: #856404;
+		color: var(--accent-warning);
 		text-align: center;
 	}
 
 	.tuning-status.complete {
-		background: #d4edda;
-		border-color: #28a745;
-		color: #155724;
+		background: var(--accent-success-bg);
+		border-color: rgba(74, 222, 128, 0.3);
+		color: var(--accent-success-text);
 	}
 
 	.points-remaining {

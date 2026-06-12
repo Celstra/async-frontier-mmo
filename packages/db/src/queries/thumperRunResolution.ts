@@ -58,15 +58,17 @@ export async function resolveThumperRunForStoredWindows(
 	const eventWindows = mapStoredWindowsToResolutionSnapshots(windows);
 	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
 	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
+	const isTutorialRun = run.runSeed === TUTORIAL_RUN_SEED;
 	const projectedRecovery = projectedRecoveryForStoredRun({
 		isPushRun: run.isPushRun,
 		trueConcentrationPercent: run.trueConcentrationPercent,
 		extractionTailMinutes: run.extractionTailMinutes,
+		isTutorialRun,
 		partModifiers,
 		recoveryFloor: options?.recoveryFloor
 	});
 
-	if (run.runSeed === TUTORIAL_RUN_SEED) {
+	if (isTutorialRun) {
 		return resolveFirstSessionThumperRunResult({
 			targetResourceId: run.targetResourceId as NamedResourceId,
 			pilotFrame: parseFrameId(run.pilotFrameId),

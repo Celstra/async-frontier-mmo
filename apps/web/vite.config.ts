@@ -5,5 +5,8 @@ export default defineConfig({
 	plugins: [sveltekit()],
 	ssr: {
 		noExternal: ['@async-frontier-mmo/db', '@async-frontier-mmo/domain', 'shared']
+	},
+	preview: {
+		allowedHosts: ['.trycloudflare.com']
 	}
 });

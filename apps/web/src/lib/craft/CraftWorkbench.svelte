@@ -1,21 +1,18 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { equipTargetForSchematic } from './equipCraftedItem.js';
 	import {
 		previewCraftProperties,
-		resolveCraft,
 		getPropertyOutputBand,
 		type SchematicDefinition,
 		type SchematicSlotFill,
+		type SchematicReadinessAnalysis,
+		type SchematicSlotReadiness,
 		type TuningAllocation,
 		type CraftPropertyPreview,
-		FIRST_SCANNER_SUGGESTED_TUNING,
-		FIELD_REPAIR_KIT,
-		FIRST_REPAIR_KIT_SUGGESTED_TUNING,
-		EFFICIENT_PUMP,
-		REINFORCED_HULL_PLATE,
-		BASIC_DRILL_HEAD,
 		TUNING_POINTS_TOTAL,
+		canFillSlotWithStack,
 		type CraftMode,
 		type PropertyOutputBand
 	} from '@async-frontier-mmo/domain';
@@ -84,9 +81,27 @@
 		allocationHints: AllocationHint[];
 		defaultSelections?: Record<string, string>;
 		craftOutcome?: CraftOutcome | null;
+		schematicReadiness: SchematicReadinessAnalysis;
+		onCelebrateDismiss?: () => void;
+		onEquipCrafted?: SubmitFunction;
 	}
 
-	let { schematic, inventory, allocationHints, defaultSelections = {}, craftOutcome }: Props = $props();
+	let {
+		schematic,
+		inventory,
+		allocationHints,
+		defaultSelections = {},
+		craftOutcome,
+		schematicReadiness,
+		onCelebrateDismiss,
+		onEquipCrafted
+	}: Props = $props();
+
+	const equipTarget = $derived(equipTargetForSchematic(schematic.id));
+
+	function readinessForSlot(slotId: string): SchematicSlotReadiness | undefined {
+		return schematicReadiness.slots.find((slot) => slot.slotId === slotId);
+	}
 
 	// Client state - all pure client-side, no page reloads
 	let slotSelections = $state<Record<string, string>>({});
@@ -96,6 +111,7 @@
 	let crafting = $state(false);
 	let showResult = $state(false);
 	let lastCraftedKey = $state<string | null>(null);
+	let resultPanelEl = $state<HTMLElement | null>(null);
 
 	// Track resource changes for delta animation
 	let previousSlotFills = $state<SchematicSlotFill[] | null>(null);
@@ -104,25 +120,15 @@
 	$effect(() => {
 		const schematicId = schematic.id;
 		const selections = { ...defaultSelections };
-		const defaultTuning = getDefaultTuning(schematicId);
-		// Batch state updates
+		// Batch state updates — tuning starts empty; player spends the 3-point pool manually
 		slotSelections = selections;
-		tuning = defaultTuning;
+		tuning = {};
 		showResult = false;
 		// idempotencyKey and craftMode persist per-page-load intentionally
 	});
 
 	function generateIdempotencyKey(): string {
 		return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-	}
-
-	function getDefaultTuning(schematicId: string): TuningAllocation {
-		if (schematicId === 'survey_scanner_mk_i') return { ...FIRST_SCANNER_SUGGESTED_TUNING };
-		if (schematicId === FIELD_REPAIR_KIT.id) return { ...FIRST_REPAIR_KIT_SUGGESTED_TUNING };
-		if (schematicId === EFFICIENT_PUMP.id) return { recovery_efficiency: 2, clog_resistance: 1, field_stability: 0 };
-		if (schematicId === BASIC_DRILL_HEAD.id) return { extraction_rate: 2, depth_access: 1, wear_control: 0 };
-		if (schematicId === REINFORCED_HULL_PLATE.id) return { max_condition: 2, damage_reduction: 1, repairability: 0 };
-		return {};
 	}
 
 	function stacksForFamily(family: string): InventoryStack[] {
@@ -138,7 +144,17 @@
 
 			const stack = inventory.find(s => s.resourceInstanceId === selectedId);
 			if (!stack || stack.family !== slot.requiredFamily) return null;
-			if (stack.quantity < slot.inputQuantity) return null;
+			if (
+				!canFillSlotWithStack({
+					schematic,
+					slotSelections,
+					slotId: slot.id,
+					resourceInstanceId: selectedId,
+					stackQuantity: stack.quantity
+				})
+			) {
+				return null;
+			}
 
 			fills.push({
 				slotId: slot.id,
@@ -166,12 +182,55 @@
 		}
 	});
 
-	// When form returns a craft outcome, show it inline
+	// Drop slot picks that no longer have enough quantity (e.g. after a prior craft).
+	$effect(() => {
+		let changed = false;
+		const nextSelections = { ...slotSelections };
+
+		for (const slot of schematic.slots) {
+			const selectedId = nextSelections[slot.id];
+			if (!selectedId) continue;
+
+			const stack = inventory.find((row) => row.resourceInstanceId === selectedId);
+			if (
+				!stack ||
+				!canFillSlotWithStack({
+					schematic,
+					slotSelections: nextSelections,
+					slotId: slot.id,
+					resourceInstanceId: selectedId,
+					stackQuantity: stack.quantity
+				})
+			) {
+				delete nextSelections[slot.id];
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			slotSelections = nextSelections;
+		}
+	});
+
+	// When form returns a craft outcome, show it inline and scroll it into view
 	$effect(() => {
 		if (craftOutcome && craftOutcome.item.id !== lastCraftedKey) {
 			showResult = true;
 			lastCraftedKey = craftOutcome.item.id;
 		}
+	});
+
+	$effect(() => {
+		if (!showResult || !craftOutcome || !resultPanelEl) return;
+		const prefersReducedMotion =
+			typeof window !== 'undefined' &&
+			window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		requestAnimationFrame(() => {
+			resultPanelEl?.scrollIntoView({
+				behavior: prefersReducedMotion ? 'auto' : 'smooth',
+				block: 'start'
+			});
+		});
 	});
 
 	function handleSlotSelect(slotId: string, instanceId: string) {
@@ -205,8 +264,8 @@
 	function craftAnother() {
 		idempotencyKey = generateIdempotencyKey();
 		showResult = false;
-		// Reset to default tuning for new craft
-		tuning = getDefaultTuning(schematic.id);
+		tuning = {};
+		onCelebrateDismiss?.();
 	}
 
 	const handleSubmit: SubmitFunction = () => {
@@ -227,7 +286,7 @@
 
 <div class="craft-workbench">
 	{#if showResult && craftOutcome}
-		<div class="result-panel flash flash--success">
+		<div bind:this={resultPanelEl} class="result-panel flash flash--success" id="craft-result">
 			<div class="result-header">
 				<h3>You crafted: {craftOutcome.item.displayName}</h3>
 				{#if craftOutcome.item.hasMinorFlaw}
@@ -272,9 +331,36 @@
 				Condition {craftOutcome.item.condition}% · Integrity {craftOutcome.item.integrity}%
 			</div>
 
-			<button type="button" class="craft-another-btn" onclick={craftAnother}>
-				Craft Another {schematic.displayName}
-			</button>
+			<div class="result-actions">
+				{#if equipTarget.kind !== 'none' && craftOutcome && onEquipCrafted}
+					<form method="POST" action={equipTarget.action} use:enhance={onEquipCrafted}>
+						<input type="hidden" name="itemId" value={craftOutcome.item.id} />
+						{#if equipTarget.kind === 'thumper_part'}
+							<input type="hidden" name="slot" value={equipTarget.slot} />
+						{/if}
+						<button type="submit" class="equip-now-btn">Equip this item</button>
+					</form>
+				{:else}
+					<p class="result-note">This item goes to inventory — equip it from Gear + Repair below.</p>
+				{/if}
+				<button type="button" class="craft-another-btn" onclick={craftAnother}>
+					Craft another
+				</button>
+			</div>
+		</div>
+	{:else if !schematicReadiness.craftableNow}
+		<div class="blockers-panel" role="alert">
+			<h3>Can't craft yet</h3>
+			<ul class="blockers-list">
+				{#each schematicReadiness.blockers as blocker}
+					<li>{blocker}</li>
+				{/each}
+			</ul>
+			<p class="blockers-actions">
+				<a href="/survey">Go to Survey →</a>
+				·
+				<a href="/">Pilot Home →</a>
+			</p>
 		</div>
 	{:else}
 		<form method="POST" action="?/craft" use:enhance={handleSubmit} class="craft-form">
@@ -290,16 +376,19 @@
 
 				{#each schematic.slots as slot}
 					{@const stacks = stacksForFamily(slot.requiredFamily)}
+					{@const slotReadiness = readinessForSlot(slot.id)}
 				<SlotSelector
 					{schematic}
 					{slot}
 					{stacks}
 					hints={allocationHints}
+					allSlotSelections={slotSelections}
 					selectedInstanceId={slotSelections[slot.id] ?? null}
 					onSelect={(id) => handleSlotSelect(slot.id, id)}
 					currentSlotFills={slotFills}
 					{tuning}
 					{livePreview}
+					{slotReadiness}
 				/>
 					<input
 						type="hidden"
@@ -372,7 +461,7 @@
 				{:else if !slotFills}
 					Select resources for all slots
 				{:else if getTotalTuningPoints() !== TUNING_POINTS_TOTAL}
-					Spend exactly {TUNING_POINTS_TOTAL} tuning points ({getTotalTuningPoints()} used)
+					Allocate your {TUNING_POINTS_TOTAL} tuning points ({getTotalTuningPoints()} of {TUNING_POINTS_TOTAL} spent)
 				{:else}
 					Craft {schematic.displayName}
 				{/if}
@@ -383,10 +472,40 @@
 
 <style>
 	.craft-workbench {
-		background: white;
-		border: 1px solid #ddd;
+		background: var(--surface-raised, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
 		border-radius: 8px;
 		padding: 1rem;
+	}
+
+	.blockers-panel {
+		padding: 1rem;
+		border: 2px solid var(--accent-danger-border);
+		border-radius: 8px;
+		background: var(--accent-danger-bg);
+	}
+
+	.blockers-panel h3 {
+		margin: 0 0 0.75rem;
+		color: var(--accent-danger);
+		font-size: 1rem;
+	}
+
+	.blockers-list {
+		margin: 0 0 0.75rem;
+		padding-left: 1.25rem;
+		color: var(--text-secondary);
+		font-size: 0.9rem;
+		line-height: 1.45;
+	}
+
+	.blockers-list li {
+		margin-bottom: 0.35rem;
+	}
+
+	.blockers-actions {
+		margin: 0;
+		font-size: 0.9rem;
 	}
 
 	.craft-form {
@@ -407,15 +526,15 @@
 	.section-help {
 		margin: 0 0 0.75rem 0;
 		font-size: 0.85rem;
-		color: #666;
+		color: var(--text-muted);
 	}
 
 	/* Craft Mode Section */
 	.craft-mode-section {
 		padding: 1rem;
-		background: #f8f9fa;
+		background: var(--surface-inset);
 		border-radius: 6px;
-		border: 1px solid #e0e0e0;
+		border: 1px solid var(--border-subtle);
 	}
 
 	.craft-mode-section h3 {
@@ -434,9 +553,10 @@
 		flex-direction: column;
 		align-items: flex-start;
 		padding: 0.875rem;
-		border: 2px solid #ddd;
+		border: 2px solid var(--border-subtle);
 		border-radius: 6px;
-		background: white;
+		background: var(--surface-raised);
+		color: var(--text-primary);
 		cursor: pointer;
 		text-align: left;
 		font-family: inherit;
@@ -444,14 +564,14 @@
 	}
 
 	.mode-btn:hover {
-		border-color: #4a90d9;
-		background: #f8fbff;
+		border-color: var(--accent-info);
+		background: var(--accent-info-bg);
 	}
 
 	.mode-btn.selected {
-		border-color: #2c5aa0;
-		background: #eef4fc;
-		box-shadow: 0 2px 4px rgba(44, 90, 160, 0.1);
+		border-color: var(--accent-info);
+		background: var(--accent-info-bg);
+		box-shadow: 0 2px 4px rgba(96, 165, 250, 0.15);
 	}
 
 	.mode-title {
@@ -462,14 +582,14 @@
 
 	.mode-stakes {
 		font-size: 0.85rem;
-		color: #444;
+		color: var(--text-secondary);
 		margin-bottom: 0.25rem;
 		line-height: 1.4;
 	}
 
 	.mode-ceiling {
 		font-size: 0.75rem;
-		color: #666;
+		color: var(--text-muted);
 		font-style: italic;
 	}
 
@@ -478,8 +598,8 @@
 		padding: 1rem 1.5rem;
 		font-size: 1rem;
 		font-weight: 600;
-		background: #2c5aa0;
-		color: white;
+		background: var(--accent-info);
+		color: var(--surface-base);
 		border: none;
 		border-radius: 6px;
 		cursor: pointer;
@@ -488,13 +608,13 @@
 	}
 
 	.craft-submit-btn:hover:not(:disabled) {
-		background: #1e3d6f;
+		background: #93c5fd;
 	}
 
 	.craft-submit-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
-		background: #888;
+		background: var(--surface-inset);
 	}
 
 	/* Result Panel */
@@ -520,30 +640,30 @@
 		font-size: 0.75rem;
 		text-transform: uppercase;
 		padding: 0.25rem 0.5rem;
-		background: #dc3545;
-		color: white;
+		background: var(--accent-danger);
+		color: var(--surface-base);
 		border-radius: 4px;
 		font-weight: 600;
 	}
 
 	.result-summary {
-		background: white;
+		background: var(--accent-success-bg);
 		padding: 0.75rem;
 		border-radius: 6px;
 		margin-bottom: 1rem;
-		border: 1px solid #d4edda;
+		border: 1px solid rgba(74, 222, 128, 0.3);
 	}
 
 	.summary-text {
 		margin: 0 0 0.5rem 0;
 		font-weight: 500;
-		color: #155724;
+		color: var(--accent-success-text);
 	}
 
 	.mode-text {
 		margin: 0;
 		font-size: 0.85rem;
-		color: #555;
+		color: var(--text-secondary);
 	}
 
 	.property-results {
@@ -554,10 +674,10 @@
 	}
 
 	.property-result {
-		background: white;
+		background: var(--surface-raised);
 		padding: 0.75rem;
 		border-radius: 6px;
-		border: 1px solid #c3e6cb;
+		border: 1px solid var(--border-subtle);
 	}
 
 	.result-line-header {
@@ -584,67 +704,104 @@
 		opacity: 0.8;
 	}
 
-	.prop-score.poor { color: #666; }
-	.prop-score.basic { color: #444; }
-	.prop-score.solid { color: #b35900; }
-	.prop-score.strong { color: #28a745; }
-	.prop-score.excellent { color: #2c5aa0; }
-	.prop-score.exceptional { color: #7b2cbf; }
+	.prop-score.poor { color: var(--text-muted); }
+	.prop-score.basic { color: var(--text-secondary); }
+	.prop-score.solid { color: var(--accent-warning); }
+	.prop-score.strong { color: var(--accent-success); }
+	.prop-score.excellent { color: var(--accent-info); }
+	.prop-score.exceptional { color: #a78bfa; }
 
 	.result-breakdown {
 		display: flex;
 		gap: 0.5rem;
 		font-size: 0.85rem;
-		color: #666;
+		color: var(--text-muted);
 		margin-bottom: 0.25rem;
 		flex-wrap: wrap;
 	}
 
 	.breakdown-base {
-		color: #888;
+		color: var(--text-muted);
 	}
 
 	.breakdown-arrow {
-		color: #aaa;
+		color: var(--border-muted);
 	}
 
 	.breakdown-tuned {
-		color: #2c5aa0;
+		color: var(--accent-info);
 		font-weight: 500;
 	}
 
 	.breakdown-tuning {
-		color: #666;
+		color: var(--text-muted);
 		font-size: 0.8rem;
 	}
 
 	.breakdown-final {
-		color: #155724;
+		color: var(--accent-success-text);
 		font-weight: 600;
 	}
 
 	.top-driver {
 		font-size: 0.8rem;
-		color: #888;
+		color: var(--text-muted);
 		font-style: italic;
 	}
 
 	.condition-display {
 		font-size: 0.9rem;
-		color: #555;
+		color: var(--text-secondary);
 		margin-bottom: 1rem;
 		padding: 0.5rem;
-		background: white;
+		background: var(--surface-inset);
 		border-radius: 4px;
-		border: 1px solid #d4edda;
+		border: 1px solid var(--border-subtle);
+	}
+
+	.result-panel {
+		scroll-margin-top: 1rem;
+	}
+
+	.result-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.result-actions form {
+		display: flex;
+		flex: 1;
+	}
+
+	.result-note {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--text-secondary);
+	}
+
+	.equip-now-btn {
+		width: 100%;
+		padding: 0.875rem;
+		background: var(--accent-success, #22c55e);
+		color: #0f0f0f;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		cursor: pointer;
+		font-weight: 600;
+	}
+
+	.equip-now-btn:hover {
+		filter: brightness(1.08);
 	}
 
 	.craft-another-btn {
 		width: 100%;
 		padding: 0.875rem;
-		background: #6c757d;
-		color: white;
-		border: none;
+		background: var(--surface-hover);
+		color: var(--text-primary);
+		border: 1px solid var(--border-subtle);
 		border-radius: 6px;
 		font-size: 0.95rem;
 		cursor: pointer;
@@ -653,7 +810,18 @@
 	}
 
 	.craft-another-btn:hover {
-		background: #5a6268;
+		background: var(--surface-inset);
+	}
+
+	@media (min-width: 480px) {
+		.result-actions {
+			flex-direction: row;
+		}
+
+		.equip-now-btn,
+		.craft-another-btn {
+			flex: 1;
+		}
 	}
 
 	@media (min-width: 640px) {
