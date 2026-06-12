@@ -1,6 +1,4 @@
-import type { FrameId } from 'shared';
 import { complicationDisplayName, eventActionLabel } from './eventActionLabels.js';
-import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
 import {
 	applyWearToRunParts,
 	computeRunPartWearDeltas
@@ -73,7 +71,6 @@ export function buildThumperClaimResultExplanation(input: {
 	explanation: string;
 	eventWindows: ThumperEventWindowSnapshot[];
 	responses: ThumperEventWindowResponse[];
-	pilotFrame: FrameId;
 	partSnapshots: ThumperPartSnapshot[];
 	isPushRun: boolean;
 }): ThumperClaimResultExplanation {
@@ -118,11 +115,6 @@ export function buildThumperClaimResultExplanation(input: {
 			severity
 		);
 
-		const frameBonusRecovery =
-			chosenResponse === window.matchingAction
-				? getFrameMatchingBonusRecovery(input.pilotFrame, window.matchingAction)
-				: 0;
-
 		windowLines.push({
 			windowIndex: window.windowIndex,
 			complication: window.complication,
@@ -132,12 +124,10 @@ export function buildThumperClaimResultExplanation(input: {
 			consequence: describeClaimWindowConsequence(
 				window.complication,
 				window.matchingAction,
-				chosenResponse,
-				frameBonusRecovery,
-				input.pilotFrame
+				chosenResponse
 			),
 			wasteFromWindow,
-			frameBonusRecovery
+			frameBonusRecovery: 0
 		});
 	}
 

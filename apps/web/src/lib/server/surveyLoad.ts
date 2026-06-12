@@ -56,8 +56,7 @@ export async function loadSurveyScreenData(
 	const surveyEnergyOutlookData = surveyEnergyOutlook({
 		storedEnergy: prospectingProgress.surveyEnergy,
 		lastUpdatedAtMs: prospectingProgress.lastEnergyUpdatedAtMs,
-		nowMs: now.getTime(),
-		cap: SURVEY_ENERGY_CAP
+		nowMs: now.getTime()
 	});
 
 	const preview = hasFamilyScan

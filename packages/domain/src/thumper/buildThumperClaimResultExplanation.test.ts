@@ -29,7 +29,6 @@ describe('buildThumperClaimResultExplanation', () => {
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'clear_pump_problem' }
 			],
-			pilotFrame: 'recon',
 			partSnapshots: [
 				{
 					slot: 'drill',
@@ -97,7 +96,6 @@ describe('buildThumperClaimResultExplanation', () => {
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
 			],
-			pilotFrame: 'engineer',
 			partSnapshots: [],
 			isPushRun: false
 		});

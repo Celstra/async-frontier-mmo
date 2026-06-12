@@ -1,6 +1,6 @@
 import type { ThumperEventActionId } from './types.js';
 import type { ThumperPartSlot } from './thumperPartTypes.js';
-import { createSeededRng } from './seededRng.js';
+import { createSeededRng } from '../rng.js';
 
 /** Player-visible window intensity — hold penalty scales; action wear does not. */
 export type EventWindowSeverity = 'minor' | 'serious';

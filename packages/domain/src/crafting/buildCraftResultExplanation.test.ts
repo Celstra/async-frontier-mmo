@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getRedMesaResource } from '../resources/redMesaBloom.js';
 import { buildCraftResultExplanation } from './buildCraftResultExplanation.js';
 import { resolveCraft } from './schematicEngine.js';
-import { FIRST_SCANNER_SUGGESTED_TUNING } from './starterStockpile.js';
+import { FIRST_SCANNER_SUGGESTED_TUNING } from './schematics/surveyScannerMkI.js';
 import { SURVEY_SCANNER_MK_I } from './schematics/surveyScannerMkI.js';
 import type { SchematicSlotFill } from './types.js';
 

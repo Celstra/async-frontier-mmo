@@ -177,8 +177,7 @@ async function assembleHubTiles(
 		surveyEnergyOutlook: surveyEnergyOutlook({
 			storedEnergy: prospectingProgress.surveyEnergy,
 			lastUpdatedAtMs: prospectingProgress.lastEnergyUpdatedAtMs,
-			nowMs: now.getTime(),
-			cap: SURVEY_ENERGY_CAP
+			nowMs: now.getTime()
 		}),
 		sampledSpotCount: prospectingProgress.sampledSpotIds.length,
 		hasFamilyScan: familyScanFlags.some(Boolean),

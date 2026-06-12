@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SURVEY_ENERGY_CAP, SURVEY_ENERGY_REGEN_PER_MINUTE } from '@async-frontier-mmo/domain';
+import { ENERGY_REGEN_SAMPLES_PER_HOUR, SURVEY_ENERGY_CAP } from '@async-frontier-mmo/domain';
 import { buildHubTiles } from './pilotHome.js';
 
 const baseInput = {
@@ -12,12 +12,12 @@ const baseInput = {
 	surveyEnergy: SURVEY_ENERGY_CAP,
 	surveyEnergyCap: SURVEY_ENERGY_CAP,
 	surveyEnergyOutlook: {
-		regenPerMinute: SURVEY_ENERGY_REGEN_PER_MINUTE,
-		minutesUntilFull: 0,
+		regenSamplesPerHour: ENERGY_REGEN_SAMPLES_PER_HOUR,
+		hoursUntilFull: 0,
 		canScanNow: true,
 		canSampleNow: true,
-		minutesUntilNextScan: 0,
-		minutesUntilNextSample: 0
+		hoursUntilNextScan: 0,
+		hoursUntilNextSample: 0
 	},
 	sampledSpotCount: 0,
 	hasFamilyScan: false,

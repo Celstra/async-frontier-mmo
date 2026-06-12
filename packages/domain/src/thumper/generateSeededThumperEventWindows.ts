@@ -6,7 +6,8 @@ import {
 	THUMPER_SAFETY_CHOICES
 } from './complicationActions.js';
 import { rollEventWindowSeverity } from './eventWindowSeverity.js';
-import { createSeededRng } from './seededRng.js';
+import { createSeededRng } from '../rng.js';
+import { EVENT_WINDOW_FIRE_CHANCE, EVENT_WINDOW_SLOTS } from '../tuning.js';
 import {
 	EVENT_WINDOW_TRIGGER_PROBABILITY,
 	type ThumperComplicationId,
@@ -68,15 +69,27 @@ function rollWindowTriggers(input: {
  * event actually fires (55% probability). Quiet windows appear in the plan but do
  * NOT create thumper_event_windows DB rows.
  */
+function windowCountForTail(extractionTailMinutes: number, isPushRun: boolean): number {
+	if (isPushRun) {
+		return PUSH_RUN_WINDOW_COUNT;
+	}
+	if (extractionTailMinutes >= 240) {
+		return EVENT_WINDOW_SLOTS.push;
+	}
+	return EVENT_WINDOW_SLOTS.short;
+}
+
 export function generateSeededThumperEventWindows(input: {
 	runSeed: string;
 	targetResourceId: NamedResourceId;
 	isPushRun: boolean;
-	/** Override default trigger probability for testing. Defaults to EVENT_WINDOW_TRIGGER_PROBABILITY (0.55). */
+	extractionTailMinutes?: number;
+	/** Override default trigger probability for testing. Defaults to EVENT_WINDOW_FIRE_CHANCE (0.55). */
 	triggerProbability?: number;
 }): SeededThumperRunPlan {
-	const windowCount = input.isPushRun ? PUSH_RUN_WINDOW_COUNT : DEFAULT_RUN_WINDOW_COUNT;
-	const triggerProbability = input.triggerProbability ?? EVENT_WINDOW_TRIGGER_PROBABILITY;
+	const tailMinutes = input.extractionTailMinutes ?? 60;
+	const windowCount = windowCountForTail(tailMinutes, input.isPushRun);
+	const triggerProbability = input.triggerProbability ?? EVENT_WINDOW_FIRE_CHANCE;
 	const rng = createSeededRng(input.runSeed);
 	const ordered = shuffleComplications(THUMPER_COMPLICATIONS, rng).slice(0, windowCount);
 

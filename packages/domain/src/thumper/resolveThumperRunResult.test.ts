@@ -1,4 +1,3 @@
-import type { FrameId } from 'shared';
 import { describe, expect, it } from 'vitest';
 import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
 import {
@@ -21,22 +20,6 @@ const firstSessionConfig = {
 	runSeed: 'tutorial-veyrith'
 };
 
-function resolveFirstSession(
-	responses: Array<{
-		windowIndex: number;
-		complication: 'signal_drift' | 'pump_strain';
-		chosenResponse: 'signal_tune' | 'clear_pump_problem' | 'hold';
-	}>,
-	pilotFrame: FrameId
-) {
-	return resolveThumperRunResult({
-		runConfig: firstSessionConfig,
-		eventWindows: firstSessionWindows,
-		responses,
-		pilotFrame
-	});
-}
-
 const perfectResponses = [
 	{ windowIndex: 1, complication: 'signal_drift' as const, chosenResponse: 'signal_tune' as const },
 	{
@@ -46,56 +29,47 @@ const perfectResponses = [
 	}
 ];
 
+function resolveFirstSession(
+	responses: Array<{
+		windowIndex: number;
+		complication: 'signal_drift' | 'pump_strain';
+		chosenResponse: 'signal_tune' | 'clear_pump_problem' | 'hold';
+	}>
+) {
+	return resolveThumperRunResult({
+		runConfig: firstSessionConfig,
+		eventWindows: firstSessionWindows,
+		responses
+	});
+}
+
 describe('resolveThumperRunResult', () => {
-	it('matching frame resolves better than a non-matching frame for the same window response', () => {
-		const reconSignal = resolveFirstSession(
-			[perfectResponses[0], { windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }],
-			'recon'
-		);
-		const engineerSignal = resolveFirstSession(
-			[perfectResponses[0], { windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }],
-			'engineer'
-		);
-
-		expect(reconSignal.recoveredQuantity).toBeGreaterThan(engineerSignal.recoveredQuantity);
-		expect(reconSignal.wasteQuantity).toBe(engineerSignal.wasteQuantity);
-
-		const engineerPump = resolveFirstSession(perfectResponses, 'engineer');
-		const reconPump = resolveFirstSession(perfectResponses, 'recon');
-
-		expect(engineerPump.recoveredQuantity).toBeGreaterThan(reconPump.recoveredQuantity);
-		expect(engineerPump.wasteQuantity).toBe(0);
-		expect(reconPump.wasteQuantity).toBe(0);
+	it('matching actions resolve with zero waste', () => {
+		const perfect = resolveFirstSession(perfectResponses);
+		expect(perfect.wasteQuantity).toBe(0);
+		expect(perfect.recoveredQuantity).toBe(FIRST_SESSION_PROJECTED_RECOVERY);
 	});
 
 	it('hold applies a bounded, predictable waste penalty', () => {
-		const withHold = resolveFirstSession(
-			[
-				perfectResponses[0],
-				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
-			],
-			'recon'
-		);
-		const perfect = resolveFirstSession(perfectResponses, 'recon');
+		const withHold = resolveFirstSession([
+			perfectResponses[0],
+			{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
+		]);
+		const perfect = resolveFirstSession(perfectResponses);
 
 		expect(withHold.wasteQuantity).toBe(5);
 		expect(withHold.recoveredQuantity).toBe(perfect.recoveredQuantity - 5);
 		expect(withHold.targetResourceId).toBe('veyrith_copper');
-		expect(withHold).not.toHaveProperty('stats');
 	});
 
-	it('is deterministic for the same run seed, choices, and frame', () => {
+	it('is deterministic for the same run seed and choices', () => {
 		const input = {
 			runConfig: firstSessionConfig,
 			eventWindows: firstSessionWindows,
-			responses: perfectResponses,
-			pilotFrame: 'engineer' as const
+			responses: perfectResponses
 		};
 
-		const first = resolveThumperRunResult(input);
-		const second = resolveThumperRunResult(input);
-
-		expect(second).toEqual(first);
+		expect(resolveThumperRunResult(input)).toEqual(resolveThumperRunResult(input));
 	});
 
 	it('uses stored matchingAction as frozen truth, not the current complication map', () => {
@@ -117,22 +91,18 @@ describe('resolveThumperRunResult', () => {
 					complication: 'signal_drift',
 					chosenResponse: 'clear_pump_problem'
 				}
-			],
-			pilotFrame: 'engineer'
+			]
 		});
 
 		expect(result.wasteQuantity).toBe(0);
-		expect(result.recoveredQuantity).toBe(66);
+		expect(result.recoveredQuantity).toBe(60);
 	});
 
 	it('first-session double-hold still recovers enough for scanner conductive_core', () => {
-		const result = resolveFirstSession(
-			[
-				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
-				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
-			],
-			'vanguard'
-		);
+		const result = resolveFirstSession([
+			{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
+			{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
+		]);
 
 		expect(result.recoveredQuantity).toBeGreaterThanOrEqual(FIRST_SESSION_SCANNER_MINIMUM);
 	});
@@ -148,11 +118,28 @@ describe('resolveThumperRunResult', () => {
 			responses: [
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
-			],
-			pilotFrame: 'vanguard'
+			]
 		});
 
 		expect(result.recoveredQuantity).toBe(FIRST_SESSION_SCANNER_MINIMUM);
 		expect(result.explanation).toContain('Recovery floor');
+	});
+
+	it('flags hull fail-safe recall with pro-rata yield when hull cannot sustain planned duration', () => {
+		const result = resolveThumperRunResult({
+			runConfig: {
+				targetResourceId: 'keth_iron',
+				projectedRecovery: 60,
+				hullTier: 'scavenged',
+				hullIntegrityAtDeploy: 5,
+				plannedDurationSeconds: 15 * 60
+			},
+			eventWindows: [],
+			responses: []
+		});
+
+		expect(result.recallReason).toBe('hull_failsafe');
+		expect(result.resolutionType).toBe('recalled');
+		expect(result.recoveredQuantity).toBeLessThan(60);
 	});
 });

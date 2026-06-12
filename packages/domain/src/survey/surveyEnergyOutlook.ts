@@ -1,56 +1,54 @@
 import {
+	accrueEnergy,
 	FAMILY_SCAN_ENERGY_COST,
-	resolveSurveyEnergy,
 	SAMPLE_ENERGY_COST,
-	SURVEY_ENERGY_CAP,
-	SURVEY_ENERGY_REGEN_PER_MINUTE
+	SURVEY_ENERGY_CAP
 } from './prospectingSampling.js';
+import { ENERGY_REGEN_SAMPLES_PER_HOUR } from '../tuning.js';
 
 export type SurveyEnergyOutlook = {
-	regenPerMinute: number;
-	minutesUntilFull: number;
+	regenSamplesPerHour: number;
+	hoursUntilFull: number;
 	canScanNow: boolean;
 	canSampleNow: boolean;
-	minutesUntilNextScan: number;
-	minutesUntilNextSample: number;
+	hoursUntilNextScan: number;
+	hoursUntilNextSample: number;
 };
 
-function minutesUntilEnergyTarget(currentEnergy: number, targetEnergy: number, regenPerMinute: number): number {
+function hoursUntilEnergyTarget(
+	currentEnergy: number,
+	targetEnergy: number,
+	regenPerHour: number
+): number {
 	if (currentEnergy >= targetEnergy) {
 		return 0;
 	}
 	const deficit = targetEnergy - currentEnergy;
-	return Math.ceil(deficit / regenPerMinute);
+	return deficit / regenPerHour;
 }
 
 /**
- * Player-facing survey energy timing — regen rate and minutes until scan/sample/full.
+ * Player-facing survey energy timing — continuous trickle rate and hours until scan/sample/full.
  */
 export function surveyEnergyOutlook(input: {
 	storedEnergy: number;
 	lastUpdatedAtMs: number;
 	nowMs: number;
-	cap?: number;
-	regenPerMinute?: number;
 }): SurveyEnergyOutlook {
-	const cap = input.cap ?? SURVEY_ENERGY_CAP;
-	const regenPerMinute = input.regenPerMinute ?? SURVEY_ENERGY_REGEN_PER_MINUTE;
-	const resolved = resolveSurveyEnergy({
-		storedEnergy: input.storedEnergy,
-		lastUpdatedAtMs: input.lastUpdatedAtMs,
-		nowMs: input.nowMs,
-		cap,
-		regenPerMinute
-	});
-	const energy = resolved.energy;
+	const regenPerHour = ENERGY_REGEN_SAMPLES_PER_HOUR * SAMPLE_ENERGY_COST;
+	const resolved = accrueEnergy(
+		{ rawEnergy: input.storedEnergy, updatedAtMs: input.lastUpdatedAtMs },
+		input.nowMs
+	);
+	const energy = resolved.rawEnergy;
+	const cap = SURVEY_ENERGY_CAP;
 
 	return {
-		regenPerMinute,
-		minutesUntilFull:
-			energy >= cap ? 0 : minutesUntilEnergyTarget(energy, cap, regenPerMinute),
+		regenSamplesPerHour: ENERGY_REGEN_SAMPLES_PER_HOUR,
+		hoursUntilFull: energy >= cap ? 0 : hoursUntilEnergyTarget(energy, cap, regenPerHour),
 		canScanNow: energy >= FAMILY_SCAN_ENERGY_COST,
 		canSampleNow: energy >= SAMPLE_ENERGY_COST,
-		minutesUntilNextScan: minutesUntilEnergyTarget(energy, FAMILY_SCAN_ENERGY_COST, regenPerMinute),
-		minutesUntilNextSample: minutesUntilEnergyTarget(energy, SAMPLE_ENERGY_COST, regenPerMinute)
+		hoursUntilNextScan: hoursUntilEnergyTarget(energy, FAMILY_SCAN_ENERGY_COST, regenPerHour),
+		hoursUntilNextSample: hoursUntilEnergyTarget(energy, SAMPLE_ENERGY_COST, regenPerHour)
 	};
 }

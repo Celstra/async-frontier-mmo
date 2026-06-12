@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { STARTER_STOCKPILE_GRANTS } from '@async-frontier-mmo/domain';
+import type { NamedResourceId } from '@async-frontier-mmo/domain';
 import type { Db, DbExecutor } from '../client.js';
 import { economyLedger } from '../schema/economyLedger.js';
 import { pilots } from '../schema/pilots.js';
@@ -9,6 +9,15 @@ import { getPilotById } from './pilots.js';
 import { getResourceInstanceByBloomSlug } from './resourceInstances.js';
 
 const STARTER_STOCKPILE_SOURCE_TYPE = 'starter_stockpile';
+
+/** Legacy starter grant — removed from domain in slice Phase 1; db retires in Phase 2. */
+const STARTER_STOCKPILE_GRANTS: ReadonlyArray<{
+	resourceId: NamedResourceId;
+	quantity: number;
+}> = [
+	{ resourceId: 'keth_iron', quantity: 35 },
+	{ resourceId: 'pale_ember_crystal', quantity: 35 }
+];
 
 export async function hasStarterStockpileGrant(db: DbExecutor, pilotId: string): Promise<boolean> {
 	const pilot = await getPilotById(db, pilotId);

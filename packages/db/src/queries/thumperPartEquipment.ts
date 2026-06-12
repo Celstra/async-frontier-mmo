@@ -1,7 +1,6 @@
 import {
-	STARTER_WORN_THUMPER_PARTS,
-	SURVEY_SCANNER_MK_I,
 	isThumperPartSchematic,
+	SURVEY_SCANNER_MK_I,
 	thumperPartSlotForSchematic,
 	type ThumperPartSnapshot
 } from '@async-frontier-mmo/domain';
@@ -10,6 +9,41 @@ import type { Db, DbExecutor } from '../client.js';
 import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { items } from '../schema/items.js';
 import { pilots } from '../schema/pilots.js';
+
+/** Legacy starter worn parts — retired from domain in slice Phase 1; db retires in Phase 7. */
+const STARTER_WORN_THUMPER_PARTS: ReadonlyArray<{
+	schematicId: string;
+	displayName: string;
+	slot: 'drill' | 'pump' | 'hull';
+	propertyScores: Record<string, number>;
+	condition: number;
+	integrity: number;
+}> = [
+	{
+		schematicId: 'worn_basic_drill',
+		displayName: 'Worn Basic Drill',
+		slot: 'drill',
+		propertyScores: { extraction_rate: 35, depth_access: 30, wear_control: 40 },
+		condition: 55,
+		integrity: 70
+	},
+	{
+		schematicId: 'worn_basic_pump',
+		displayName: 'Worn Basic Pump',
+		slot: 'pump',
+		propertyScores: { recovery_efficiency: 35, clog_resistance: 30, field_stability: 40 },
+		condition: 55,
+		integrity: 70
+	},
+	{
+		schematicId: 'worn_basic_hull',
+		displayName: 'Worn Basic Hull',
+		slot: 'hull',
+		propertyScores: { max_condition: 40, damage_reduction: 35, repairability: 35 },
+		condition: 55,
+		integrity: 70
+	}
+];
 
 export class ThumperPartEquipValidationError extends Error {
 	constructor(message: string) {
@@ -87,7 +121,7 @@ export async function ensureStarterThumperPartsForPilot(db: Db, pilotId: string)
 					schematicId: worn.schematicId,
 					schematicVersion: 1,
 					displayName: worn.displayName,
-					propertyScores: worn.propertyScores,
+					propertyScores: { ...worn.propertyScores },
 					provenance: [],
 					condition: worn.condition,
 					integrity: worn.integrity

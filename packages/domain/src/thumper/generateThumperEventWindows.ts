@@ -44,6 +44,7 @@ export function generateThumperEventWindows(input: {
 	return generateSeededThumperEventWindows({
 		runSeed: input.runSeed,
 		targetResourceId: input.targetResourceId,
-		isPushRun: input.isPushRun
+		isPushRun: input.isPushRun,
+		extractionTailMinutes: 60
 	});
 }

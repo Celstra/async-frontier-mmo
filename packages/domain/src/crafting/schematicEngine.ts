@@ -1,4 +1,4 @@
-import { createSeededRng } from '../thumper/seededRng.js';
+import { createSeededRng } from '../rng.js';
 import { getPropertyOutputBand } from './propertyBand.js';
 import type {
 	CraftMode,

@@ -17,13 +17,12 @@ describe('resolveFirstSessionThumperRunResult', () => {
 	it('matching actions on both windows yield full recovery with no waste', () => {
 		const result = resolveFirstSessionThumperRunResult({
 			targetResourceId: 'veyrith_copper',
-			responses: perfectResponses,
-			pilotFrame: 'recon'
+			responses: perfectResponses
 		});
 
 		expect(result.targetResourceId).toBe('veyrith_copper');
 		expect(result.projectedRecovery).toBe(113);
-		expect(result.recoveredQuantity).toBe(118);
+		expect(result.recoveredQuantity).toBe(113);
 		expect(result.wasteQuantity).toBe(0);
 		expect(result.explanation).toContain('signal_tune');
 		expect(result.explanation).toContain('clear_pump_problem');
@@ -32,7 +31,6 @@ describe('resolveFirstSessionThumperRunResult', () => {
 	it('hold on Pump Strain adds waste without changing the named resource id', () => {
 		const result = resolveFirstSessionThumperRunResult({
 			targetResourceId: 'veyrith_copper',
-			pilotFrame: 'recon',
 			responses: [
 				perfectResponses[0],
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
@@ -41,14 +39,13 @@ describe('resolveFirstSessionThumperRunResult', () => {
 
 		expect(result.targetResourceId).toBe('veyrith_copper');
 		expect(result.wasteQuantity).toBeGreaterThan(0);
-		expect(result.recoveredQuantity).toBeLessThan(118);
+		expect(result.recoveredQuantity).toBeLessThan(113);
 		expect(result).not.toHaveProperty('stats');
 	});
 
 	it('double-hold still recovers enough Veyrith for scanner conductive_core', () => {
 		const result = resolveFirstSessionThumperRunResult({
 			targetResourceId: 'veyrith_copper',
-			pilotFrame: 'recon',
 			responses: [
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }

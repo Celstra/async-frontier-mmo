@@ -4,12 +4,12 @@ import {
 	resolveFirstSessionThumperRunResult,
 	resolveThumperRunResult,
 	TUTORIAL_RUN_SEED,
+	type HullTier,
 	type NamedResourceId,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
-import { parseFrameId } from 'shared';
 import type { DbExecutor } from '../client.js';
 import { getThumperEventWindowsForRun } from './thumperEventWindows.js';
 import { getThumperRunPartSnapshots, partModifiersFromRunSnapshots } from './thumperRunParts.js';
@@ -17,12 +17,23 @@ import { getThumperRunPartSnapshots, partModifiersFromRunSnapshots } from './thu
 type StoredRunRow = {
 	id: string;
 	targetResourceId: string;
-	pilotFrameId: string;
 	runSeed: string;
 	isPushRun: boolean;
 	trueConcentrationPercent: number | null;
 	extractionTailMinutes: number;
+	durationSeconds?: number;
+	runHullIntegrity?: number;
 };
+
+function hullTierFromIntegrity(integrity: number): HullTier {
+	if (integrity <= 10) {
+		return 'scavenged';
+	}
+	if (integrity <= 35) {
+		return 'patched';
+	}
+	return 'basic';
+}
 
 export function mapStoredWindowsToResolutionSnapshots(
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
@@ -68,10 +79,18 @@ export async function resolveThumperRunForStoredWindows(
 		recoveryFloor: options?.recoveryFloor
 	});
 
+	const runHullIntegrity = run.runHullIntegrity ?? 100;
+	const plannedDurationSeconds =
+		run.durationSeconds ?? run.extractionTailMinutes * 60 + 60;
+	const hullConfig = {
+		hullTier: hullTierFromIntegrity(runHullIntegrity),
+		hullIntegrityAtDeploy: runHullIntegrity,
+		plannedDurationSeconds
+	};
+
 	if (isTutorialRun) {
 		return resolveFirstSessionThumperRunResult({
 			targetResourceId: run.targetResourceId as NamedResourceId,
-			pilotFrame: parseFrameId(run.pilotFrameId),
 			appliedWear: 0,
 			partModifiers,
 			projectedRecovery,
@@ -87,10 +106,10 @@ export async function resolveThumperRunForStoredWindows(
 			runSeed: run.runSeed,
 			appliedWear: 0,
 			partModifiers,
-			recoveryFloor: options?.recoveryFloor
+			recoveryFloor: options?.recoveryFloor,
+			...hullConfig
 		},
 		eventWindows,
-		responses,
-		pilotFrame: parseFrameId(run.pilotFrameId)
+		responses
 	});
 }

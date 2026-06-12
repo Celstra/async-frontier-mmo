@@ -225,7 +225,6 @@ export async function recordThumperEventWindowResponseForPilot(
 			matchingAction: input.matchingAction as ThumperEventActionId,
 			severity: parseEventWindowSeverity(input.severity),
 			chosenResponse: input.chosenResponse as ThumperWindowChosenResponse,
-			pilotFrame: parseFrameId(input.pilotFrameId),
 			currentMeters: input.currentMeters,
 			windowIndex: input.windowIndex,
 			totalWindowCount: input.totalWindowCount

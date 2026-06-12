@@ -4,7 +4,7 @@ import {
 	FAMILY_SCAN_ENERGY_COST,
 	generateDepositSpots,
 	SAMPLE_ENERGY_COST,
-	SAMPLE_TRICKLE_UNITS,
+	sampleYieldFromConcentration,
 	SURVEY_ENERGY_CAP
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -36,6 +36,7 @@ describeDb('prospecting persistence', () => {
 	let veyrithInstanceId = '';
 	let veyrithSlug = '';
 	let firstSpotId = '';
+	let firstSpotExpectedYield = 1;
 
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
@@ -58,6 +59,7 @@ describeDb('prospecting persistence', () => {
 		});
 		expect(spots.length).toBeGreaterThan(0);
 		firstSpotId = spots[0]!.spotId;
+		firstSpotExpectedYield = sampleYieldFromConcentration(spots[0]!.trueConcentrationPercent);
 	});
 
 	afterAll(async () => {
@@ -113,14 +115,14 @@ describeDb('prospecting persistence', () => {
 		}
 
 		expect(result.statsRevealedThisSample).toBe(true);
-		expect(result.trickleQuantity).toBe(SAMPLE_TRICKLE_UNITS);
+		expect(result.trickleQuantity).toBe(firstSpotExpectedYield);
 		expect(result.energyCost).toBe(SAMPLE_ENERGY_COST);
 		expect(result.surveyEnergy).toBe(
 			SURVEY_ENERGY_CAP - FAMILY_SCAN_ENERGY_COST - SAMPLE_ENERGY_COST
 		);
 
 		const stack = await getResourceStackForPilotInstance(db, testPilotId, veyrithInstanceId);
-		expect(stack?.quantity).toBe(SAMPLE_TRICKLE_UNITS);
+		expect(stack?.quantity).toBe(firstSpotExpectedYield);
 
 		const progress = await getPilotProspectingProgress(db, testPilotId);
 		expect(progress.revealedResourceSlugs).toContain(veyrithSlug);
@@ -140,13 +142,13 @@ describeDb('prospecting persistence', () => {
 		);
 		expect(surveyCompleted.length).toBe(beforeLedger.length + 1);
 		const latest = surveyCompleted.at(-1)!;
-		expect(latest.quantityDelta).toBe(SAMPLE_TRICKLE_UNITS);
+   expect(latest.quantityDelta).toBe(firstSpotExpectedYield);
 		expect(latest.resourceInstanceId).toBe(veyrithInstanceId);
 		expect(latest.payload).toMatchObject({
 			family: 'conductive_metal',
 			resource_instance_id: veyrithInstanceId,
 			spot: firstSpotId,
-			trickle_quantity: SAMPLE_TRICKLE_UNITS
+			trickle_quantity: firstSpotExpectedYield
 		});
 	});
 

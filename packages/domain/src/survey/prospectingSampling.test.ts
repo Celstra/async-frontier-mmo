@@ -9,9 +9,9 @@ import {
 	projectedRecoveryWithConcentration,
 	resolveSurveyEnergy,
 	SAMPLE_ENERGY_COST,
-	SAMPLE_TRICKLE_UNITS,
 	SURVEY_ENERGY_CAP,
 	sampleDepositSpot,
+	sampleYieldFromConcentration,
 	unsampledSpotConcentrationBand
 } from './prospectingSampling.js';
 
@@ -97,10 +97,28 @@ describe('prospectingSampling', () => {
 
 		expect(result.energyCost).toBe(SAMPLE_ENERGY_COST);
 		expect(result.pilotProgress.surveyEnergy).toBe(startEnergy - SAMPLE_ENERGY_COST);
-		expect(result.trickleGrant).toEqual({
-			resourceSlug: testResource.resourceSlug,
-			quantity: SAMPLE_TRICKLE_UNITS
+		expect(result.trickleGrant.quantity).toBe(
+			sampleYieldFromConcentration(spots[0]!.trueConcentrationPercent)
+		);
+	});
+
+	it('scales sample yield at 25/65/88% concentration to 1/3/4 units', () => {
+		expect(sampleYieldFromConcentration(25)).toBe(1);
+		expect(sampleYieldFromConcentration(65)).toBe(3);
+		expect(sampleYieldFromConcentration(88)).toBe(4);
+	});
+
+	it('rejects sampling when the per-spot hand pool is exhausted', () => {
+		const spots = spotsForResource();
+		const result = sampleDepositSpot({
+			resource: testResource,
+			spot: spots[0]!,
+			pilotProgress: createEmptyPilotSurveyProgress(),
+			nowMs: 0,
+			samplesTakenOnSpot: 5
 		});
+
+		expect(result).toEqual({ error: 'spot_pool_exhausted' });
 	});
 
 	it('narrows unsampled spot concentration bands as Survey Clarity improves', () => {
@@ -146,7 +164,7 @@ describe('prospectingSampling', () => {
 		expect(result).toEqual({ error: 'spot_resource_mismatch' });
 	});
 
-	it('clamps over-cap survey energy even when no full minute has elapsed', () => {
+	it('clamps over-cap survey energy and advances the accrual timestamp', () => {
 		const resolved = resolveSurveyEnergy({
 			storedEnergy: SURVEY_ENERGY_CAP + 25,
 			lastUpdatedAtMs: 1_000,
@@ -154,7 +172,7 @@ describe('prospectingSampling', () => {
 		});
 
 		expect(resolved.energy).toBe(SURVEY_ENERGY_CAP);
-		expect(resolved.lastUpdatedAtMs).toBe(1_000);
+		expect(resolved.lastUpdatedAtMs).toBe(30_000);
 	});
 
 	it('deploying on a ~1.4× spot out-yields the same run on a ~0.6× spot', () => {

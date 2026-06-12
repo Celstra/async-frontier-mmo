@@ -6,7 +6,6 @@ import {
 	partModifiersFromRunSnapshots
 } from '@async-frontier-mmo/db';
 import {
-	assertVeyrithTutorialWindowsReady,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	isThumperRunClaimable,
 	projectedRecoveryForStoredRun,
@@ -18,19 +17,22 @@ import {
 	type ThumperEventActionId,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
-import { parseFrameId } from 'shared';
 import type { getGameDb } from './gameDb.js';
+
+type ClaimRunRow = {
+	id: string;
+	targetResourceId: string;
+	runSeed?: string;
+	isPushRun: boolean;
+	trueConcentrationPercent: number | null;
+	extractionTailMinutes: number;
+	durationSeconds?: number;
+	runHullIntegrity?: number;
+};
 
 async function buildTutorialClaimResult(
 	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
-	run: {
-		id: string;
-		targetResourceId: string;
-		pilotFrameId: string;
-		isPushRun: boolean;
-		trueConcentrationPercent: number | null;
-		extractionTailMinutes: number;
-	},
+	run: ClaimRunRow,
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
 	const responses = windows
@@ -54,7 +56,6 @@ async function buildTutorialClaimResult(
 
 	return resolveFirstSessionThumperRunResult({
 		targetResourceId: run.targetResourceId as NamedResourceId,
-		pilotFrame: parseFrameId(run.pilotFrameId),
 		appliedWear: 0,
 		partModifiers,
 		projectedRecovery,
@@ -69,15 +70,7 @@ async function buildTutorialClaimResult(
 
 async function buildSeededClaimResult(
 	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
-	run: {
-		id: string;
-		targetResourceId: string;
-		pilotFrameId: string;
-		runSeed: string;
-		isPushRun: boolean;
-		trueConcentrationPercent: number | null;
-		extractionTailMinutes: number;
-	},
+	run: ClaimRunRow & { runSeed: string },
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
 	const responses = windows
@@ -97,21 +90,28 @@ async function buildSeededClaimResult(
 		partModifiers
 	});
 
+	const runHullIntegrity = run.runHullIntegrity ?? 100;
+	const plannedDurationSeconds = run.durationSeconds ?? run.extractionTailMinutes * 60 + 60;
+	const hullTier =
+		runHullIntegrity <= 10 ? 'scavenged' : runHullIntegrity <= 35 ? 'patched' : 'basic';
+
 	return resolveThumperRunResult({
 		runConfig: {
 			targetResourceId: run.targetResourceId as NamedResourceId,
 			projectedRecovery,
 			runSeed: run.runSeed,
 			appliedWear: 0,
-			partModifiers
+			partModifiers,
+			hullTier,
+			hullIntegrityAtDeploy: runHullIntegrity,
+			plannedDurationSeconds
 		},
 		eventWindows: windows.map((window) => ({
 			windowIndex: window.windowIndex,
 			complication: window.complication as ThumperComplicationId,
 			matchingAction: window.matchingAction as ThumperEventActionId
 		})),
-		responses,
-		pilotFrame: parseFrameId(run.pilotFrameId)
+		responses
 	});
 }
 
@@ -125,11 +125,7 @@ export async function claimOpenRun(
 		now,
 		isClaimable: (run, windows) => isThumperRunClaimable({ run, windows, now }),
 		isResolvableRun: () => true,
-		validateWindows: (run, windows) => {
-			if (run.runSeed === TUTORIAL_RUN_SEED) {
-				assertVeyrithTutorialWindowsReady(windows);
-			}
-		},
+		validateWindows: () => {},
 		buildResult: (tx, run, windows) =>
 			run.runSeed === TUTORIAL_RUN_SEED
 				? buildTutorialClaimResult(tx, run, windows)

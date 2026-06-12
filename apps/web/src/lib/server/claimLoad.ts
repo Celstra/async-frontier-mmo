@@ -121,7 +121,6 @@ export async function loadClaimScreen(
 			matchingAction: window.matchingAction as ThumperEventActionId
 		})),
 		responses,
-		pilotFrame: parseFrameId(displayRun.pilotFrameId),
 		partSnapshots,
 		isPushRun: displayRun.isPushRun
 	});

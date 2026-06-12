@@ -98,7 +98,7 @@
 		<button type="submit">Scan {familyDisplayLabel(selectedFamily)} family — costs {FAMILY_SCAN_ENERGY_COST} energy</button>
 	{:else}
 		<button type="submit" disabled>
-			Need {FAMILY_SCAN_ENERGY_COST} energy — ready in {surveyEnergyOutlook.minutesUntilNextScan}m
+			Need {FAMILY_SCAN_ENERGY_COST} energy — ready in {Math.ceil(surveyEnergyOutlook.hoursUntilNextScan * 60)}m
 		</button>
 	{/if}
 </form>
@@ -183,7 +183,7 @@
 										<button type="submit">Sample — costs {SAMPLE_ENERGY_COST} energy</button>
 									{:else}
 										<button type="submit" disabled>
-											Need {SAMPLE_ENERGY_COST} energy — ready in {surveyEnergyOutlook.minutesUntilNextSample}m
+											Need {SAMPLE_ENERGY_COST} energy — ready in {Math.ceil(surveyEnergyOutlook.hoursUntilNextSample * 60)}m
 										</button>
 									{/if}
 								</form>

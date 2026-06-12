@@ -1,4 +1,11 @@
-import type { SchematicDefinition } from '../types.js';
+import type { SchematicDefinition, TuningAllocation } from '../types.js';
+
+/** Decision 011 first-scanner tuning default — player may change before craft. */
+export const FIRST_SCANNER_SUGGESTED_TUNING: TuningAllocation = {
+	survey_clarity: 2,
+	stat_hint_accuracy: 1,
+	signal_range: 0
+};
 
 /**
  * Survey Scanner Module Mk I — Decision 010 slots + Decision 016-A Survey Clarity weights.

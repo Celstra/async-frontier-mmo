@@ -266,7 +266,6 @@ export function mapEventWindowsForUi(
 			complication,
 			matchingAction,
 			severity,
-			pilotFrame: pilotFrameId,
 			fieldRepairKitCount,
 			currentMeters: metersForWindow,
 			windowIndex: plannedWindow.windowIndex,
@@ -281,7 +280,6 @@ export function mapEventWindowsForUi(
 						complication,
 						matchingAction,
 						chosenResponse: window.chosenResponse as ThumperWindowChosenResponse,
-						pilotFrame: pilotFrameId,
 						beforeState,
 						afterState
 					})

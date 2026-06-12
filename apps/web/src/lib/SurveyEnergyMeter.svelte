@@ -21,9 +21,9 @@
 	<div class="energy-meter__track" role="meter" aria-valuenow={energy} aria-valuemin={0} aria-valuemax={cap}>
 		<div class="energy-meter__fill" style:width="{fillPercent}%"></div>
 	</div>
-	{#if outlook.minutesUntilFull > 0}
+	{#if outlook.hoursUntilFull > 0}
 		<p class="energy-meter__regen">
-			Regenerates {outlook.regenPerMinute}/min — full in {outlook.minutesUntilFull}m
+			Regenerates {outlook.regenSamplesPerHour} samples/hr — full in {Math.ceil(outlook.hoursUntilFull * 60)}m
 		</p>
 	{:else}
 		<p class="energy-meter__regen energy-meter__regen--full">Energy full</p>

@@ -126,7 +126,6 @@ describeDb('thumper event window before/after state', () => {
 			matchingAction: 'signal_tune',
 			severity,
 			chosenResponse: 'hold',
-			pilotFrame: 'recon',
 			currentMeters,
 			windowIndex: 1,
 			totalWindowCount: windows.length

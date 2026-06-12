@@ -1,4 +1,3 @@
-import type { FrameId } from 'shared';
 import type { NamedResourceId } from '../resources/types.js';
 import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
 import {
@@ -31,7 +30,6 @@ const FIRST_SESSION_TARGET: NamedResourceId = 'veyrith_copper';
 export function resolveFirstSessionThumperRunResult(input: {
 	targetResourceId: NamedResourceId;
 	responses: ThumperEventWindowResponse[];
-	pilotFrame: FrameId;
 	eventWindows?: ThumperEventWindowSnapshot[];
 	appliedWear?: number;
 	partModifiers?: ThumperPartRunModifiers;
@@ -63,7 +61,6 @@ export function resolveFirstSessionThumperRunResult(input: {
 			partModifiers: input.partModifiers
 		},
 		eventWindows,
-		responses: input.responses,
-		pilotFrame: input.pilotFrame
+		responses: input.responses
 	});
 }

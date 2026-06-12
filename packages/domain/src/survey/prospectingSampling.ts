@@ -1,10 +1,16 @@
 import type { ResourceStatCode } from 'shared';
 import { applyRoutineUse } from '../durability/itemDurability.js';
 import type { ItemDurability } from '../durability/types.js';
-import { DEFAULT_PROJECTED_RECOVERY } from '../thumper/generateSeededThumperEventWindows.js';
-import { createSeededRng } from '../thumper/seededRng.js';
+import { createSeededRng } from '../rng.js';
+import {
+	ENERGY_CAP_SAMPLES,
+	ENERGY_REGEN_SAMPLES_PER_HOUR,
+	SAMPLE_BASE_YIELD,
+	SPOT_SAMPLE_POOL
+} from '../tuning.js';
 import type { CompleteResourceStatMap, ResourceFamily } from '../resources/types.js';
 import { MVP_RESOURCE_STAT_CODES } from '../resources/familyStatCaps.js';
+import { DEFAULT_PROJECTED_RECOVERY } from '../thumper/generateSeededThumperEventWindows.js';
 import type { ActiveBloomSurveyResource } from './activeBloomSurvey.js';
 import {
 	depositSpotCapacityUnits,
@@ -15,17 +21,22 @@ import {
 import { getStatBand } from './statBand.js';
 import type { SurveyStatHint } from './types.js';
 
-/** Regenerating survey-energy cap (Decision 019 — Farm RPG explore pattern). */
-export const SURVEY_ENERGY_CAP = 100;
 export const FAMILY_SCAN_ENERGY_COST = 8;
 export const SAMPLE_ENERGY_COST = 12;
-export const SURVEY_ENERGY_REGEN_PER_MINUTE = 2;
+
+/** Raw-energy cap = sample-cap × per-sample cost (Decision 022 trickle regime). */
+export const SURVEY_ENERGY_CAP = ENERGY_CAP_SAMPLES * SAMPLE_ENERGY_COST;
+
+/** Concentration-scaled hand-sample yield (Decision 022 / tuning). */
+export function sampleYieldFromConcentration(concentrationPercent: number): number {
+	return Math.max(1, Math.round((SAMPLE_BASE_YIELD * concentrationPercent) / 100));
+}
+
+/** @deprecated Use {@link sampleYieldFromConcentration} — kept for transitional imports. */
+export const SAMPLE_TRICKLE_UNITS = sampleYieldFromConcentration(67);
 
 export const SCANNER_CONDITION_LOSS_SCAN = 2;
 export const SCANNER_CONDITION_LOSS_SAMPLE = 3;
-
-/** Micro-yield per sample — real but not a thumper substitute. */
-export const SAMPLE_TRICKLE_UNITS = 2;
 
 export const SPOTS_PER_RESOURCE_MIN = 3;
 export const SPOTS_PER_RESOURCE_MAX = 5;
@@ -117,7 +128,8 @@ export type SampleDepositSpotResult = {
 export type SampleDepositSpotError =
 	| 'insufficient_energy'
 	| 'spot_already_sampled'
-	| 'spot_resource_mismatch';
+	| 'spot_resource_mismatch'
+	| 'spot_pool_exhausted';
 
 function rollInt(rng: () => number, min: number, max: number): number {
 	return min + Math.floor(rng() * (max - min + 1));
@@ -132,30 +144,54 @@ export function createEmptyPilotSurveyProgress(nowMs = 0): PilotSurveyProgress {
 	};
 }
 
+export type SurveyEnergyState = {
+	rawEnergy: number;
+	updatedAtMs: number;
+};
+
+function energyCapRaw(): number {
+	return ENERGY_CAP_SAMPLES * SAMPLE_ENERGY_COST;
+}
+
+function energyRegenPerHourRaw(): number {
+	return ENERGY_REGEN_SAMPLES_PER_HOUR * SAMPLE_ENERGY_COST;
+}
+
 /**
- * Regenerates survey energy up to the cap from elapsed minutes since last update.
+ * Continuous trickle accrual — elapsed hours × regen rate, clamped to cap (Decision 022).
  */
+export function accrueEnergy(state: SurveyEnergyState, nowMs: number): SurveyEnergyState {
+	const cap = energyCapRaw();
+	const clamped = Math.min(cap, state.rawEnergy);
+	const elapsedMs = nowMs - state.updatedAtMs;
+
+	if (elapsedMs <= 0) {
+		return { rawEnergy: clamped, updatedAtMs: state.updatedAtMs };
+	}
+
+	const elapsedHours = elapsedMs / 3_600_000;
+	const regened = elapsedHours * energyRegenPerHourRaw();
+
+	return {
+		rawEnergy: Math.min(cap, Math.round(clamped + regened)),
+		updatedAtMs: nowMs
+	};
+}
+
+/** Regenerates survey energy up to the cap from elapsed time since last update. */
 export function resolveSurveyEnergy(input: {
 	storedEnergy: number;
 	lastUpdatedAtMs: number;
 	nowMs: number;
-	cap?: number;
-	regenPerMinute?: number;
 }): { energy: number; lastUpdatedAtMs: number } {
-	const cap = input.cap ?? SURVEY_ENERGY_CAP;
-	const regenPerMinute = input.regenPerMinute ?? SURVEY_ENERGY_REGEN_PER_MINUTE;
-	const clampedEnergy = Math.min(cap, input.storedEnergy);
-	const elapsedMinutes = Math.floor((input.nowMs - input.lastUpdatedAtMs) / 60_000);
-
-	if (elapsedMinutes <= 0) {
-		return { energy: clampedEnergy, lastUpdatedAtMs: input.lastUpdatedAtMs };
-	}
-
-	const regened = elapsedMinutes * regenPerMinute;
+	const accrued = accrueEnergy(
+		{ rawEnergy: input.storedEnergy, updatedAtMs: input.lastUpdatedAtMs },
+		input.nowMs
+	);
 
 	return {
-		energy: Math.min(cap, clampedEnergy + regened),
-		lastUpdatedAtMs: input.lastUpdatedAtMs + elapsedMinutes * 60_000
+		energy: accrued.rawEnergy,
+		lastUpdatedAtMs: accrued.updatedAtMs
 	};
 }
 
@@ -507,9 +543,15 @@ export function sampleDepositSpot(input: {
 	spot: DepositSpot;
 	pilotProgress: PilotSurveyProgress;
 	nowMs: number;
+	samplesTakenOnSpot?: number;
 }): SampleDepositSpotResult | { error: SampleDepositSpotError } {
 	if (input.spot.resourceSlug !== input.resource.resourceSlug) {
 		return { error: 'spot_resource_mismatch' };
+	}
+
+	const samplesTaken = input.samplesTakenOnSpot ?? 0;
+	if (samplesTaken >= SPOT_SAMPLE_POOL) {
+		return { error: 'spot_pool_exhausted' };
 	}
 
 	let progress = withResolvedEnergy(input.pilotProgress, input.nowMs);
@@ -540,7 +582,7 @@ export function sampleDepositSpot(input: {
 		},
 		trickleGrant: {
 			resourceSlug: input.resource.resourceSlug,
-			quantity: SAMPLE_TRICKLE_UNITS
+			quantity: sampleYieldFromConcentration(input.spot.trueConcentrationPercent)
 		},
 		statsRevealedThisSample,
 		revealedStats: statsRevealedThisSample ? input.resource.stats : null,

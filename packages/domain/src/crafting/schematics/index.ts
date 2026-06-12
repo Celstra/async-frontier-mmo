@@ -27,4 +27,4 @@ export { BASIC_DRILL_HEAD } from './basicDrillHead.js';
 export { EFFICIENT_PUMP } from './efficientPump.js';
 export { FIELD_REPAIR_KIT, FIRST_REPAIR_KIT_SUGGESTED_TUNING } from './fieldRepairKit.js';
 export { REINFORCED_HULL_PLATE } from './reinforcedHullPlate.js';
-export { SURVEY_SCANNER_MK_I } from './surveyScannerMkI.js';
+export { FIRST_SCANNER_SUGGESTED_TUNING, SURVEY_SCANNER_MK_I } from './surveyScannerMkI.js';

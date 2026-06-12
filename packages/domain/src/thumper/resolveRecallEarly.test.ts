@@ -28,11 +28,10 @@ describe('Recall Early resolution', () => {
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'recall_early' }
 			],
-			pilotFrame: 'recon'
 		});
 
 		expect(result.resolutionType).toBe('recalled');
-		expect(result.recoveredQuantity).toBe(61);
+		expect(result.recoveredQuantity).toBe(56);
 		expect(result.forfeitedRecovery).toBe(57);
 		expect(result.wasteQuantity).toBe(0);
 		expect(result.explanation).toContain('Recall Early');
@@ -47,7 +46,6 @@ describe('Recall Early resolution', () => {
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'recall_early' }
 			],
-			pilotFrame: 'recon'
 		});
 
 		expect(result.appliedWear).toBe(18);
@@ -61,11 +59,10 @@ describe('Recall Early resolution', () => {
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'signal_tune' },
 				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'clear_pump_problem' }
 			],
-			pilotFrame: 'recon'
 		});
 
 		expect(result.resolutionType).toBe('completed');
-		expect(result.recoveredQuantity).toBe(118);
+		expect(result.recoveredQuantity).toBe(113);
 		expect(result.forfeitedRecovery).toBe(0);
 	});
 });

@@ -5,7 +5,6 @@ import type { SchematicSlotFill } from '../crafting/types.js';
 import { EFFICIENT_PUMP } from '../crafting/schematics/efficientPump.js';
 import { generateSeededThumperEventWindows } from './generateSeededThumperEventWindows.js';
 import { resolveThumperRunResult } from './resolveThumperRunResult.js';
-import { WORN_BASIC_PUMP } from './starterWornParts.js';
 import { MATCHING_ACTION_WEAR_CONDITION } from './eventWindowSeverity.js';
 import {
 	applyWearToRunParts,
@@ -55,11 +54,11 @@ function wornPumpSnapshot(): ThumperPartSnapshot {
 	return {
 		slot: 'pump',
 		itemId: 'worn-pump',
-		schematicId: WORN_BASIC_PUMP.schematicId,
-		displayName: WORN_BASIC_PUMP.displayName,
-		propertyScores: { ...WORN_BASIC_PUMP.propertyScores },
-		condition: WORN_BASIC_PUMP.condition,
-		integrity: WORN_BASIC_PUMP.integrity
+		schematicId: 'worn_basic_pump',
+		displayName: 'Worn Basic Pump',
+		propertyScores: { recovery_efficiency: 35, clog_resistance: 30, field_stability: 40 },
+		condition: 55,
+		integrity: 70
 	};
 }
 
@@ -119,8 +118,7 @@ describe('thumper part modifiers', () => {
 				])
 			},
 			eventWindows,
-			responses,
-			pilotFrame: 'engineer'
+			responses
 		});
 
 		const efficientResult = resolveThumperRunResult({
@@ -134,8 +132,7 @@ describe('thumper part modifiers', () => {
 				])
 			},
 			eventWindows,
-			responses,
-			pilotFrame: 'engineer'
+			responses
 		});
 
 		expect(efficientResult.recoveredQuantity).toBeGreaterThan(wornResult.recoveredQuantity);

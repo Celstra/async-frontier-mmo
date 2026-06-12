@@ -69,7 +69,6 @@ describe('deployPreview', () => {
 
 		const result = resolveFirstSessionThumperRunResult({
 			targetResourceId: 'veyrith_copper',
-			pilotFrame: 'recon',
 			projectedRecovery,
 			responses: [
 				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },

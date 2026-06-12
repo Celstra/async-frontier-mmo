@@ -1,4 +1,3 @@
-import type { FrameId } from 'shared';
 import { complicationDisplayName } from './eventActionLabels.js';
 import {
 	holdPenaltyForSeverity,
@@ -38,14 +37,9 @@ export { parseEventWindowSeverity };
 export function describeWindowResponse(
 	complication: ThumperComplicationId,
 	matchingAction: ThumperEventActionId,
-	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>,
-	frameBonus: number,
-	pilotFrame: FrameId
+	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>
 ): string {
 	if (chosenResponse === matchingAction) {
-		if (frameBonus > 0) {
-			return `${complication}: used ${matchingAction} — ${pilotFrame} frame bonus +${frameBonus} recovery.`;
-		}
 		return `${complication}: used ${matchingAction} — no waste from this window.`;
 	}
 	if (chosenResponse === 'hold') {
@@ -58,14 +52,9 @@ export function describeWindowResponse(
 export function describeClaimWindowConsequence(
 	complication: ThumperComplicationId,
 	matchingAction: ThumperEventActionId,
-	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>,
-	frameBonus: number,
-	pilotFrame: FrameId
+	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>
 ): string {
 	if (chosenResponse === matchingAction) {
-		if (frameBonus > 0) {
-			return `${complicationDisplayName(complication)}: matching action — ${pilotFrame} frame bonus +${frameBonus} recovery.`;
-		}
 		return `${complicationDisplayName(complication)}: matching action — no waste from this window.`;
 	}
 	if (chosenResponse === 'hold') {

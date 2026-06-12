@@ -1,4 +1,4 @@
-/** FNV-1a 32-bit hash — turns a stored run seed string into a numeric RNG state. */
+/** FNV-1a 32-bit hash — turns a seed string into a numeric RNG state. */
 export function hashSeedToUint32(seed: string): number {
 	let hash = 2166136261;
 	for (let index = 0; index < seed.length; index += 1) {

@@ -1,4 +1,3 @@
-import type { FrameId } from 'shared';
 import type { ActiveRunMeterPreview } from './deployPreview.js';
 import { eventActionLabel } from './eventActionLabels.js';
 import {
@@ -7,7 +6,6 @@ import {
 	THUMPER_PART_SLOT_LABEL,
 	type EventWindowSeverity
 } from './eventWindowSeverity.js';
-import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
 import type { ThumperWindowResponseOptionId } from './getEventWindowResponseOptions.js';
 import { getEventWindowResponseOptions } from './getEventWindowResponseOptions.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
@@ -44,12 +42,6 @@ export const COMPLICATION_METER_MATCHING_RESTORE: Record<ThumperComplicationId, 
 	hull_damage: 20,
 	threat_surge: -22,
 	pump_strain: 25
-};
-
-const FRAME_DISPLAY: Record<FrameId, string> = {
-	recon: 'Recon',
-	engineer: 'Engineer',
-	vanguard: 'Vanguard'
 };
 
 function clampMeter(value: number): number {
@@ -121,29 +113,14 @@ export type EventWindowOutcome = {
 function matchingActionEffectLine(input: {
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
-	pilotFrame: FrameId;
 }): string {
-	const meterKey = COMPLICATION_PRIMARY_METER[input.complication];
-	const meterLabel =
-		meterKey === 'signalLock'
-			? 'Signal Lock'
-			: meterKey === 'pumpFlow'
-				? 'Pump Flow'
-				: meterKey === 'threatPressure'
-					? 'Threat Pressure'
-					: 'Hull Condition';
-
-	const frameBonus = getFrameMatchingBonusRecovery(input.pilotFrame, input.matchingAction);
-	const bonusSuffix =
-		frameBonus > 0 ? ` (+${frameBonus} ${FRAME_DISPLAY[input.pilotFrame]} bonus)` : '';
-
 	if (input.matchingAction === 'field_repair') {
-		return `Protects your yield — consumes 1 Field Repair Kit${bonusSuffix}`;
+		return 'Protects your yield — consumes 1 Field Repair Kit';
 	}
 
 	const slot = MATCHING_ACTION_WEAR_PART_SLOT[input.matchingAction];
 	const partLabel = THUMPER_PART_SLOT_LABEL[slot];
-	return `Protects your yield — wears the ${partLabel} by ${MATCHING_ACTION_WEAR_CONDITION} Condition${bonusSuffix}`;
+	return `Protects your yield — wears the ${partLabel} by ${MATCHING_ACTION_WEAR_CONDITION} Condition`;
 }
 
 function holdEffectLine(severity: EventWindowSeverity) {
@@ -181,7 +158,6 @@ export function computeEventWindowProjectedMetrics(input: {
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
 	severity: EventWindowSeverity;
-	pilotFrame: FrameId;
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
 	totalWindowCount: number;
@@ -215,8 +191,7 @@ export function computeEventWindowProjectedMetrics(input: {
 	} else if (input.optionId === input.matchingAction) {
 		// Matching action: restore the meter
 		afterValue = clampMeter(beforeValue + COMPLICATION_METER_MATCHING_RESTORE[input.complication]);
-		frameBonus = getFrameMatchingBonusRecovery(input.pilotFrame, input.matchingAction);
-		recoveryDelta = frameBonus;
+		recoveryDelta = 0;
 		if (input.matchingAction !== 'field_repair') {
 			partWear = MATCHING_ACTION_WEAR_CONDITION;
 		}
@@ -260,7 +235,6 @@ export function describeEventWindowStakes(input: {
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
 	severity: EventWindowSeverity;
-	pilotFrame: FrameId;
 	fieldRepairKitCount: number;
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
@@ -279,7 +253,6 @@ export function describeEventWindowStakes(input: {
 			complication: input.complication,
 			matchingAction: input.matchingAction,
 			severity: input.severity,
-			pilotFrame: input.pilotFrame,
 			currentMeters: input.currentMeters,
 			windowIndex: input.windowIndex,
 			totalWindowCount: input.totalWindowCount
@@ -308,8 +281,7 @@ export function describeEventWindowStakes(input: {
 				id: option.id,
 				effectLine: matchingActionEffectLine({
 					complication: input.complication,
-					matchingAction: input.matchingAction,
-					pilotFrame: input.pilotFrame
+					matchingAction: input.matchingAction
 				}),
 				projected
 			};
@@ -344,7 +316,6 @@ export function resolveEventWindowOutcome(input: {
 	matchingAction: ThumperEventActionId;
 	severity: EventWindowSeverity;
 	chosenResponse: ThumperWindowChosenResponse;
-	pilotFrame: FrameId;
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
 	totalWindowCount: number;
@@ -387,7 +358,6 @@ export function resolveEventWindowOutcome(input: {
 			),
 			input.severity
 		);
-		frameBonusRecovery = getFrameMatchingBonusRecovery(input.pilotFrame, input.matchingAction);
 		if (input.matchingAction !== 'field_repair') {
 			actionWearCondition = MATCHING_ACTION_WEAR_CONDITION;
 		}
@@ -438,7 +408,6 @@ export function formatEventWindowOutcomeLine(input: {
 	complication: ThumperComplicationId;
 	matchingAction: ThumperEventActionId;
 	chosenResponse: ThumperWindowChosenResponse;
-	pilotFrame: FrameId;
 	beforeState: EventWindowMeterSnapshot;
 	afterState: EventWindowMeterSnapshot;
 	frameBonusRecovery?: number;
@@ -465,17 +434,12 @@ export function formatEventWindowOutcomeLine(input: {
 
 	if (input.chosenResponse === input.matchingAction) {
 		const actionLabel = eventActionLabel(input.matchingAction);
-		const bonus = input.frameBonusRecovery ?? 0;
-		const bonusText =
-			bonus > 0
-				? ` (+${bonus} ${FRAME_DISPLAY[input.pilotFrame]} bonus)`
-				: '';
 		if (input.matchingAction === 'field_repair') {
-			return `${actionLabel}${severityLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, yield protected, Field Repair Kit consumed${bonusText}`;
+			return `${actionLabel}${severityLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, yield protected, Field Repair Kit consumed`;
 		}
 		const slot = MATCHING_ACTION_WEAR_PART_SLOT[input.matchingAction];
 		const partLabel = THUMPER_PART_SLOT_LABEL[slot];
-		return `${actionLabel}${severityLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, yield protected, ${partLabel} −${MATCHING_ACTION_WEAR_CONDITION} Condition${bonusText}`;
+		return `${actionLabel}${severityLabel} — ${meterLabel} ${beforeMeter}% → ${afterMeter}%, yield protected, ${partLabel} −${MATCHING_ACTION_WEAR_CONDITION} Condition`;
 	}
 
 	const penalty = input.beforeState.projectedRecovery - input.afterState.projectedRecovery;

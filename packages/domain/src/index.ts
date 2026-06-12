@@ -26,10 +26,7 @@ export type {
 	CraftPropertyExplanation,
 	CraftResultExplanation
 } from './crafting/buildCraftResultExplanation.js';
-export {
-	FIRST_SCANNER_SUGGESTED_TUNING,
-	STARTER_STOCKPILE_GRANTS
-} from './crafting/starterStockpile.js';
+export { FIRST_SCANNER_SUGGESTED_TUNING } from './crafting/schematics/surveyScannerMkI.js';
 export {
 	CAREFUL_EXPERIMENT_BOOST,
 	CAREFUL_EXPERIMENT_BOOST_CHANCE,
@@ -138,6 +135,7 @@ export {
 	type DepositSpotYieldBand
 } from './survey/depositSpotCapacity.js';
 export {
+	accrueEnergy,
 	applyProspectingScannerWear,
 	concentrationPercentToExtractionMultiplier,
 	createEmptyPilotSurveyProgress,
@@ -152,19 +150,28 @@ export {
 	resolveSurveyEnergy,
 	SAMPLE_ENERGY_COST,
 	SAMPLE_TRICKLE_UNITS,
+	sampleYieldFromConcentration,
 	buildFamilyScanPreview,
 	scanFamilyProspect,
 	sampleDepositSpot,
 	PROSPECTING_CYCLE_SCATTER_LINE,
 	SURVEY_ENERGY_CAP,
-	SURVEY_ENERGY_REGEN_PER_MINUTE,
 	unsampledSpotConcentrationBand,
 	type DepositSpot,
 	type DepositSpotYieldPresentation,
 	type FamilyScanResourceView,
 	type PilotSurveyProgress,
-	type SampleDepositSpotResult
+	type SampleDepositSpotResult,
+	type SurveyEnergyState
 } from './survey/prospectingSampling.js';
+export {
+	concentrationAt,
+	getTopology,
+	spotIdFor,
+	TOPOLOGY_GRID_HEIGHT,
+	TOPOLOGY_GRID_WIDTH,
+	type DepositTopology
+} from './survey/depositTopology.js';
 export {
 	surveyEnergyOutlook,
 	type SurveyEnergyOutlook
@@ -184,8 +191,36 @@ export type {
 	NamedResourceId,
 	ResourceFamily
 } from './resources/types';
-export { assertVeyrithTutorialWindowsReady } from './thumper/assertVeyrithTutorialWindowsReady';
-export type { TutorialWindowRow } from './thumper/assertVeyrithTutorialWindowsReady';
+export {
+	bindOrderOnFirstSample,
+	missionTrackerState,
+	type FamilyStackCandidate,
+	type MissionTrackerState
+} from './settlement/orderBinding.js';
+export { SETTLEMENT_MILESTONES, type SettlementMilestoneKey } from './settlement/milestones.js';
+export type { SettlementOrder, SettlementOrderStatus } from './settlement/types.js';
+export {
+	ENERGY_CAP_SAMPLES,
+	ENERGY_REGEN_SAMPLES_PER_HOUR,
+	EVENT_WINDOW_FIRE_CHANCE,
+	EVENT_WINDOW_SLOTS,
+	HULL_CEILING_EXPONENT,
+	HULL_TIER_BASE,
+	PATCHED_HULL_INTEGRITY,
+	RUN_TAILS_MINUTES,
+	SAMPLE_BASE_YIELD,
+	SAMPLE_DURATION_SECONDS,
+	SCAVENGED_HULL_INTEGRITY,
+	SPOT_SAMPLE_POOL,
+	TUTORIAL_ORDER_CM_STACK,
+	TUTORIAL_ORDER_SA_STACK,
+	TUTORIAL_RUN_1_MINUTES,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
+	TUTORIAL_RUN_2_MINUTES,
+	TUTORIAL_RUN_2_YIELD,
+	type HullTier
+} from './tuning.js';
+export { createSeededRng, hashSeedToUint32 } from './rng.js';
 export {
 	COMPLICATION_MATCHING_ACTION,
 	getMatchingAction,
@@ -215,6 +250,7 @@ export {
 	extractionTailYieldMultiplier,
 	parseExtractionTailMinutes,
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
+	TUTORIAL_EXTRACTION_TAIL_OPTION_5M,
 	projectedRecoveryForStoredRun,
 	totalRunDurationSeconds,
 	type ActiveRunMeterPreview,
@@ -281,22 +317,23 @@ export {
 	validateEventWindowResponse,
 	type EventWindowResponseValidation
 } from './thumper/validateEventWindowResponse';
-export { createSeededRng, hashSeedToUint32 } from './thumper/seededRng';
-export { getFrameMatchingBonusRecovery, FRAME_MATCHING_BONUS_RECOVERY } from './thumper/frameActionEffects';
+export { availableTails, maxRunMinutes, type AvailableTailOption } from './thumper/hullRunCeiling.js';
+export {
+	computeHullFailsafeProrata,
+	hullMaxRunSeconds,
+	type HullFailsafeProrata,
+	type HullFailsafeRecallReason
+} from './thumper/hullFailsafeRecall.js';
 export {
 	FIRST_SESSION_PROJECTED_RECOVERY,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	resolveFirstSessionThumperRunResult
 } from './thumper/resolveFirstSessionThumperRunResult';
 export {
-	STARTER_WORN_THUMPER_PARTS,
-	THUMPER_PART_SCHEMATIC_IDS,
-	WORN_BASIC_DRILL,
-	WORN_BASIC_HULL,
-	WORN_BASIC_PUMP,
 	isThumperPartSchematic,
+	THUMPER_PART_SCHEMATIC_IDS,
 	thumperPartSlotForSchematic
-} from './thumper/starterWornParts.js';
+} from './thumper/thumperPartSchematics.js';
 export {
 	applyWearToRunParts,
 	computeRunPartWearDeltas,

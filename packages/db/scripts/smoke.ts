@@ -1,6 +1,5 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import {
-	assertVeyrithTutorialWindowsReady,
 	resolveFirstSessionThumperRunResult,
 	resolveThumperState,
 	type ThumperEventActionId
@@ -87,16 +86,11 @@ async function claimTutorialRun(now: Date) {
 			return isRunClaimable(run, now);
 		},
 		isResolvableRun: (run) => run.runSeed === 'first-session-scripted',
-		validateWindows: (run, windows) => {
-			if (run.runSeed === 'first-session-scripted') {
-				assertVeyrithTutorialWindowsReady(windows);
-			}
-		},
+		validateWindows: () => {},
 		buildResult: async (tx, run, windows) => {
 			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
 			return resolveFirstSessionThumperRunResult({
 				targetResourceId: 'veyrith_copper',
-				pilotFrame: parseFrameId(run.pilotFrameId),
 				partModifiers: partModifiersFromRunSnapshots(snapshots),
 				eventWindows: windows.map((window) => ({
 					windowIndex: window.windowIndex,

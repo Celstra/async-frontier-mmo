@@ -1,4 +1,4 @@
-import { createSeededRng } from '../thumper/seededRng.js';
+import { createSeededRng } from '../rng.js';
 
 /** Tunable capacity band — floor must exceed ~130 so tutorial Veyrith claim ≈118 never hits cap on a fresh spot. */
 export const DEPOSIT_SPOT_CAPACITY_MIN_UNITS = 150;

@@ -1,7 +1,6 @@
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-	assertVeyrithTutorialWindowsReady,
 	FIRST_SESSION_SCANNER_MINIMUM,
 	generateSeededThumperEventWindows
 } from '@async-frontier-mmo/domain';
@@ -68,15 +67,7 @@ function ledgerEntriesForRun(
 
 async function buildSeededClaimResult(
 	tx: Parameters<typeof resolveThumperRunForStoredWindows>[0],
-	runRow: {
-		id: string;
-		targetResourceId: string;
-		pilotFrameId: string;
-		runSeed: string;
-		isPushRun: boolean;
-		trueConcentrationPercent: number | null;
-		extractionTailMinutes: number;
-	},
+	runRow: Parameters<typeof resolveThumperRunForStoredWindows>[1],
 	windows: Awaited<ReturnType<typeof import('./thumperEventWindows.js').getThumperEventWindowsForRun>>
 ) {
 	return resolveThumperRunForStoredWindows(tx, runRow, windows);
@@ -171,7 +162,7 @@ describeDb('transactional claim reward', () => {
 			now: claimNow,
 			isClaimable: () => true,
 			isResolvableRun: () => true,
-			validateWindows: (_run, windows) => assertVeyrithTutorialWindowsReady(windows),
+			validateWindows: () => {},
 			buildResult: (tx, runRow, windows) =>
 				resolveThumperRunForStoredWindows(tx, runRow, windows, {
 					recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
@@ -205,7 +196,7 @@ describeDb('transactional claim reward', () => {
 			now: claimNow,
 			isClaimable: () => true,
 			isResolvableRun: () => true,
-			validateWindows: (_run, windows) => assertVeyrithTutorialWindowsReady(windows),
+			validateWindows: () => {},
 			buildResult: (tx, runRow, windows) =>
 				resolveThumperRunForStoredWindows(tx, runRow, windows, {
 					recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM

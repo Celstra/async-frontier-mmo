@@ -1,9 +1,9 @@
-import type { FrameId } from 'shared';
 import type { NamedResourceId } from '../resources/types.js';
+import type { HullTier } from '../tuning.js';
 import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
 import type { EventWindowSeverity } from './eventWindowSeverity.js';
 import { parseEventWindowSeverity } from './eventWindowSeverity.js';
-import { getFrameMatchingBonusRecovery } from './frameActionEffects.js';
+import { computeHullFailsafeProrata, type HullFailsafeRecallReason } from './hullFailsafeRecall.js';
 import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
 import {
@@ -25,6 +25,10 @@ export type ThumperRunConfig = {
 	appliedWear?: number;
 	/** From snapshotted thumper parts at deploy (Lesson 6.3). */
 	partModifiers?: ThumperPartRunModifiers;
+	/** Hull fail-safe inputs — when planned duration exceeds hull ceiling, yield is pro-rated. */
+	hullTier?: HullTier;
+	hullIntegrityAtDeploy?: number;
+	plannedDurationSeconds?: number;
 };
 
 export type ThumperEventWindowSnapshot = {
@@ -53,6 +57,7 @@ export type ThumperRunResult = {
 	resolutionType: ThumperRunResolutionType;
 	appliedWear: number;
 	explanation: string;
+	recallReason?: HullFailsafeRecallReason;
 };
 
 function findRecallWindowIndex(responses: ThumperEventWindowResponse[]): number | null {
@@ -63,14 +68,45 @@ function findRecallWindowIndex(responses: ThumperEventWindowResponse[]): number 
 	return recalls[0]?.windowIndex ?? null;
 }
 
+function applyHullFailsafeToConfig(runConfig: ThumperRunConfig): {
+	runConfig: ThumperRunConfig;
+	recallReason?: HullFailsafeRecallReason;
+} {
+	if (
+		runConfig.hullTier === undefined ||
+		runConfig.hullIntegrityAtDeploy === undefined ||
+		runConfig.plannedDurationSeconds === undefined
+	) {
+		return { runConfig };
+	}
+
+	const failsafe = computeHullFailsafeProrata({
+		hullTier: runConfig.hullTier,
+		hullIntegrityAtDeploy: runConfig.hullIntegrityAtDeploy,
+		plannedDurationSeconds: runConfig.plannedDurationSeconds,
+		projectedRecovery: runConfig.projectedRecovery
+	});
+
+	if (!failsafe.triggered) {
+		return { runConfig };
+	}
+
+	return {
+		runConfig: {
+			...runConfig,
+			projectedRecovery: failsafe.prorataProjectedRecovery
+		},
+		recallReason: failsafe.recallReason
+	};
+}
+
 function resolveAnsweredWindows(input: {
 	runConfig: ThumperRunConfig;
 	eventWindows: ThumperEventWindowSnapshot[];
 	responses: ThumperEventWindowResponse[];
-	pilotFrame: FrameId;
 	applyRecoveryFloor: boolean;
-}): Omit<ThumperRunResult, 'resolutionType' | 'forfeitedRecovery'> {
-	const { runConfig, eventWindows, responses, pilotFrame, applyRecoveryFloor } = input;
+}): Omit<ThumperRunResult, 'resolutionType' | 'forfeitedRecovery' | 'recallReason'> {
+	const { runConfig, eventWindows, responses, applyRecoveryFloor } = input;
 
 	if (responses.length !== eventWindows.length) {
 		throw new Error('Event window responses must match the planned window count');
@@ -79,7 +115,6 @@ function resolveAnsweredWindows(input: {
 	const projectedRecovery = runConfig.projectedRecovery;
 
 	let wasteQuantity = 0;
-	let frameBonusRecovery = 0;
 	const explanationParts: string[] = [];
 
 	for (const response of responses) {
@@ -107,25 +142,17 @@ function resolveAnsweredWindows(input: {
 			severity
 		);
 
-		let windowFrameBonus = 0;
-		if (response.chosenResponse === matchingAction) {
-			windowFrameBonus = getFrameMatchingBonusRecovery(pilotFrame, matchingAction);
-			frameBonusRecovery += windowFrameBonus;
-		}
-
 		explanationParts.push(
 			describeWindowResponse(
 				response.complication,
 				matchingAction,
-				response.chosenResponse,
-				windowFrameBonus,
-				pilotFrame
+				response.chosenResponse
 			)
 		);
 	}
 
 	const partModifiers = runConfig.partModifiers;
-	const rawRecovered = projectedRecovery - wasteQuantity + frameBonusRecovery;
+	const rawRecovered = projectedRecovery - wasteQuantity;
 	const adjustedRecovered =
 		partModifiers === undefined
 			? rawRecovered
@@ -162,26 +189,27 @@ function resolveAnsweredWindows(input: {
 }
 
 /**
- * Resolve a thumper run from stored window rows, player responses, and pilot frame.
+ * Resolve a thumper run from stored window rows and player responses.
  * Quantity and waste only — named resource stats stay immutable in the catalog.
  */
 export function resolveThumperRunResult(input: {
 	runConfig: ThumperRunConfig;
 	eventWindows: ThumperEventWindowSnapshot[];
 	responses: ThumperEventWindowResponse[];
-	pilotFrame: FrameId;
 }): ThumperRunResult {
-	const { runConfig, eventWindows, responses, pilotFrame } = input;
-	assertRecallResponseAudit({ eventWindows, responses });
-	const recallWindowIndex = findRecallWindowIndex(responses);
+	const hullAdjusted = applyHullFailsafeToConfig(input.runConfig);
+	const runConfig = hullAdjusted.runConfig;
+	const hullRecallReason = hullAdjusted.recallReason;
+
+	assertRecallResponseAudit({ eventWindows: input.eventWindows, responses: input.responses });
+	const recallWindowIndex = findRecallWindowIndex(input.responses);
 	const appliedWear = runConfig.appliedWear ?? 0;
 
-	if (recallWindowIndex === null) {
+	if (recallWindowIndex === null && !hullRecallReason) {
 		const result = resolveAnsweredWindows({
 			runConfig,
-			eventWindows,
-			responses,
-			pilotFrame,
+			eventWindows: input.eventWindows,
+			responses: input.responses,
 			applyRecoveryFloor: true
 		});
 
@@ -192,15 +220,32 @@ export function resolveThumperRunResult(input: {
 		};
 	}
 
-	const securedWindows = eventWindows.filter((window) => window.windowIndex < recallWindowIndex);
-	const securedResponses = responses.filter(
+	if (hullRecallReason && recallWindowIndex === null) {
+		const result = resolveAnsweredWindows({
+			runConfig,
+			eventWindows: input.eventWindows,
+			responses: input.responses,
+			applyRecoveryFloor: true
+		});
+
+		return {
+			...result,
+			forfeitedRecovery: Math.max(0, input.runConfig.projectedRecovery - runConfig.projectedRecovery),
+			resolutionType: 'recalled',
+			recallReason: hullRecallReason,
+			explanation: `${result.explanation} RIG SECURED — fail-safe nominal. Hull integrity spent.`
+		};
+	}
+
+	const securedWindows = input.eventWindows.filter((window) => window.windowIndex < recallWindowIndex!);
+	const securedResponses = input.responses.filter(
 		(response) =>
-			response.chosenResponse !== 'recall_early' && response.windowIndex < recallWindowIndex
+			response.chosenResponse !== 'recall_early' && response.windowIndex < recallWindowIndex!
 	);
 
-	const skippedWindowCount = eventWindows.length - securedWindows.length;
+	const skippedWindowCount = input.eventWindows.length - securedWindows.length;
 	const forfeitedRecovery = Math.round(
-		(runConfig.projectedRecovery * skippedWindowCount) / eventWindows.length
+		(runConfig.projectedRecovery * skippedWindowCount) / input.eventWindows.length
 	);
 
 	if (securedWindows.length === 0) {
@@ -212,6 +257,7 @@ export function resolveThumperRunResult(input: {
 			forfeitedRecovery,
 			resolutionType: 'recalled',
 			appliedWear,
+			recallReason: hullRecallReason,
 			explanation: `${RECALL_EXPLANATION_PREFIX} No windows were secured before recall.`
 		};
 	}
@@ -223,7 +269,6 @@ export function resolveThumperRunResult(input: {
 		},
 		eventWindows: securedWindows,
 		responses: securedResponses,
-		pilotFrame,
 		applyRecoveryFloor: false
 	});
 
@@ -233,6 +278,7 @@ export function resolveThumperRunResult(input: {
 		forfeitedRecovery,
 		resolutionType: 'recalled',
 		appliedWear,
+		recallReason: hullRecallReason,
 		explanation: `${secured.explanation} ${RECALL_EXPLANATION_PREFIX}`
 	};
 }

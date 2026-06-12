@@ -1,5 +1,5 @@
 import type { ResourceStatCode } from 'shared';
-import { createSeededRng } from '../thumper/seededRng.js';
+import { createSeededRng } from '../rng.js';
 import { FAMILY_STAT_CAPS, MVP_RESOURCE_STAT_CODES } from './familyStatCaps.js';
 import type { CompleteResourceStatMap, ResourceFamily } from './types.js';
 

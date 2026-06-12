@@ -1,4 +1,5 @@
 import { concentrationPercentToExtractionMultiplier } from '../survey/prospectingSampling.js';
+import { RUN_TAILS_MINUTES, TUTORIAL_RUN_1_MINUTES, TUTORIAL_RUN_2_MINUTES } from '../tuning.js';
 import {
 	DEFAULT_PROJECTED_RECOVERY,
 	PUSH_RUN_PROJECTED_RECOVERY
@@ -10,17 +11,22 @@ import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 export const ACTIVE_PHASE_SECONDS = 60;
 
 export const EXTRACTION_TAIL_OPTIONS = [
-	{ id: '15m', minutes: 15, label: '15 min' },
-	{ id: '1h', minutes: 60, label: '1 hour' },
-	{ id: '4h', minutes: 240, label: '4 hours' },
-	{ id: '8h', minutes: 480, label: '8 hours' }
+	{ id: '15m', minutes: RUN_TAILS_MINUTES[0], label: '15 min' },
+	{ id: '1h', minutes: RUN_TAILS_MINUTES[1], label: '1 hour' },
+	{ id: '4h', minutes: RUN_TAILS_MINUTES[2], label: '4 hours' }
 ] as const;
 
-/** Tutorial-only tail — never in EXTRACTION_TAIL_OPTIONS (Decision 017 amendment 2026-06-11). */
+/** Tutorial-only tails — never in EXTRACTION_TAIL_OPTIONS. */
 export const TUTORIAL_EXTRACTION_TAIL_OPTION = {
 	id: '2m',
-	minutes: 2,
+	minutes: TUTORIAL_RUN_1_MINUTES,
 	label: '2 min (training)'
+} as const;
+
+export const TUTORIAL_EXTRACTION_TAIL_OPTION_5M = {
+	id: '5m',
+	minutes: TUTORIAL_RUN_2_MINUTES,
+	label: '5 min (training)'
 } as const;
 
 export type ExtractionTailId = (typeof EXTRACTION_TAIL_OPTIONS)[number]['id'];

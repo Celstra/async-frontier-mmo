@@ -22,34 +22,20 @@ const baseMeters: EventWindowMeterSnapshot = {
 };
 
 describe('describeEventWindowStakes', () => {
-	it('shows different frame bonus on matching action for recon vs engineer', () => {
-		const reconStakes = describeEventWindowStakes({
+	it('describes matching action wear without frame-specific bonuses', () => {
+		const stakes = describeEventWindowStakes({
 			complication: 'signal_drift',
 			matchingAction: 'signal_tune',
 			severity: 'minor',
-			pilotFrame: 'recon',
-			fieldRepairKitCount: 1,
-			currentMeters: baseMeters,
-			windowIndex: 1,
-			totalWindowCount: 2
-		});
-		const engineerStakes = describeEventWindowStakes({
-			complication: 'signal_drift',
-			matchingAction: 'signal_tune',
-			severity: 'minor',
-			pilotFrame: 'engineer',
 			fieldRepairKitCount: 1,
 			currentMeters: baseMeters,
 			windowIndex: 1,
 			totalWindowCount: 2
 		});
 
-		const reconMatch = reconStakes.find((row) => row.id === 'signal_tune')!;
-		const engineerMatch = engineerStakes.find((row) => row.id === 'signal_tune')!;
-
-		expect(reconMatch.effectLine).toContain('+5 Recon bonus');
-		expect(reconMatch.effectLine).toContain(`wears the Drill by ${MATCHING_ACTION_WEAR_CONDITION}`);
-		expect(engineerMatch.effectLine).not.toContain('bonus');
+		const match = stakes.find((row) => row.id === 'signal_tune')!;
+		expect(match.effectLine).toContain(`wears the Drill by ${MATCHING_ACTION_WEAR_CONDITION}`);
+		expect(match.effectLine).not.toContain('bonus');
 	});
 
 	it('hold stake uses severity-scaled penalty matching claim resolution', () => {
@@ -58,7 +44,6 @@ describe('describeEventWindowStakes', () => {
 				complication: 'pump_strain',
 				matchingAction: 'clear_pump_problem',
 				severity,
-				pilotFrame: 'engineer',
 				fieldRepairKitCount: 0,
 				currentMeters: baseMeters,
 				windowIndex: 2,
@@ -84,7 +69,6 @@ describe('resolveEventWindowOutcome', () => {
 				matchingAction,
 				severity,
 				chosenResponse: 'hold',
-				pilotFrame: 'recon',
 				currentMeters: { ...baseMeters, projectedRecovery },
 				windowIndex: 1,
 				totalWindowCount: 2
@@ -109,8 +93,7 @@ describe('resolveEventWindowOutcome', () => {
 					projectedRecovery
 				},
 				eventWindows: [{ windowIndex: 1, complication, matchingAction, severity }],
-				responses: [{ windowIndex: 1, complication, chosenResponse: 'hold' }],
-				pilotFrame: 'recon'
+				responses: [{ windowIndex: 1, complication, chosenResponse: 'hold' }]
 			});
 
 			expect(claim.wasteQuantity).toBe(holdWaste);
@@ -118,13 +101,12 @@ describe('resolveEventWindowOutcome', () => {
 		}
 	});
 
-	it('matching action restores primary meter, records frame bonus, and action wear', () => {
+	it('matching action restores primary meter and records action wear', () => {
 		const outcome = resolveEventWindowOutcome({
 			complication: 'pump_strain',
 			matchingAction: 'clear_pump_problem',
 			severity: 'serious',
 			chosenResponse: 'clear_pump_problem',
-			pilotFrame: 'engineer',
 			currentMeters: baseMeters,
 			windowIndex: 1,
 			totalWindowCount: 2
@@ -133,7 +115,7 @@ describe('resolveEventWindowOutcome', () => {
 		expect(outcome.beforeState.pumpFlow).toBe(57);
 		expect(outcome.afterState.pumpFlow).toBe(82);
 		expect(outcome.recoveryPenalty).toBe(0);
-		expect(outcome.frameBonusRecovery).toBe(6);
+		expect(outcome.frameBonusRecovery).toBe(0);
 		expect(outcome.actionWearCondition).toBe(MATCHING_ACTION_WEAR_CONDITION);
 
 		const wearDeltas = computeRunPartWearDeltas(
@@ -156,7 +138,6 @@ describe('resolveEventWindowOutcome', () => {
 			matchingAction: 'signal_tune',
 			severity: 'minor',
 			chosenResponse: 'hold',
-			pilotFrame: 'recon',
 			currentMeters: baseMeters,
 			windowIndex: 1,
 			totalWindowCount: 2
@@ -166,7 +147,6 @@ describe('resolveEventWindowOutcome', () => {
 			complication: 'signal_drift',
 			matchingAction: 'signal_tune',
 			chosenResponse: 'hold',
-			pilotFrame: 'recon',
 			beforeState: outcome.beforeState,
 			afterState: outcome.afterState
 		});
