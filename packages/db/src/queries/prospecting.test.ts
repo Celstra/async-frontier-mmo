@@ -117,10 +117,9 @@ describeDb('prospecting persistence', () => {
 
 		expect(result.statsRevealedThisSample).toBe(true);
 		expect(result.trickleQuantity).toBe(firstSpotExpectedYield);
-		expect(result.energyCost).toBe(SAMPLE_ENERGY_COST);
-		expect(result.surveyEnergy).toBe(
-			SURVEY_ENERGY_CAP - FAMILY_SCAN_ENERGY_COST - SAMPLE_ENERGY_COST
-		);
+		// First sample of a resource is energy-free (stat-reveal rule).
+		expect(result.energyCost).toBe(0);
+		expect(result.surveyEnergy).toBe(SURVEY_ENERGY_CAP - FAMILY_SCAN_ENERGY_COST);
 
 		const stack = await getResourceStackForPilotInstance(db, testPilotId, veyrithInstanceId);
 		expect(stack?.quantity).toBe(firstSpotExpectedYield);
@@ -202,6 +201,14 @@ describeDb('prospecting persistence', () => {
 		}
 		expect(scan.energyCost).toBe(FAMILY_SCAN_ENERGY_COST);
 		expect(scan.surveyEnergy).toBe(SURVEY_ENERGY_CAP - FAMILY_SCAN_ENERGY_COST);
+
+		// Burn the free stat-reveal sample so the next sample is a paid one.
+		const revealSample = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			spotId: firstSpotId
+		});
+		expect(revealSample.status).toBe('ok');
 
 		const lowEnergyAt = new Date();
 		await db
@@ -314,6 +321,14 @@ describeDb('prospecting persistence', () => {
 			prospectingCycle: veyrith!.prospectingCycle
 		});
 		expect(spots.length).toBeGreaterThan(1);
+
+		// Burn the free stat-reveal sample so both racing samples are paid ones.
+		const revealSample = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			spotId: spots[0]!.spotId
+		});
+		expect(revealSample.status).toBe('ok');
 
 		const lowEnergyAt = new Date();
 		await db

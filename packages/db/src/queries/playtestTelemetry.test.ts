@@ -27,20 +27,18 @@ describeDb('playtest telemetry', () => {
 
 		const first = await recordPlaytestEventOnce(db, {
 			pilotId: testPilotId,
-			eventName: 'frame_chosen',
-			payload: { frameId: 'recon' }
+			eventName: 'prologue_done'
 		});
 		const second = await recordPlaytestEventOnce(db, {
 			pilotId: testPilotId,
-			eventName: 'frame_chosen',
-			payload: { frameId: 'recon' }
+			eventName: 'prologue_done'
 		});
 
 		expect(first).toBe(true);
 		expect(second).toBe(false);
 
 		const events = await listPlaytestEventsForPilot(db, testPilotId);
-		expect(events.filter((event) => event.eventName === 'frame_chosen')).toHaveLength(1);
+		expect(events.filter((event) => event.eventName === 'prologue_done')).toHaveLength(1);
 	});
 
 	it('counts repeated events by name for scan-action sequencing', async () => {

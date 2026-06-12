@@ -59,11 +59,12 @@
 		border: 1px solid var(--phosphor-dim);
 		border-radius: var(--radius-sm);
 		box-shadow: inset 0 0 24px var(--phosphor-glow);
+		overflow-x: auto;
 	}
 
 	.field-map__grid {
 		margin: 0;
-		width: 100%;
+		width: max-content;
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
 		line-height: 1.35;

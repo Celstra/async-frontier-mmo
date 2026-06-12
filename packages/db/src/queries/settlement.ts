@@ -6,7 +6,7 @@ import {
 	type SettlementOrder,
 	type SettlementOrderStatus
 } from '@async-frontier-mmo/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { consumeResourceFromPilotTx, InsufficientResourceError } from './resourceConsumes.js';
@@ -250,12 +250,15 @@ export async function deliverResourceStackToSettlementOrder(
 	input: { pilotId: string; orderId: string; resourceInstanceId: string }
 ): Promise<DeliverStackToSettlementOrderOutcome> {
 	const outcome = await db.transaction(async (tx) => {
+		// Lock the order row first to prevent two concurrent turn-ins for the
+		// same order from both reading the row as 'open'.
 		const [orderRow] = await tx
 			.select()
 			.from(settlementOrders)
 			.where(
 				and(eq(settlementOrders.id, input.orderId), eq(settlementOrders.pilotId, input.pilotId))
 			)
+			.for('update')
 			.limit(1);
 
 		if (!orderRow) {
@@ -319,25 +322,46 @@ export async function deliverResourceStackToSettlementOrder(
 			.where(eq(settlementOrders.id, orderRow.id));
 
 		if (orderFilled) {
-			const siblingOrders = await tx
+			// Lock the milestone row first so concurrent turn-ins serialise here:
+			// only one transaction holds the lock at a time, so the subsequent
+			// sibling-orders read reflects all previously committed fills.
+			await tx
+				.select({ milestoneKey: settlementMilestones.milestoneKey })
+				.from(settlementMilestones)
+				.where(
+					and(
+						eq(settlementMilestones.pilotId, input.pilotId),
+						eq(settlementMilestones.milestoneKey, orderRow.milestoneKey)
+					)
+				)
+				.for('update');
+
+			// Re-read all sibling order rows after acquiring the lock so we see
+			// any fills that committed while we were waiting.
+			const allSiblingOrders = await tx
 				.select()
 				.from(settlementOrders)
 				.where(
 					and(
 						eq(settlementOrders.pilotId, input.pilotId),
-						eq(settlementOrders.milestoneKey, orderRow.milestoneKey),
-						eq(settlementOrders.status, 'open')
+						eq(settlementOrders.milestoneKey, orderRow.milestoneKey)
 					)
 				);
 
-			if (siblingOrders.length === 0) {
+			const openSiblings = allSiblingOrders.filter(
+				(row) => row.id !== orderRow.id && row.status === 'open'
+			);
+
+			if (openSiblings.length === 0) {
+				// Idempotent flip: only update when not already unlocked.
 				await tx
 					.update(settlementMilestones)
 					.set({ unlockedAt: new Date() })
 					.where(
 						and(
 							eq(settlementMilestones.pilotId, input.pilotId),
-							eq(settlementMilestones.milestoneKey, orderRow.milestoneKey)
+							eq(settlementMilestones.milestoneKey, orderRow.milestoneKey),
+							isNull(settlementMilestones.unlockedAt)
 						)
 					);
 

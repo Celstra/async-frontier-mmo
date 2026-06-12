@@ -2,7 +2,9 @@ import {
 	DepositSpotExhaustedError,
 	DepositSpotStaleError,
 	deployThumperRunWithEventWindows,
+	getAnyTutorialRunDeployTarget,
 	getClaimedTutorialRunDeployTarget,
+	listPilotWaypointSamples,
 	getBloomRecord,
 	getDepositSpotYieldState,
 	getOpenThumperRunForPilot,
@@ -16,7 +18,6 @@ import {
 	ensurePilotFieldSession,
 	getActiveBloomId,
 	countPlaytestEventsByName,
-	getPilotProspectingProgress,
 	scanFamilyForPilot,
 	scanPilotFieldTile,
 	setPilotFieldFamily,
@@ -38,7 +39,6 @@ import {
 	tutorialRunFromSeed,
 	tutorialRunSeed,
 	type NamedResourceId,
-	surveyEnergyOutlook,
 	type ResourceFamily,
 	type ThumperComplicationId,
 	type ThumperEventActionId
@@ -229,20 +229,6 @@ export const actions: Actions = {
 			return fail(400, { message: 'Activate a resource map first', ...(await fieldData(db, pilotId)) });
 		}
 
-		const activeBloomId = await getActiveBloomId(db);
-		const progress = await getPilotProspectingProgress(db, pilotId, now, activeBloomId);
-		const energyOutlook = surveyEnergyOutlook({
-			storedEnergy: progress.surveyEnergy,
-			lastUpdatedAtMs: progress.lastEnergyUpdatedAtMs,
-			nowMs: now.getTime()
-		});
-		if (!energyOutlook.canSampleNow) {
-			return fail(400, {
-				message: 'Not enough survey energy to sample here',
-				...(await fieldData(db, pilotId))
-			});
-		}
-
 		const outcome = await startPilotFieldSample(db, {
 			pilotId,
 			resourceInstanceId: session.resourceInstanceId,
@@ -310,10 +296,35 @@ export const actions: Actions = {
 		const isTutorialRun = tutorialRun !== null;
 
 		if (tutorialRun === 2) {
-			const firstRunWaypoint = await getClaimedTutorialRunDeployTarget(db, {
+			// (a) Prefer a claimed run-1 row; (b) fall back to any run-1 row (expired unclaimed);
+			// (c) fall back to the highest-concentration sampled spot this pilot has.
+			let firstRunWaypoint = await getClaimedTutorialRunDeployTarget(db, {
 				pilotId,
 				runSeed: TUTORIAL_RUN_1_SEED
 			});
+
+			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
+				firstRunWaypoint = await getAnyTutorialRunDeployTarget(db, {
+					pilotId,
+					runSeed: TUTORIAL_RUN_1_SEED
+				});
+			}
+
+			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
+				// (c) Any sampled spot — pick the highest concentration.
+				const activeBloomId = await getActiveBloomId(db);
+				const waypointSamples = await listPilotWaypointSamples(db, { pilotId, bloomId: activeBloomId });
+				const best = waypointSamples.sort(
+					(a, b) => (b.trueConcentrationPercent ?? 0) - (a.trueConcentrationPercent ?? 0)
+				)[0];
+				if (best) {
+					firstRunWaypoint = {
+						depositSpotId: best.spotId,
+						resourceInstanceId: best.resourceInstanceId
+					};
+				}
+			}
+
 			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
 				return fail(400, {
 					message: 'Complete your first tutorial deploy before redeploying',

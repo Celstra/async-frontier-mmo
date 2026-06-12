@@ -82,6 +82,7 @@ export {
 } from './queries/thumperEventWindows.js';
 export {
 	claimThumperRun,
+	getAnyTutorialRunDeployTarget,
 	getClaimedTutorialRunDeployTarget,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
@@ -198,6 +199,7 @@ export { pilotTutorialState } from './schema/pilotTutorialState.js';
 export { settlementMilestones } from './schema/settlementMilestones.js';
 export { settlementOrders } from './schema/settlementOrders.js';
 export {
+	LEGACY_PLAYTEST_EVENTS,
 	PLAYTEST_COMPREHENSION_EVENTS,
 	PLAYTEST_EVENT_NAMES,
 	PLAYTEST_FUNNEL_EVENTS,

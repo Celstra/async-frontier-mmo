@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { FABRICATOR_ONLINE } from '$lib/ascii';
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key.length === 1 || event.key === 'Enter' || event.key === ' ') {
@@ -13,12 +14,7 @@
 
 <div class="takeover" role="dialog" aria-modal="true" aria-labelledby="fabricator-title">
 	<div class="takeover__panel">
-		<pre class="takeover__art" aria-hidden="true">
-  ╔══════════════════════════╗
-  ║                          ║
-  ║   FABRICATOR ONLINE      ║
-  ║                          ║
-  ╚══════════════════════════╝</pre>
+		<pre class="takeover__art" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
 		<h2 id="fabricator-title" class="takeover__title">FABRICATOR ONLINE</h2>
 		<p class="takeover__copy">The foreman’s rig schematic unlocks in WORKSHOP. Press any key to continue.</p>
 		<form id="fabricator-dismiss" method="POST" action="?/dismissFabricator" use:enhance>

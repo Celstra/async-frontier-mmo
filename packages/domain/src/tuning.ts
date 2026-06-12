@@ -29,7 +29,10 @@ export const TUTORIAL_RUN_2_MINUTES = 5;
 export const TUTORIAL_RUN_1_YIELD_FLOOR = 25;
 export const TUTORIAL_RUN_2_YIELD = 60;
 
-export const TUTORIAL_ORDER_SA_STACK = 20;
+/** 20→15 after the post-build energy audit: worst-case tutorial bill (scans + paid
+ * samples at range-floor concentrations) must fit the energy cap with at least one
+ * spare sample of headroom. See tutorialEnergyBudget.test.ts. */
+export const TUTORIAL_ORDER_SA_STACK = 15;
 export const TUTORIAL_ORDER_CM_STACK = 12;
 
 /** Post-tutorial foreman board — bigger stacks (slice spec §6 async reveal). */

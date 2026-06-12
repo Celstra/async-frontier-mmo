@@ -59,6 +59,7 @@ import { loadOpenRunState } from '$lib/server/fieldRunState.js';
 import { trackFieldStatReveal } from '$lib/server/playtestTelemetry.js';
 import { maybeAdvanceHuntingToTurnIn } from '$lib/server/tutorialOrchestration.js';
 import { resolveTargetDisplayName } from '$lib/server/targetResource.js';
+import { loadSettlementMissionTicker } from '$lib/server/settlementLoad.js';
 import type { getGameDb } from './gameDb.js';
 import {
 	firstAsyncUnlockForEquippedHull,
@@ -178,7 +179,10 @@ export async function loadFieldScreen(
 			};
 		}
 	}
-	const activeBloomId = await getActiveBloomId(db);
+	const [activeBloomId, missionTicker] = await Promise.all([
+		getActiveBloomId(db),
+		loadSettlementMissionTicker(db, pilotId)
+	]);
 	const tutorialStep = await getPilotTutorialStep(db, pilotId);
 	const hasCompletedTutorial = await hasPilotClaimedTutorialRun(db, pilotId, TUTORIAL_RUN_1_SEED);
 	const tutorialDeployRun = tutorialDeployForStep(tutorialStep);
@@ -458,6 +462,7 @@ export async function loadFieldScreen(
 		regionId: 'red_mesa' as const,
 		activeBloomId,
 		activeBloomName: activeBloomDisplayName(activeBloomId),
+		missionTicker,
 		isTutorialSurvey: activeBloomId === BLOOM_ONE_ID && !hasCompletedTutorial,
 		hasCompletedTutorial,
 		selectedFamily,

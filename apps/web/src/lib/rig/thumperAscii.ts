@@ -1,3 +1,5 @@
+import { THUMPER_LARGE, THUMPER_COMPACT, THUMPER_DAMAGED } from '$lib/ascii';
+
 export type ThumperAsciiSlot = {
 	equipped: boolean;
 	label?: string | null;
@@ -12,85 +14,48 @@ export type BuildThumperAsciiInput = {
 	mode?: ThumperAsciiMode;
 	/** Replaces the PUMP / HULL banner when set (e.g. live resource name). */
 	header?: string | null;
-	/** Status under the ground line — hull %, threat, MAX RUN, etc. */
+	/** Status under the art — hull %, threat, MAX RUN, etc. */
 	footer?: string | null;
 	/** Show @ prospector for human scale (RIG / workshop). */
 	showProspectorScale?: boolean;
+	/** Show the damaged variant (hull-failsafe recall). */
+	damaged?: boolean;
 };
 
-const WIDTH = 46;
+const WIDTH = 38;
 
 function center(text: string): string {
 	const trimmed = text.slice(0, WIDTH);
-	if (trimmed.length >= WIDTH) {
-		return trimmed;
-	}
+	if (trimmed.length >= WIDTH) return trimmed;
 	const pad = WIDTH - trimmed.length;
 	const left = Math.floor(pad / 2);
 	return ' '.repeat(left) + trimmed + ' '.repeat(pad - left);
 }
 
-function hullTank(state: ThumperAsciiSlot): string {
-	return state.equipped ? '[██]' : '[  ]';
-}
-
-function pumpManifold(state: ThumperAsciiSlot): string {
-	return state.equipped ? '|||' : '| |';
-}
-
-function drillStem(state: ThumperAsciiSlot): string {
-	return state.equipped ? '|||' : '| |';
-}
-
-function drillAngledRow(state: ThumperAsciiSlot): string {
-	if (state.equipped) {
-		return '\\  DRILL||   /';
-	}
-	return '\\  [  ] | |   /';
-}
-
-function groundLine(drill: ThumperAsciiSlot): string {
-	const stem = drill.equipped ? '|||||' : '| | |';
-	return `~~~~~~~${stem}~~~~~~~`;
-}
-
-function rigBanner(mode: ThumperAsciiMode | undefined, header: string | null | undefined): string {
-	if (header) {
-		const label = header.toUpperCase().slice(0, 12);
-		return `/  ${label.padEnd(12)} \\`;
-	}
-	if (mode === 'deployed') {
-		return '/  LIVE RUN    \\';
-	}
-	if (mode === 'workshop') {
-		return '/  CHASSIS      \\';
-	}
-	return '/  PUMP  HULL   \\';
-}
-
 export function buildThumperAscii(input: BuildThumperAsciiInput): string {
-	const hull = hullTank(input.hull);
-	const pump = pumpManifold(input.pump);
-	const stem = drillStem(input.drill);
-	const showScale = input.showProspectorScale ?? input.mode !== 'deployed';
+	const isDeployed = input.mode === 'deployed';
+	const showScale = input.showProspectorScale ?? !isDeployed;
+	const damaged = input.damaged ?? false;
+
+	const baseArt = isDeployed
+		? damaged
+			? THUMPER_DAMAGED
+			: THUMPER_COMPACT
+		: THUMPER_LARGE;
 
 	const lines: string[] = [];
 
 	if (showScale) {
-		lines.push(center('@  you'));
+		lines.push(center('@ you'));
 		lines.push(center('|'));
 	}
 
-	lines.push(
-		center('.----+----.'),
-		center(rigBanner(input.mode, input.header)),
-		center(`|   ${pump}  ${hull}  |`),
-		center(`|   ${pump}  ${hull}  |`),
-		center(drillAngledRow(input.drill)),
-		center(` \\   ${stem}   /`),
-		center(`  \\  ${stem}  /`),
-		center(groundLine(input.drill))
-	);
+	if (input.header) {
+		const label = `[ ${input.header.toUpperCase().slice(0, 20)} ]`;
+		lines.push(center(label));
+	}
+
+	lines.push(...baseArt.split('\n'));
 
 	if (input.footer) {
 		lines.push(center(input.footer));

@@ -2,6 +2,7 @@
 	import MissionOrderCard from '$lib/settlement/MissionOrderCard.svelte';
 	import FabricatorTakeover from '$lib/settlement/FabricatorTakeover.svelte';
 	import PrologueTakeover from '$lib/settlement/PrologueTakeover.svelte';
+	import { SETTLEMENT_CAMP } from '$lib/ascii';
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
@@ -29,20 +30,14 @@
 	<header class="screen__header settlement-header">SETTLEMENT — Foreman board</header>
 
 	<div class="screen__body">
-		<pre class="settlement-art" aria-hidden="true">
-        ___[ SETTLEMENT ]___
-       /                   \
-      |  FOREMAN  | TURN-IN |
-      |   BOARD   |  DOCKS  |
-     /|===========|=========|\
-    | |  :::::::: | :::::::: | |
-    | |  CRATES   |FABRICATOR| |
-    | |___________|__________| |
-     \_______________________/
-              RED MESA</pre>
+		<pre class="settlement-art" aria-hidden="true">{SETTLEMENT_CAMP}</pre>
 
 		{#if form?.message}
 			<p class="flash flash--error" role="alert">{form.message}</p>
+		{/if}
+
+		{#if data.activeMissionLine}
+			<p class="mission-tracker" aria-live="polite">{data.activeMissionLine}</p>
 		{/if}
 
 		<aside class="foreman panel">
@@ -190,6 +185,16 @@
 {/if}
 
 <style>
+	.mission-tracker {
+		margin: 0 0 1rem;
+		padding: 0.4rem 0.6rem;
+		font-size: var(--font-size-sm);
+		font-family: var(--font-mono);
+		color: var(--phosphor);
+		border-left: 2px solid var(--phosphor-dim);
+		letter-spacing: 0.04em;
+	}
+
 	.settlement-header {
 		margin: 0;
 	}

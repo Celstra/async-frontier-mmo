@@ -75,7 +75,7 @@ describe('prospectingSampling', () => {
 		expect(after.statHints).toHaveLength(5);
 	});
 
-	it('spends survey energy and grants exactly one trickle grant per sample action', () => {
+	it('first sample of a resource is energy-free; repeats spend energy and grant one trickle', () => {
 		const spots = spotsForResource();
 		const startEnergy = 50;
 		const progress = {
@@ -83,23 +83,40 @@ describe('prospectingSampling', () => {
 			surveyEnergy: startEnergy
 		};
 
-		const result = sampleDepositSpot({
+		const first = sampleDepositSpot({
 			resource: testResource,
 			spot: spots[0]!,
 			pilotProgress: progress,
 			nowMs: 0
 		});
 
-		expect('error' in result).toBe(false);
-		if ('error' in result) {
+		expect('error' in first).toBe(false);
+		if ('error' in first) {
 			return;
 		}
 
-		expect(result.energyCost).toBe(SAMPLE_ENERGY_COST);
-		expect(result.pilotProgress.surveyEnergy).toBe(startEnergy - SAMPLE_ENERGY_COST);
-		expect(result.trickleGrant.quantity).toBe(
+		expect(first.statsRevealedThisSample).toBe(true);
+		expect(first.energyCost).toBe(0);
+		expect(first.pilotProgress.surveyEnergy).toBe(startEnergy);
+		expect(first.trickleGrant.quantity).toBe(
 			sampleYieldFromConcentration(spots[0]!.trueConcentrationPercent)
 		);
+
+		const second = sampleDepositSpot({
+			resource: testResource,
+			spot: spots[1]!,
+			pilotProgress: first.pilotProgress,
+			nowMs: 0
+		});
+
+		expect('error' in second).toBe(false);
+		if ('error' in second) {
+			return;
+		}
+
+		expect(second.statsRevealedThisSample).toBe(false);
+		expect(second.energyCost).toBe(SAMPLE_ENERGY_COST);
+		expect(second.pilotProgress.surveyEnergy).toBe(startEnergy - SAMPLE_ENERGY_COST);
 	});
 
 	it('scales sample yield at 25/65/88% concentration to 1/3/4 units', () => {

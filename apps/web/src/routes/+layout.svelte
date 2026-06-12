@@ -20,8 +20,6 @@
 
 	const nextActionScreen = $derived(data.nextActionScreen);
 
-	const missionTicker = $derived(data.missionTicker);
-
 	function isScreenActive(href: string): boolean {
 		return pathname === href || pathname.startsWith(`${href}/`);
 	}
@@ -67,9 +65,6 @@
 			{/each}
 		</nav>
 
-		{#if missionTicker}
-			<p class="mission-ticker" aria-live="polite">{missionTicker}</p>
-		{/if}
 	</header>
 
 	<main class="app-main">
@@ -131,15 +126,6 @@
 		content: ' ←';
 		font-size: var(--font-size-xs);
 		color: var(--accent-warning);
-	}
-
-	.mission-ticker {
-		margin: 0.5rem 0 0;
-		padding: 0.35rem 0.5rem;
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		border-left: 2px solid var(--phosphor-dim);
-		letter-spacing: 0.04em;
 	}
 
 	.app-main {

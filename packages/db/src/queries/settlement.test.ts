@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { TUTORIAL_ORDER_SA_STACK } from '@async-frontier-mmo/domain';
+import { TUTORIAL_ORDER_CM_STACK, TUTORIAL_ORDER_SA_STACK } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
 import { pilots } from '../schema/pilots.js';
+import { settlementMilestones } from '../schema/settlementMilestones.js';
 import { settlementOrders } from '../schema/settlementOrders.js';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
 import { grantResourceToPilot } from './resourceGrants.js';
@@ -139,6 +140,71 @@ describeDb('settlement persistence', () => {
 			orderFilled: true,
 			fabricatorMilestoneCompleted: false
 		});
+	});
+
+	it('two concurrent turn-ins completing both tutorial orders unlock the milestone exactly once', async () => {
+		// Bind both orders — bendrel (structural_alloy) and veyrith (conductive_metal)
+		await bindSettlementOrdersOnSample(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: bendrelInstanceId,
+			family: 'structural_alloy'
+		});
+		await bindSettlementOrdersOnSample(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			family: 'conductive_metal'
+		});
+
+		const orders = await listOpenSettlementOrdersForPilot(db, testPilotId);
+		const saOrder = orders.find((order) => order.family === 'structural_alloy');
+		const cmOrder = orders.find((order) => order.family === 'conductive_metal');
+		expect(saOrder).toBeDefined();
+		expect(cmOrder).toBeDefined();
+
+		// Grant enough resources for both orders
+		await grantResourceToPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: bendrelInstanceId,
+			quantity: TUTORIAL_ORDER_SA_STACK,
+			source: { type: 'test_grant', id: 'concurrent-sa' }
+		});
+		await grantResourceToPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			quantity: TUTORIAL_ORDER_CM_STACK,
+			source: { type: 'test_grant', id: 'concurrent-cm' }
+		});
+
+		// Fire both turn-ins concurrently
+		const [saResult, cmResult] = await Promise.all([
+			deliverResourceStackToSettlementOrder(db, {
+				pilotId: testPilotId,
+				orderId: saOrder!.id,
+				resourceInstanceId: bendrelInstanceId
+			}),
+			deliverResourceStackToSettlementOrder(db, {
+				pilotId: testPilotId,
+				orderId: cmOrder!.id,
+				resourceInstanceId: veyrithInstanceId
+			})
+		]);
+
+		expect(saResult.status).toBe('delivered');
+		expect(cmResult.status).toBe('delivered');
+
+		// Milestone must be unlocked exactly once
+		const [milestoneRow] = await db
+			.select()
+			.from(settlementMilestones)
+			.where(
+				and(
+					eq(settlementMilestones.pilotId, testPilotId),
+					eq(settlementMilestones.milestoneKey, 'fabricator_online')
+				)
+			)
+			.limit(1);
+
+		expect(milestoneRow?.unlockedAt).not.toBeNull();
 	});
 
 	it('completes an order exactly at stack_size and unlocks the milestone', async () => {

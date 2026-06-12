@@ -20,11 +20,9 @@ export const SLICE_FUNNEL_EVENTS = [
 
 /** Decision 013 — locked first-session funnel (exact names). */
 export const PLAYTEST_FUNNEL_EVENTS = [
-	'frame_chosen',
 	'first_survey_started',
 	'first_survey_completed',
 	'signal_compared',
-	'veyrith_copper_recommended',
 	'target_signal_selected',
 	'thumper_deployed',
 	'event_window_1_resolved',
@@ -43,12 +41,9 @@ export const PLAYTEST_FUNNEL_EVENTS = [
 /** Decision 013 — comprehension signals (may repeat). */
 export const PLAYTEST_COMPREHENSION_EVENTS = [
 	'resource_stats_inspected',
-	'two_resources_compared',
 	'slot_selection_changed',
 	'tuning_allocation_changed',
 	'repair_previewed',
-	'spots_sampled_before_deploy',
-	'extraction_tail_chosen',
 	'first_stat_reveal_viewed',
 	'mission_order_nudge_shown',
 	/** One-time state — first post-async 15m deploy on scavenged/patched hull (not a funnel metric). */
@@ -68,3 +63,17 @@ const PLAYTEST_EVENT_NAME_SET = new Set<string>(PLAYTEST_EVENT_NAMES);
 export function isPlaytestEventName(value: string): value is PlaytestEventName {
 	return PLAYTEST_EVENT_NAME_SET.has(value);
 }
+
+/**
+ * Event names that were emitted in earlier iterations but are no longer produced
+ * by any active code path. Kept here for historical-data queries; NOT part of the
+ * {@link PlaytestEventName} union so that typos in active code are caught at
+ * compile time rather than silently treated as valid.
+ */
+export const LEGACY_PLAYTEST_EVENTS = [
+	'frame_chosen',
+	'veyrith_copper_recommended',
+	'two_resources_compared',
+	'spots_sampled_before_deploy',
+	'extraction_tail_chosen'
+] as const;

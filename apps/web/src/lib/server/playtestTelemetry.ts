@@ -1,6 +1,7 @@
 import {
 	countPlaytestEventsByName,
 	getPlaytestEventOnce,
+	recordPlaytestEvent,
 	recordPlaytestEventOnce,
 	type PlaytestEventPayload
 } from '@async-frontier-mmo/db';
@@ -96,7 +97,8 @@ export async function trackSliceEventWindowResolved(
 	pilotId: string,
 	input: { windowIndex: number; chosenResponse: string; complication: string }
 ): Promise<void> {
-	await once(db, pilotId, 'event_window_resolved', input);
+	// spec requires one event PER window resolution, not just once ever
+	await recordPlaytestEvent(db, { pilotId, eventName: 'event_window_resolved', payload: input });
 }
 
 export async function trackFieldFirstClaim(

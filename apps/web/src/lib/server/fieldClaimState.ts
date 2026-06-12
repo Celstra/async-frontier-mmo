@@ -205,8 +205,11 @@ export async function loadClaimScreen(
 			payload: entry.payload
 		}));
 
+	// Key on the run's seed rather than the tutorial step so the comparison line
+	// renders even when the step has advanced to 'async_reveal' before the player
+	// views the claim result.
 	const tutorialComparisonLine =
-		tutorialStep === 'full_claim' && displayRun.runSeed === TUTORIAL_RUN_2_SEED
+		displayRun.runSeed === TUTORIAL_RUN_2_SEED
 			? `Hand samples today: ~25u. Aborted run: ${TUTORIAL_RUN_1_YIELD_FLOOR}u. This run: ${TUTORIAL_RUN_2_YIELD}u.`
 			: null;
 	const tutorialRecallBannerLine =

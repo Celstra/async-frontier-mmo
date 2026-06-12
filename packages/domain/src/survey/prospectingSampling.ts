@@ -556,14 +556,18 @@ export function sampleDepositSpot(input: {
 
 	let progress = withResolvedEnergy(input.pilotProgress, input.nowMs);
 
-	const afterSpend = spendEnergy(progress, SAMPLE_ENERGY_COST);
+	// First sample of a resource is energy-free: keeps the tutorial budget closable
+	// and rewards prospecting new resources. Guard impact: one free sample per
+	// resource per pilot per rotation (negligible vs the daily energy ceiling).
+	const statsRevealedThisSample = !progress.revealedResourceSlugs.has(input.resource.resourceSlug);
+	const energyCost = statsRevealedThisSample ? 0 : SAMPLE_ENERGY_COST;
+
+	const afterSpend = spendEnergy(progress, energyCost);
 	if (!afterSpend) {
 		return { error: 'insufficient_energy' };
 	}
 
 	progress = afterSpend;
-
-	const statsRevealedThisSample = !progress.revealedResourceSlugs.has(input.resource.resourceSlug);
 	const revealedResourceSlugs = new Set(progress.revealedResourceSlugs);
 	revealedResourceSlugs.add(input.resource.resourceSlug);
 
@@ -583,7 +587,7 @@ export function sampleDepositSpot(input: {
 		statsRevealedThisSample,
 		revealedStats: statsRevealedThisSample ? input.resource.stats : null,
 		trueConcentrationPercent: input.spot.trueConcentrationPercent,
-		energyCost: SAMPLE_ENERGY_COST,
+		energyCost,
 		scannerWear: SCANNER_CONDITION_LOSS_SAMPLE
 	};
 }

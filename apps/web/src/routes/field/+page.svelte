@@ -58,6 +58,10 @@
 		</div>
 	</header>
 
+	{#if data.missionTicker}
+		<p class="order-ticker" aria-live="polite">ORDER: {data.missionTicker}</p>
+	{/if}
+
 	{#if form?.message}
 		<p class="flash flash--error" role="alert">{form.message}</p>
 	{:else if data.sampleFlash}
@@ -163,6 +167,9 @@
 										<span class="tag">recommended</span>
 									{/if}
 								</button>
+								{#if !resource.statsVisible}
+									<p class="hint hint--free-sample">first sample free — reveals stats</p>
+								{/if}
 								{#if resource.teachingNote}
 									<p class="hint">{resource.teachingNote}</p>
 								{/if}
@@ -335,6 +342,16 @@
 		max-width: 20rem;
 	}
 
+	.order-ticker {
+		margin: 0 0 0.75rem;
+		padding: 0.3rem 0.5rem;
+		font-size: var(--font-size-xs);
+		font-family: var(--font-mono);
+		color: var(--text-secondary);
+		border-left: 2px solid var(--phosphor-dim);
+		letter-spacing: 0.04em;
+	}
+
 	.panel {
 		padding: 1rem;
 		margin-bottom: 1rem;
@@ -435,6 +452,11 @@
 		margin: 0.25rem 0 0;
 		font-size: var(--font-size-xs);
 		color: var(--text-muted);
+	}
+
+	.hint--free-sample {
+		color: var(--phosphor-dim);
+		font-style: italic;
 	}
 
 	.field-energy-hint {

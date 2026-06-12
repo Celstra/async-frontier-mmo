@@ -80,6 +80,29 @@ export async function getClaimedTutorialRunDeployTarget(
 	return row ?? null;
 }
 
+/**
+ * Like {@link getClaimedTutorialRunDeployTarget} but returns the most recent run
+ * regardless of claim state — used as a fallback when run-1 expired unclaimed.
+ */
+export async function getAnyTutorialRunDeployTarget(
+	db: DbExecutor,
+	input: { pilotId: string; runSeed: string }
+) {
+	const [row] = await db
+		.select({
+			depositSpotId: thumperRuns.depositSpotId,
+			resourceInstanceId: thumperRuns.resourceInstanceId
+		})
+		.from(thumperRuns)
+		.where(
+			and(eq(thumperRuns.pilotId, input.pilotId), eq(thumperRuns.runSeed, input.runSeed))
+		)
+		.orderBy(desc(thumperRuns.deployedAt))
+		.limit(1);
+
+	return row ?? null;
+}
+
 export async function hasPilotClaimedTutorialRun(
 	db: DbExecutor,
 	pilotId: string,
