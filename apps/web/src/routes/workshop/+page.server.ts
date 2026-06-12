@@ -77,18 +77,8 @@ export const load: PageServerLoad = async (event) => {
 		screen = await workshopData(db, pilotId, event.url);
 	}
 
-	const schematic = MVP_SCHEMATIC_BY_ID[screen.schematicDefinition.id] ?? SURVEY_SCANNER_MK_I;
-	const allSlotsFilled = schematic.slots.every((slot) => Boolean(screen.slotSelections[slot.id]));
-
 	await trackWorkshopViewed(db, pilotId, {
-		selectedSchematicId: screen.selectedSchematicId,
-		allocationHintCount: screen.allocationHints.length,
-		inventory: screen.inventory,
-		schematic,
-		slotSelections: screen.slotSelections,
-		tuning: screen.tuning,
-		tuningTotal: screen.tuningTotal,
-		allSlotsFilled
+		selectedSchematicId: screen.selectedSchematicId
 	});
 
 	return screen;

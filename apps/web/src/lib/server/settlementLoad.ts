@@ -74,6 +74,7 @@ export type SettlementScreenData = {
 	activeOrderId: string | null;
 	activeMissionLine: string | null;
 	showFabricatorTakeover: boolean;
+	showPrologueTakeover: boolean;
 };
 
 function milestoneLabelFor(key: SettlementMilestoneKey): string {
@@ -419,6 +420,7 @@ export async function loadSettlementScreen(
 		orders: sortedOrders,
 		activeOrderId,
 		activeMissionLine,
-		showFabricatorTakeover: fabricatorUnlocked && fabricatorSeenCount === 0
+		showFabricatorTakeover: fabricatorUnlocked && fabricatorSeenCount === 0,
+		showPrologueTakeover: tutorialStep === 'prologue'
 	};
 }

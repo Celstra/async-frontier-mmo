@@ -52,10 +52,7 @@ import {
 import { loadDeployPreviewForPilot } from '$lib/server/fieldDeployLoad.js';
 import { loadClaimScreen } from '$lib/server/fieldClaimState.js';
 import { loadOpenRunState } from '$lib/server/fieldRunState.js';
-import {
-	trackFieldStatReveal,
-	trackSampleSpotCompleted
-} from '$lib/server/playtestTelemetry.js';
+import { trackFieldStatReveal } from '$lib/server/playtestTelemetry.js';
 import { resolveTargetDisplayName } from '$lib/server/targetResource.js';
 import type { getGameDb } from './gameDb.js';
 
@@ -155,10 +152,6 @@ export async function loadFieldScreen(
 	} else if (sampleOutcome?.status === 'ok' && pendingResourceId) {
 		const resource = await getResourceInstanceById(db, pendingResourceId);
 		if (resource) {
-			await trackSampleSpotCompleted(db, pilotId, {
-				resourceSlug: resource.resourceSlug,
-				statsRevealedThisSample: sampleOutcome.statsRevealedThisSample
-			});
 			if (sampleOutcome.statsRevealedThisSample) {
 				await trackFieldStatReveal(db, pilotId, resource.resourceSlug);
 			}

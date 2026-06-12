@@ -6,6 +6,7 @@ import { requirePlayablePilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
 import {
 	trackFabricatorOnlineSeen,
+	trackPrologueDone,
 	trackSettlementTurnIn
 } from '$lib/server/playtestTelemetry';
 import { advanceTutorialStepIf } from '$lib/server/tutorialOrchestration';
@@ -23,6 +24,17 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions: Actions = {
+	dismissPrologue: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+
+		await trackPrologueDone(db, pilotId);
+		await advanceTutorialStepIf(db, pilotId, 'prologue', 'first_orders');
+
+		return settlementData(db, pilotId);
+	},
+
 	turnIn: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);

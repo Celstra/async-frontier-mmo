@@ -4,7 +4,6 @@ import {
 	deployThumperRunWithEventWindows,
 	getBloomRecord,
 	getDepositSpotYieldState,
-	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
 	getPilotDepositSample,
 	getEquippedThumperPartsForPilot,
@@ -66,10 +65,7 @@ import {
 	trackFieldSampleCommit,
 	trackFieldStatReveal,
 	trackFieldTileScan,
-	trackFamilyScanCompleted,
-	trackResourceClaimed,
-	trackSliceEventWindowResolved,
-	trackThumperClaimed
+	trackSliceEventWindowResolved
 } from '$lib/server/playtestTelemetry';
 import { advanceTutorialStepIf } from '$lib/server/tutorialOrchestration';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
@@ -131,21 +127,6 @@ export const actions: Actions = {
 				...(await fieldData(db, pilotId))
 			});
 		}
-
-		const activeBloomId = await getActiveBloomId(db);
-		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
-			db,
-			pilotId,
-			TUTORIAL_RUN_SEED
-		);
-		await trackFamilyScanCompleted(db, pilotId, {
-			family,
-			resourceCount: outcome.resources.length,
-			recommendedResourceSlug: recommendedResourceSlugForBloom(
-				activeBloomId,
-				hasCompletedTutorial
-			)
-		});
 
 		return fieldData(db, pilotId);
 	},
@@ -542,24 +523,10 @@ export const actions: Actions = {
 		}
 
 		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
-			if (outcome.status === 'claimed') {
-				const latest = await getLatestThumperRunForPilot(db, pilotId);
-				if (latest && outcome.claimResult) {
-					await trackThumperClaimed(db, pilotId, {
-						thumperRunId: latest.id,
-						recoveredQuantity: outcome.claimResult.recoveredQuantity
-					});
-					await trackFieldFirstClaim(db, pilotId, {
-						recoveredQuantity: outcome.claimResult.recoveredQuantity
-					});
-				}
-				if (outcome.reward) {
-					await trackResourceClaimed(db, pilotId, {
-						resourceSlug: outcome.reward.resourceSlug,
-						resourceInstanceId: outcome.reward.resourceInstanceId,
-						quantityGranted: outcome.reward.quantityGranted
-					});
-				}
+			if (outcome.status === 'claimed' && outcome.claimResult) {
+				await trackFieldFirstClaim(db, pilotId, {
+					recoveredQuantity: outcome.claimResult.recoveredQuantity
+				});
 			}
 			return fieldData(db, pilotId);
 		}

@@ -4,6 +4,7 @@ import { isTutorialStep, tutorialNextActionScreen } from './tutorialSteps.js';
 describe('tutorialNextActionScreen', () => {
 	it('highlights settlement during prologue and order beats', () => {
 		expect(tutorialNextActionScreen('prologue')).toBe('settlement');
+		expect(tutorialNextActionScreen('hunting')).toBe('field');
 		expect(tutorialNextActionScreen('first_orders')).toBe('settlement');
 		expect(tutorialNextActionScreen('turn_in')).toBe('settlement');
 	});

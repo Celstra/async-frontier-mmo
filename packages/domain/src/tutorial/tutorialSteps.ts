@@ -29,6 +29,7 @@ export function isTutorialStep(value: string | null | undefined): value is Tutor
 export function tutorialNextActionScreen(step: string | null): TutorialScreenId | null {
 	switch (step) {
 		case 'prologue':
+			return 'settlement';
 		case 'first_orders':
 		case 'turn_in':
 		case 'fabricator_online':

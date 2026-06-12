@@ -1,46 +1,25 @@
-import {
-	getPilotTutorialStep,
-	getSettlementMilestoneUnlockedAt,
-	hasPilotCompletedTutorialThumper
-} from '@async-frontier-mmo/db';
-import { TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
+import { getPilotTutorialStep } from '@async-frontier-mmo/db';
 import type { getGameDb } from './gameDb.js';
 
-/** Root `/` routing — tutorial step drives entry screen (Phase 7). */
+/** Root `/` — new pilots land on SETTLEMENT; deploy beats route to FIELD or WORKSHOP. */
 export async function resolveRootRedirect(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string
 ): Promise<string> {
-	const [fabricatorUnlocked, hasCompletedTutorial, tutorialStep] = await Promise.all([
-		getSettlementMilestoneUnlockedAt(db, {
-			pilotId,
-			milestoneKey: 'fabricator_online'
-		}),
-		hasPilotCompletedTutorialThumper(db, pilotId, TUTORIAL_RUN_SEED),
-		getPilotTutorialStep(db, pilotId)
-	]);
-
-	if (tutorialStep === 'prologue') {
-		return '/prologue';
-	}
+	const tutorialStep = await getPilotTutorialStep(db, pilotId);
 
 	if (tutorialStep === 'assemble_rig') {
 		return '/workshop';
 	}
 
-	if (fabricatorUnlocked || hasCompletedTutorial) {
-		return '/settlement';
-	}
-
 	if (
-		tutorialStep === 'first_orders' ||
-		tutorialStep === 'turn_in' ||
-		tutorialStep === 'fabricator_online' ||
-		tutorialStep === 'hull_patch' ||
-		tutorialStep === 'async_reveal'
+		tutorialStep === 'first_deploy' ||
+		tutorialStep === 'recall_lesson' ||
+		tutorialStep === 'second_deploy' ||
+		tutorialStep === 'full_claim'
 	) {
-		return '/settlement';
+		return '/field';
 	}
 
-	return '/field';
+	return '/settlement';
 }

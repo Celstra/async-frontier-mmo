@@ -1,6 +1,7 @@
 <script lang="ts">
 	import MissionOrderCard from '$lib/settlement/MissionOrderCard.svelte';
 	import FabricatorTakeover from '$lib/settlement/FabricatorTakeover.svelte';
+	import PrologueTakeover from '$lib/settlement/PrologueTakeover.svelte';
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
@@ -140,7 +141,9 @@
 	</div>
 </section>
 
-{#if data.showFabricatorTakeover}
+{#if data.showPrologueTakeover}
+	<PrologueTakeover />
+{:else if data.showFabricatorTakeover}
 	<FabricatorTakeover />
 {/if}
 

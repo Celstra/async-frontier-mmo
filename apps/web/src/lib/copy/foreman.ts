@@ -8,6 +8,10 @@ export function foremanLine(input: {
 		return 'Fabricator’s online. Workshop’s yours when you’re ready.';
 	}
 
+	if (input.tutorialStep === 'prologue') {
+		return 'Read the briefing, then review the foreman orders on this board.';
+	}
+
 	if (input.tutorialStep === 'first_orders') {
 		return 'Pick a family from the foreman list and hunt it on FIELD — one stack per order, no mixing.';
 	}

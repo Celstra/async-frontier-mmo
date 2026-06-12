@@ -58,6 +58,8 @@ Decisions 001–015 now lock the MVP to:
 - Decision 014 prototype ladder: paper/spreadsheet economy prototype → text-only loop prototype → clickable single-player vertical slice → instrumented playtest build → presentation pass → production-point review.
 - Decision 015 final scope freeze: Decisions 001–014 define the MVP; new ideas go to backlog unless they fix contradictions, unblock the prototype ladder, improve comprehension, protect economy trust, or are required for playtest evidence.
 
+**Slice implementation note (2026-06):** The four-screen terminal slice (`FIELD`, `SETTLEMENT`, `WORKSHOP`, `RIG`) and `FIRST_THUMP_SLICE_SPEC.md` / Decision 022 supersede the older Decision 008 six-screen list, Decision 011 frame-choice / Veyrith-first-session script, and Decision 013 playtest event names for **new** implementation work. Locked economy/schema decisions (001–007, 010, 012, 016–021) still apply; historical `playtest_events` rows remain, but emitters follow `SLICE_FUNNEL_EVENTS` in `packages/db/src/playtest/eventNames.ts`. Build order: `design-docs/SLICE_IMPLEMENTATION_PLAN.md`.
+
 Future direction if the toy is fun: preserve the long-term SWG-inspired loop of finding the right named resource with the right stats before it disappears, then using it intelligently in schematics. Tuning must never erase the market value of rare named resources. Refining, Chemical Purity, separators, resource archives, markets, factories, and group thumpers are later layers, not MVP requirements.
 
 ---
