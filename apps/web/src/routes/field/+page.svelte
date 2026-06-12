@@ -40,6 +40,8 @@
 
 	{#if form?.message}
 		<p class="flash flash--error" role="alert">{form.message}</p>
+	{:else if data.sampleFlash}
+		<p class="flash flash--error" role="alert">{data.sampleFlash}</p>
 	{/if}
 
 	{#if data.showRigView && data.rigView}
@@ -178,11 +180,15 @@
 							<button
 								type="submit"
 								class="action-row action-row--primary"
-								disabled={data.pendingSampleProgress !== null}
+								disabled={data.pendingSampleProgress !== null ||
+									!data.surveyEnergyOutlook.canSampleNow}
 							>
 								Sample here
 							</button>
 						</form>
+						{#if !data.surveyEnergyOutlook.canSampleNow && !data.pendingSampleProgress}
+							<p class="field-energy-hint">Not enough survey energy to sample here.</p>
+						{/if}
 					</div>
 
 					{#if data.pendingSampleProgress}
@@ -232,33 +238,37 @@
 				</section>
 			{/if}
 
-			{#if data.deployContext?.canDeploy}
+			{#if data.deployContext}
 				<section class="panel">
 					<h2 class="panel__title">Deploy thumper</h2>
 					<p class="hint">
 						{data.deployContext.displayName} @ {data.deployContext.trueConcentrationPercent}% · ~{data
 							.deployContext.spotRemainingUnits}u in deposit
 					</p>
-					<form method="POST" action="?/deploy" use:enhance>
-						<input
-							type="hidden"
-							name="resourceInstanceId"
-							value={data.deployContext.resourceInstanceId}
-						/>
-						<input type="hidden" name="spotId" value={data.deployContext.spotId} />
-						<div class="action-rows">
-							{#each data.deployContext.tailOptions as tail (tail.id)}
-								<button
-									type="submit"
-									name="tailMinutes"
-									value={tail.minutes}
-									class="action-row"
-								>
-									{tail.label} — ~{data.deployContext.deployPreview.projectedRecovery}u
-								</button>
-							{/each}
-						</div>
-					</form>
+					{#if data.deployContext.canDeploy}
+						<form method="POST" action="?/deploy" use:enhance>
+							<input
+								type="hidden"
+								name="resourceInstanceId"
+								value={data.deployContext.resourceInstanceId}
+							/>
+							<input type="hidden" name="spotId" value={data.deployContext.spotId} />
+							<div class="action-rows">
+								{#each data.deployContext.tailOptions as tail (tail.id)}
+									<button
+										type="submit"
+										name="tailMinutes"
+										value={tail.minutes}
+										class="action-row"
+									>
+										{tail.label} — ~{data.deployContext.deployPreview.projectedRecovery}u
+									</button>
+								{/each}
+							</div>
+						</form>
+					{:else if data.deployContext.deployBlockedReason}
+						<p class="deploy-blocked">{data.deployContext.deployBlockedReason}</p>
+					{/if}
 				</section>
 			{/if}
 		</div>
@@ -399,6 +409,18 @@
 		margin: 0.25rem 0 0;
 		font-size: var(--font-size-xs);
 		color: var(--text-muted);
+	}
+
+	.field-energy-hint {
+		margin: 0.35rem 0 0;
+		font-size: var(--font-size-xs);
+		color: var(--accent-warning);
+	}
+
+	.deploy-blocked {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--accent-warning);
 	}
 
 	.tag {

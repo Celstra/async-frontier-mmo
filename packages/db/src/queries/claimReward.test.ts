@@ -81,7 +81,7 @@ describeDb('transactional claim reward', () => {
 		await ensureDemoPilot(db);
 		await ensureBloomOneResourceInstances(db);
 		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
-		await ensureStarterThumperPartsForPilot(db, testPilotId);
+		await ensureStarterThumperPartsForPilot(db, testPilotId, { autoEquip: true });
 	});
 
 	afterAll(async () => {
@@ -222,7 +222,7 @@ describeDb('transactional claim reward', () => {
 	it('claims a seeded non-tutorial run with deploy and claim ledger rows', async () => {
 		const seededPilotId = `${testPilotId}-seeded`;
 		await db.insert(pilots).values({ id: seededPilotId }).onConflictDoNothing();
-		await ensureStarterThumperPartsForPilot(db, seededPilotId);
+		await ensureStarterThumperPartsForPilot(db, seededPilotId, { autoEquip: true });
 
 		const veyrithInstance = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
 		expect(veyrithInstance).not.toBeNull();

@@ -69,7 +69,7 @@ describeDb('thumper event window before/after state', () => {
 
 	beforeAll(async () => {
 		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
-		await ensureStarterThumperPartsForPilot(db, testPilotId);
+		await ensureStarterThumperPartsForPilot(db, testPilotId, { autoEquip: true });
 	});
 
 	afterAll(async () => {

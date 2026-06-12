@@ -41,7 +41,7 @@ const STARTER_WORN_THUMPER_PARTS: ReadonlyArray<{
 		slot: 'hull',
 		propertyScores: { max_condition: 40, damage_reduction: 35, repairability: 35 },
 		condition: 55,
-		integrity: 70
+		integrity: 5
 	}
 ];
 
@@ -93,8 +93,13 @@ export function itemToPartSnapshot(
 	};
 }
 
-/** Decision 011 — grant worn drill/pump/hull once and equip them. */
-export async function ensureStarterThumperPartsForPilot(db: Db, pilotId: string) {
+/** Fabricator milestone — grant worn drill/pump/hull once (slice Phase 5 workshop assembly). */
+export async function ensureStarterThumperPartsForPilot(
+	db: Db,
+	pilotId: string,
+	options: { autoEquip?: boolean } = {}
+) {
+	const autoEquip = options.autoEquip ?? false;
 	const [pilot] = await db.select().from(pilots).where(eq(pilots.id, pilotId)).limit(1);
 	if (pilot?.starterThumperPartsGrantedAt) {
 		return { granted: false as const };
@@ -142,27 +147,29 @@ export async function ensureStarterThumperPartsForPilot(db: Db, pilotId: string)
 			});
 		}
 
-		await tx
-			.update(pilots)
-			.set({
-				equippedDrillItemId: equippedIds.drill,
-				equippedPumpItemId: equippedIds.pump,
-				equippedHullItemId: equippedIds.hull
-			})
-			.where(eq(pilots.id, pilotId));
+		if (autoEquip) {
+			await tx
+				.update(pilots)
+				.set({
+					equippedDrillItemId: equippedIds.drill,
+					equippedPumpItemId: equippedIds.pump,
+					equippedHullItemId: equippedIds.hull
+				})
+				.where(eq(pilots.id, pilotId));
 
-		for (const worn of STARTER_WORN_THUMPER_PARTS) {
-			await appendEconomyLedgerEntry(tx, {
-				eventType: 'item_equipped',
-				pilotId,
-				payload: {
-					action: 'equip',
-					slot: worn.slot,
-					item_id: equippedIds[worn.slot],
-					schematic_id: worn.schematicId,
-					source_type: 'starter_thumper_parts'
-				}
-			});
+			for (const worn of STARTER_WORN_THUMPER_PARTS) {
+				await appendEconomyLedgerEntry(tx, {
+					eventType: 'item_equipped',
+					pilotId,
+					payload: {
+						action: 'equip',
+						slot: worn.slot,
+						item_id: equippedIds[worn.slot],
+						schematic_id: worn.schematicId,
+						source_type: 'starter_thumper_parts'
+					}
+				});
+			}
 		}
 
 		return { granted: true as const };

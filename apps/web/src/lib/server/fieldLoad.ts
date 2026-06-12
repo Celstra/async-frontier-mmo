@@ -44,7 +44,7 @@ import {
 	type NamedResourceId,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
-import { activeBloomDisplayName } from '$lib/pilotHome';
+import { activeBloomDisplayName } from '$lib/bloomDisplay';
 import {
 	recommendedResourceSlugForBloom,
 	resourceTeachingNote
@@ -81,6 +81,29 @@ function hullTierFromIntegrity(integrity: number): HullTier {
 		return 'patched';
 	}
 	return 'basic';
+}
+
+function isRigDeployReady(
+	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>
+): boolean {
+	return equipped.drill !== null && equipped.pump !== null && equipped.hull !== null;
+}
+
+function deployBlockedReason(input: {
+	rigReady: boolean;
+	spotRemainingUnits: number;
+	hasOpenRun: boolean;
+}): string | null {
+	if (!input.rigReady) {
+		return 'Assemble your rig in WORKSHOP before deploying';
+	}
+	if (input.hasOpenRun) {
+		return 'You already have an open thumper run';
+	}
+	if (input.spotRemainingUnits <= 0) {
+		return 'This deposit is exhausted';
+	}
+	return null;
 }
 
 function tileKey(x: number, y: number): string {
@@ -125,8 +148,11 @@ export async function loadFieldScreen(
 	const sampleOutcome = await completePendingSampleIfDue(db, pilotId, now);
 	let session = await ensurePilotFieldSession(db, pilotId, now);
 	let lastSampleResult: FieldLastSampleResult | null = null;
+	let sampleFlash: string | null = null;
 
-	if (sampleOutcome?.status === 'ok' && pendingResourceId) {
+	if (sampleOutcome?.status === 'insufficient_energy') {
+		sampleFlash = 'Not enough survey energy to sample here';
+	} else if (sampleOutcome?.status === 'ok' && pendingResourceId) {
 		const resource = await getResourceInstanceById(db, pendingResourceId);
 		if (resource) {
 			await trackSampleSpotCompleted(db, pilotId, {
@@ -350,6 +376,13 @@ export async function loadFieldScreen(
 					isTutorialRun
 				});
 
+				const rigReady = isRigDeployReady(equipped);
+				const blockedReason = deployBlockedReason({
+					rigReady,
+					spotRemainingUnits: spotYield.remainingUnits,
+					hasOpenRun: openRun !== null
+				});
+
 				deployContext = {
 					spotId: hereSpotId,
 					resourceInstanceId,
@@ -361,7 +394,9 @@ export async function loadFieldScreen(
 					tailOptions,
 					defaultTailMinutes,
 					deployPreview,
-					canDeploy: spotYield.remainingUnits > 0 && !openRun
+					rigReady,
+					canDeploy: rigReady && spotYield.remainingUnits > 0 && !openRun,
+					deployBlockedReason: blockedReason
 				};
 			}
 		}
@@ -423,6 +458,7 @@ export async function loadFieldScreen(
 		deployContext,
 		pendingSampleProgress,
 		lastSampleResult,
+		sampleFlash,
 		showRigView,
 		rigView,
 		claimView,

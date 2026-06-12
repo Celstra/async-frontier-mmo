@@ -16,6 +16,7 @@ import {
 	getThumperEventWindowsForRun,
 	ensurePilotFieldSession,
 	getActiveBloomId,
+	getPilotProspectingProgress,
 	scanFamilyForPilot,
 	scanPilotFieldTile,
 	setPilotFieldFamily,
@@ -31,6 +32,7 @@ import {
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
 	TUTORIAL_RUN_SEED,
 	type NamedResourceId,
+	surveyEnergyOutlook,
 	type ResourceFamily,
 	type ThumperComplicationId,
 	type ThumperEventActionId
@@ -212,10 +214,25 @@ export const actions: Actions = {
 	sample: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
+		const now = new Date();
 		const session = await ensurePilotFieldSession(db, pilotId);
 
 		if (!session.resourceInstanceId) {
 			return fail(400, { message: 'Activate a resource map first', ...(await fieldData(db, pilotId)) });
+		}
+
+		const activeBloomId = await getActiveBloomId(db);
+		const progress = await getPilotProspectingProgress(db, pilotId, now, activeBloomId);
+		const energyOutlook = surveyEnergyOutlook({
+			storedEnergy: progress.surveyEnergy,
+			lastUpdatedAtMs: progress.lastEnergyUpdatedAtMs,
+			nowMs: now.getTime()
+		});
+		if (!energyOutlook.canSampleNow) {
+			return fail(400, {
+				message: 'Not enough survey energy to sample here',
+				...(await fieldData(db, pilotId))
+			});
 		}
 
 		const outcome = await startPilotFieldSample(db, {
@@ -261,6 +278,14 @@ export const actions: Actions = {
 			});
 		}
 
+		const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
+		if (!equipped.drill || !equipped.pump || !equipped.hull) {
+			return fail(400, {
+				message: 'Assemble your rig in WORKSHOP before deploying',
+				...(await fieldData(db, pilotId))
+			});
+		}
+
 		const resource = await getResourceInstanceById(db, resourceInstanceId);
 		if (!resource) {
 			return fail(400, { message: 'Resource not found', ...(await fieldData(db, pilotId)) });
@@ -284,7 +309,6 @@ export const actions: Actions = {
 		}
 
 		if (!isTutorialRun) {
-			const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
 			const allowedTails = allowedExtractionTailsForEquippedHull(equipped);
 			if (!allowedTails.includes(extractionTailMinutes)) {
 				return fail(400, {

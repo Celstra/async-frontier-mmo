@@ -60,7 +60,7 @@ describeDb('prospecting cycle after claim', () => {
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
 		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
-		await ensureStarterThumperPartsForPilot(db, testPilotId);
+		await ensureStarterThumperPartsForPilot(db, testPilotId, { autoEquip: true });
 
 		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
 		expect(veyrith).not.toBeNull();

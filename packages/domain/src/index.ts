@@ -17,6 +17,18 @@ export {
 	type SchematicSlotReadiness
 } from './crafting/schematicReadiness.js';
 export {
+	analyzeChassisAssemblyReadiness,
+	validateChassisAssembly,
+	type ChassisAssemblyReadiness,
+	type ChassisSlotReadiness,
+	type OwnedThumperPart
+} from './crafting/chassisAssembly.js';
+export {
+	THUMPER_CHASSIS_ASSEMBLY,
+	type ChassisAssemblyDefinition,
+	type ChassisAssemblySlotId
+} from './crafting/schematics/thumperChassisAssembly.js';
+export {
 	availableQuantityForSlot,
 	canFillSlotWithStack,
 	reservedQuantityForInstance
@@ -207,7 +219,9 @@ export type {
 } from './resources/types';
 export {
 	bindOrderOnFirstSample,
+	boundStackProgress,
 	missionTrackerState,
+	pickActiveSettlementOrder,
 	type FamilyStackCandidate,
 	type MissionTrackerState
 } from './settlement/orderBinding.js';

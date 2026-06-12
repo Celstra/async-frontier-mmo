@@ -2,6 +2,7 @@ import {
 	bindOrderOnFirstSample,
 	SETTLEMENT_MILESTONES,
 	type ResourceFamily,
+	type SettlementMilestoneKey,
 	type SettlementOrder,
 	type SettlementOrderStatus
 } from '@async-frontier-mmo/domain';
@@ -11,6 +12,7 @@ import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { consumeResourceFromPilotTx, InsufficientResourceError } from './resourceConsumes.js';
 import { getResourceStackForPilotInstance } from './resourceGrants.js';
 import { getResourceInstanceById } from './resourceInstances.js';
+import { ensureStarterThumperPartsForPilot } from './thumperPartEquipment.js';
 import { settlementMilestones } from '../schema/settlementMilestones.js';
 import { settlementOrders } from '../schema/settlementOrders.js';
 
@@ -70,6 +72,59 @@ export async function listOpenSettlementOrdersForPilot(
 	return rows.map(rowToOrder);
 }
 
+export async function listSettlementOrdersForMilestone(
+	db: DbExecutor,
+	input: { pilotId: string; milestoneKey: string }
+): Promise<SettlementOrder[]> {
+	const rows = await db
+		.select()
+		.from(settlementOrders)
+		.where(
+			and(
+				eq(settlementOrders.pilotId, input.pilotId),
+				eq(settlementOrders.milestoneKey, input.milestoneKey)
+			)
+		);
+
+	return rows.map(rowToOrder);
+}
+
+export async function getSettlementMilestoneUnlockedAt(
+	db: DbExecutor,
+	input: { pilotId: string; milestoneKey: string }
+): Promise<Date | null> {
+	const [row] = await db
+		.select({ unlockedAt: settlementMilestones.unlockedAt })
+		.from(settlementMilestones)
+		.where(
+			and(
+				eq(settlementMilestones.pilotId, input.pilotId),
+				eq(settlementMilestones.milestoneKey, input.milestoneKey)
+			)
+		)
+		.limit(1);
+
+	return row?.unlockedAt ?? null;
+}
+
+/** First milestone that is not yet fully unlocked. */
+export async function getActiveSettlementMilestoneKey(
+	db: DbExecutor,
+	pilotId: string
+): Promise<SettlementMilestoneKey> {
+	for (const milestone of SETTLEMENT_MILESTONES) {
+		const unlockedAt = await getSettlementMilestoneUnlockedAt(db, {
+			pilotId,
+			milestoneKey: milestone.key
+		});
+		if (!unlockedAt) {
+			return milestone.key;
+		}
+	}
+
+	return SETTLEMENT_MILESTONES[SETTLEMENT_MILESTONES.length - 1]!.key;
+}
+
 export async function getSettlementOrderById(
 	db: DbExecutor,
 	input: { pilotId: string; orderId: string }
@@ -122,7 +177,7 @@ export async function deliverResourceStackToSettlementOrder(
 	db: Db,
 	input: { pilotId: string; orderId: string; resourceInstanceId: string }
 ): Promise<DeliverStackToSettlementOrderOutcome> {
-	return db.transaction(async (tx) => {
+	const outcome = await db.transaction(async (tx) => {
 		const [orderRow] = await tx
 			.select()
 			.from(settlementOrders)
@@ -180,6 +235,7 @@ export async function deliverResourceStackToSettlementOrder(
 
 		const nextDelivered = orderRow.deliveredUnits + quantityToConsume;
 		const orderFilled = nextDelivered >= orderRow.stackSize;
+		let fabricatorMilestoneCompleted = false;
 
 		await tx
 			.update(settlementOrders)
@@ -212,6 +268,10 @@ export async function deliverResourceStackToSettlementOrder(
 							eq(settlementMilestones.milestoneKey, orderRow.milestoneKey)
 						)
 					);
+
+				if (orderRow.milestoneKey === 'fabricator_online') {
+					fabricatorMilestoneCompleted = true;
+				}
 			}
 		}
 
@@ -232,9 +292,21 @@ export async function deliverResourceStackToSettlementOrder(
 		return {
 			status: 'delivered' as const,
 			deliveredUnits: nextDelivered,
-			orderFilled
+			orderFilled,
+			fabricatorMilestoneCompleted
 		};
 	});
+
+	if (outcome.status === 'delivered' && outcome.fabricatorMilestoneCompleted) {
+		await ensureStarterThumperPartsForPilot(db, input.pilotId);
+	}
+
+	if (outcome.status !== 'delivered') {
+		return outcome;
+	}
+
+	const { fabricatorMilestoneCompleted: _fabricatorMilestoneCompleted, ...delivered } = outcome;
+	return delivered;
 }
 
 /** Test helper — remove settlement rows for a pilot. */

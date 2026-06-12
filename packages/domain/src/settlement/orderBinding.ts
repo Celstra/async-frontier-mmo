@@ -42,6 +42,20 @@ function familyLabel(family: ResourceFamily): string {
 	return FAMILY_LABELS[family];
 }
 
+/** Turned-in plus bound-stack inventory ready to deliver, capped at order size. */
+export function boundStackProgress(
+	order: Pick<SettlementOrder, 'stackSize' | 'deliveredUnits' | 'boundInstanceId'>,
+	candidates: ReadonlyArray<FamilyStackCandidate>
+): number {
+	if (order.boundInstanceId === null) {
+		return order.deliveredUnits;
+	}
+
+	const bound = candidates.find((candidate) => candidate.instanceId === order.boundInstanceId);
+	const readyUnits = bound?.unitsSampled ?? 0;
+	return Math.min(order.stackSize, order.deliveredUnits + readyUnits);
+}
+
 /** Binds the order to the first sampled resource in the family. */
 export function bindOrderOnFirstSample(
 	order: SettlementOrder,
@@ -76,7 +90,7 @@ export function missionTrackerState(
 
 	const bound = candidates.find((candidate) => candidate.instanceId === order.boundInstanceId);
 	const boundName = bound?.displayName.toUpperCase() ?? 'BOUND RESOURCE';
-	const boundUnits = bound?.unitsSampled ?? order.deliveredUnits;
+	const boundProgressUnits = boundStackProgress(order, candidates);
 
 	const otherCandidates = candidates.filter(
 		(candidate) =>
@@ -88,15 +102,15 @@ export function missionTrackerState(
 		return {
 			kind: 'split_stack_warning',
 			primaryName: boundName,
-			primaryUnits: boundUnits,
+			primaryUnits: boundProgressUnits,
 			secondaryName: secondary.displayName.toUpperCase(),
 			secondaryUnits: secondary.unitsSampled,
 			stackSize,
-			line: `${boundName} ${boundUnits}/${stackSize} · ${secondary.displayName.toUpperCase()} ${secondary.unitsSampled} — only one stack counts`
+			line: `${boundName} ${boundProgressUnits}/${stackSize} · ${secondary.displayName.toUpperCase()} ${secondary.unitsSampled} — only one stack counts`
 		};
 	}
 
-	const remaining = Math.max(0, stackSize - order.deliveredUnits);
+	const remaining = Math.max(0, stackSize - boundProgressUnits);
 	const nudge =
 		!options?.nudgeShown && remaining > 0
 			? `${remaining} more ${bound?.displayName ?? 'units'} completes this order. Stacks can't mix.`
@@ -105,9 +119,35 @@ export function missionTrackerState(
 	return {
 		kind: 'bound',
 		resourceName: boundName,
-		deliveredUnits: order.deliveredUnits,
+		deliveredUnits: boundProgressUnits,
 		stackSize,
-		line: `${boundName} — ${order.deliveredUnits}/${stackSize} — single stack`,
+		line: `${boundName} — ${boundProgressUnits}/${stackSize} — single stack`,
 		nudge
 	};
+}
+
+/** Bound open order first, then most progressed, then first open. */
+export function pickActiveSettlementOrder(
+	orders: ReadonlyArray<SettlementOrder>
+): SettlementOrder | null {
+	const open = orders.filter((order) => order.status === 'open');
+	if (open.length === 0) {
+		return null;
+	}
+
+	const boundOpen = open.filter((order) => order.boundInstanceId !== null);
+	if (boundOpen.length > 0) {
+		return boundOpen.reduce((best, order) =>
+			order.deliveredUnits > best.deliveredUnits ? order : best
+		);
+	}
+
+	const progressed = open.filter((order) => order.deliveredUnits > 0);
+	if (progressed.length > 0) {
+		return progressed.reduce((best, order) =>
+			order.deliveredUnits > best.deliveredUnits ? order : best
+		);
+	}
+
+	return open[0] ?? null;
 }

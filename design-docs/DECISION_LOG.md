@@ -1443,6 +1443,12 @@ The slice is: settlement ledger, sampling minigame, tutorial bootstrap, one watc
 
 ---
 
+### Open harness debt (2026-06-12)
+
+`pnpm --filter @async-frontier-mmo/db db:smoke` still fails on the unchanged first-session path: it resolves a run with zero event-window responses and hits **"First-session run expects exactly two event window responses."** Track as smoke-harness debt — rewrite the smoke script against the slice Phase 7 tutorial state machine, not a blocker for WORKSHOP (Phase 5).
+
+---
+
 ## Current next decision candidates
 
 Decisions 001–022 are locked (022 locked 2026-06-12 per Ryan, balance constants sim-verified same day). Remaining:

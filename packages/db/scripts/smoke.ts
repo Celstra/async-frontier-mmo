@@ -113,7 +113,7 @@ async function claimTutorialRun(now: Date) {
 }
 
 await ensureDemoPilot(db);
-await ensureStarterThumperPartsForPilot(db, DEMO_PILOT_ID);
+await ensureStarterThumperPartsForPilot(db, DEMO_PILOT_ID, { autoEquip: true });
 
 const bloomOne = await ensureBloomOneResourceInstances(db);
 if (bloomOne.length !== 9) {

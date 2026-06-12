@@ -6,7 +6,7 @@ import {
 	type PlaytestEventPayload
 } from '@async-frontier-mmo/db';
 import type { SchematicDefinition, TuningAllocation } from '@async-frontier-mmo/domain';
-import { SUGGESTED_TUNING } from './craftLoad.js';
+import { WORKSHOP_SUGGESTED_TUNING } from './workshopLoad.js';
 import type { getGameDb } from './gameDb.js';
 
 type Db = ReturnType<typeof getGameDb>;
@@ -180,7 +180,7 @@ function tuningDiffersFromSuggested(
 	schematic: SchematicDefinition,
 	tuning: TuningAllocation
 ): boolean {
-	const suggested = SUGGESTED_TUNING[schematic.id] ?? {};
+	const suggested = WORKSHOP_SUGGESTED_TUNING[schematic.id] ?? {};
 	return schematic.properties.some(
 		(property) => (tuning[property.id] ?? 0) !== (suggested[property.id] ?? 0)
 	);
@@ -215,7 +215,7 @@ function slotSelectionsDifferFromDefaults(
 	return false;
 }
 
-export async function trackCraftScreenViewed(
+export async function trackWorkshopViewed(
 	db: Db,
 	pilotId: string,
 	input: {
@@ -227,7 +227,6 @@ export async function trackCraftScreenViewed(
 		tuning: TuningAllocation;
 		tuningTotal: number;
 		allSlotsFilled: boolean;
-		hasRepairableGear: boolean;
 	}
 ): Promise<void> {
 	await once(db, pilotId, 'schematic_opened', {
@@ -260,12 +259,6 @@ export async function trackCraftScreenViewed(
 
 	if (input.allSlotsFilled) {
 		await once(db, pilotId, 'resource_slots_filled', {
-			schematicId: input.selectedSchematicId
-		});
-	}
-
-	if (input.hasRepairableGear) {
-		await once(db, pilotId, 'repair_previewed', {
 			schematicId: input.selectedSchematicId
 		});
 	}
@@ -354,4 +347,20 @@ export async function trackFieldFirstClaim(
 	input: { recoveredQuantity: number }
 ): Promise<void> {
 	await once(db, pilotId, 'first_claim', input);
+}
+
+export async function trackSettlementTurnIn(
+	db: Db,
+	pilotId: string,
+	input: { orderId: string; resourceInstanceId: string; deliveredUnits: number; orderFilled: boolean }
+): Promise<void> {
+	await once(db, pilotId, 'turn_in_completed', input);
+}
+
+export async function trackFabricatorOnlineSeen(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'fabricator_online_seen');
+}
+
+export async function trackRigAssembled(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'rig_assembled');
 }

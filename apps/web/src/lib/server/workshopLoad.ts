@@ -1,13 +1,11 @@
 import {
-	countFieldRepairKitsForPilot,
-	getEquippedScannerForPilot,
-	getEquippedThumperPartsForPilot,
 	getResourceInstanceById,
+	getSettlementMilestoneUnlockedAt,
 	listPilotResourceStacksWithInstances,
-	listScannerItemsForPilot,
 	listThumperPartItemsForPilot
 } from '@async-frontier-mmo/db';
 import {
+	analyzeChassisAssemblyReadiness,
 	analyzeSchematicReadiness,
 	BASIC_DRILL_HEAD,
 	buildResourceAllocationHints,
@@ -21,120 +19,20 @@ import {
 	previewCraftProperties,
 	REINFORCED_HULL_PLATE,
 	SURVEY_SCANNER_MK_I,
+	THUMPER_CHASSIS_ASSEMBLY,
+	thumperPartSlotForSchematic,
+	type ChassisAssemblyReadiness,
 	type CraftMode,
+	type OwnedThumperPart,
 	type ResourceFamily,
 	type SchematicDefinition,
 	type SchematicReadinessAnalysis,
 	type SchematicSlotFill,
-	type ThumperPartSlot,
-	type TuningAllocation,
-	thumperPartSlotForSchematic
+	type TuningAllocation
 } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
 
-const PRIMARY_EQUIP_PROPERTY: Record<
-	string,
-	{ propertyId: string; displayName: string }
-> = {
-	[SURVEY_SCANNER_MK_I.id]: { propertyId: 'survey_clarity', displayName: 'Survey Clarity' },
-	[BASIC_DRILL_HEAD.id]: { propertyId: 'extraction_rate', displayName: 'Extraction Rate' },
-	[EFFICIENT_PUMP.id]: { propertyId: 'recovery_efficiency', displayName: 'Recovery Efficiency' },
-	[REINFORCED_HULL_PLATE.id]: { propertyId: 'max_condition', displayName: 'Max Condition' }
-};
-
-export type EquipCandidateComparison = {
-	itemId: string;
-	displayName: string;
-	value: number;
-	deltaVsEquipped: number | null;
-};
-
-export type EquipSlotComparison = {
-	keyPropertyId: string;
-	keyPropertyDisplayName: string;
-	equipped: { itemId: string; displayName: string; value: number } | null;
-	candidates: EquipCandidateComparison[];
-};
-
-export type CraftEquipComparisons = {
-	scanner: EquipSlotComparison | null;
-	thumperParts: Partial<Record<ThumperPartSlot, EquipSlotComparison>>;
-};
-
-function buildEquipSlotComparison(input: {
-	schematicId: string;
-	equippedItem: { id: string; displayName: string; propertyScores: Record<string, number> } | null;
-	candidates: Array<{ id: string; displayName: string; propertyScores: Record<string, number> }>;
-}): EquipSlotComparison | null {
-	const keyProperty = PRIMARY_EQUIP_PROPERTY[input.schematicId];
-	if (!keyProperty) {
-		return null;
-	}
-
-	const equippedValue = input.equippedItem
-		? Math.round(input.equippedItem.propertyScores[keyProperty.propertyId] ?? 0)
-		: null;
-
-	return {
-		keyPropertyId: keyProperty.propertyId,
-		keyPropertyDisplayName: keyProperty.displayName,
-		equipped: input.equippedItem
-			? {
-					itemId: input.equippedItem.id,
-					displayName: input.equippedItem.displayName,
-					value: equippedValue ?? 0
-				}
-			: null,
-		candidates: input.candidates.map((item) => {
-			const value = Math.round(item.propertyScores[keyProperty.propertyId] ?? 0);
-			return {
-				itemId: item.id,
-				displayName: item.displayName,
-				value,
-				deltaVsEquipped: equippedValue === null ? null : value - equippedValue
-			};
-		})
-	};
-}
-
-function buildCraftEquipComparisons(input: {
-	scannerItems: Awaited<ReturnType<typeof listScannerItemsForPilot>>;
-	equippedScanner: Awaited<ReturnType<typeof getEquippedScannerForPilot>>;
-	thumperPartItems: Awaited<ReturnType<typeof listThumperPartItemsForPilot>>;
-	equippedThumperParts: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>;
-}): CraftEquipComparisons {
-	const scanner = buildEquipSlotComparison({
-		schematicId: SURVEY_SCANNER_MK_I.id,
-		equippedItem: input.equippedScanner,
-		candidates: input.scannerItems
-	});
-
-	const thumperParts: Partial<Record<ThumperPartSlot, EquipSlotComparison>> = {};
-	for (const slot of ['drill', 'pump', 'hull'] as const) {
-		const schematicId =
-			slot === 'drill'
-				? BASIC_DRILL_HEAD.id
-				: slot === 'pump'
-					? EFFICIENT_PUMP.id
-					: REINFORCED_HULL_PLATE.id;
-		const equippedPart = input.equippedThumperParts[slot];
-		const candidates = input.thumperPartItems.filter(
-			(item) => thumperPartSlotForSchematic(item.schematicId) === slot
-		);
-		const comparison = buildEquipSlotComparison({
-			schematicId,
-			equippedItem: equippedPart,
-			candidates
-		});
-		if (comparison) {
-			thumperParts[slot] = comparison;
-		}
-	}
-
-	return { scanner, thumperParts };
-}
-
-const SUGGESTED_TUNING: Record<string, TuningAllocation> = {
+export const WORKSHOP_SUGGESTED_TUNING: Record<string, TuningAllocation> = {
 	[SURVEY_SCANNER_MK_I.id]: FIRST_SCANNER_SUGGESTED_TUNING,
 	[FIELD_REPAIR_KIT.id]: FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 	[EFFICIENT_PUMP.id]: { recovery_efficiency: 2, clog_resistance: 1, field_stability: 0 },
@@ -142,16 +40,41 @@ const SUGGESTED_TUNING: Record<string, TuningAllocation> = {
 	[REINFORCED_HULL_PLATE.id]: { max_condition: 2, damage_reduction: 1, repairability: 0 }
 };
 
-/**
- * UI-ready schematic with full weight data for client-side preview.
- * Preserves term structure so SlotSelector can show relevant stats per slot.
- */
-export function schematicToCraftUi(schematic: SchematicDefinition) {
+export type WorkshopSchematicRow = {
+	id: string;
+	displayName: string;
+	readiness: SchematicReadinessAnalysis;
+	craftableNow: boolean;
+};
+
+export type WorkshopScreenData = {
+	schematics: WorkshopSchematicRow[];
+	selectedSchematicId: string;
+	schematic: ReturnType<typeof schematicToWorkshopUi>;
+	schematicDefinition: SchematicDefinition;
+	inventory: Awaited<ReturnType<typeof loadInventoryWithStats>>;
+	allocationHints: ReturnType<typeof buildResourceAllocationHints>;
+	slotSelections: Record<string, string>;
+	tuning: TuningAllocation;
+	tuningTotal: number;
+	propertyPreview: ReturnType<typeof previewCraftProperties> | null;
+	suggestedTuning: TuningAllocation;
+	deemphasizedStatsByFamily: Record<ResourceFamily, string[]>;
+	schematicReadiness: SchematicReadinessAnalysis;
+	showChassisAssembly: boolean;
+	chassisAssembly: typeof THUMPER_CHASSIS_ASSEMBLY;
+	chassisReadiness: ChassisAssemblyReadiness;
+	thumperParts: OwnedThumperPart[];
+	chassisSelections: Partial<Record<'hull' | 'drill' | 'pump', string>>;
+	rigAssembled: boolean;
+};
+
+export function schematicToWorkshopUi(schematic: SchematicDefinition) {
 	return {
 		id: schematic.id,
 		version: schematic.version,
 		displayName: schematic.displayName,
-		slots: schematic.slots.map(slot => ({
+		slots: schematic.slots.map((slot) => ({
 			id: slot.id,
 			displayName: slot.displayName,
 			requiredFamily: slot.requiredFamily,
@@ -248,6 +171,19 @@ export function parseSlotInstanceId(formData: FormData, slotId: string): string 
 	return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+function parseChassisSelections(
+	params: URLSearchParams | FormData
+): Partial<Record<'hull' | 'drill' | 'pump', string>> {
+	const selections: Partial<Record<'hull' | 'drill' | 'pump', string>> = {};
+	for (const slotId of ['hull', 'drill', 'pump'] as const) {
+		const value = params.get(`chassis_${slotId}`);
+		if (typeof value === 'string' && value.length > 0) {
+			selections[slotId] = value;
+		}
+	}
+	return selections;
+}
+
 async function loadInventoryWithStats(db: ReturnType<typeof getGameDb>, pilotId: string) {
 	const stacks = await listPilotResourceStacksWithInstances(db, pilotId);
 	const inventory = [];
@@ -303,40 +239,98 @@ function buildSlotFills(
 	return fills;
 }
 
-export async function loadCraftScreen(
+function thumperPartsFromInventory(
+	items: Awaited<ReturnType<typeof listThumperPartItemsForPilot>>
+): OwnedThumperPart[] {
+	return items.flatMap((item) => {
+		const slot = thumperPartSlotForSchematic(item.schematicId);
+		if (!slot) return [];
+		return [
+			{
+				itemId: item.id,
+				schematicId: item.schematicId,
+				displayName: item.displayName,
+				slot,
+				condition: item.condition,
+				integrity: item.integrity
+			}
+		];
+	});
+}
+
+export async function loadWorkshopScreen(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string,
-	url: URL
-) {
+	url: URL,
+	options?: { rigAssembled?: boolean }
+): Promise<WorkshopScreenData> {
+	const selectedParam = url.searchParams.get('schematic');
+	const fabricatorUnlockedAt = await getSettlementMilestoneUnlockedAt(db, {
+		pilotId,
+		milestoneKey: 'fabricator_online'
+	});
+	const showChassisAssembly = fabricatorUnlockedAt !== null;
 	const selectedSchematicId =
-		url.searchParams.get('schematic') ?? SURVEY_SCANNER_MK_I.id;
-	const schematic =
-		MVP_SCHEMATIC_BY_ID[selectedSchematicId] ?? SURVEY_SCANNER_MK_I;
+		selectedParam === THUMPER_CHASSIS_ASSEMBLY.id && showChassisAssembly
+			? THUMPER_CHASSIS_ASSEMBLY.id
+			: (selectedParam ?? SURVEY_SCANNER_MK_I.id);
 
 	const inventory = await loadInventoryWithStats(db, pilotId);
+	const thumperPartItems = await listThumperPartItemsForPilot(db, pilotId);
+	const thumperParts = thumperPartsFromInventory(thumperPartItems);
+	const chassisReadiness = analyzeChassisAssemblyReadiness({ ownedParts: thumperParts });
+	const chassisSelections = parseChassisSelections(url.searchParams);
+
+	const schematicRows: WorkshopSchematicRow[] = MVP_CRAFT_SCHEMATICS.map((row) => {
+		const readiness = analyzeSchematicReadiness({
+			schematic: row,
+			ownedStacks: inventory.map((stack) => ({
+				resourceInstanceId: stack.resourceInstanceId,
+				resourceSlug: stack.resourceSlug,
+				displayName: stack.displayName,
+				family: stack.family,
+				quantity: stack.quantity
+			}))
+		});
+		return {
+			id: row.id,
+			displayName: row.displayName,
+			readiness,
+			craftableNow: readiness.craftableNow
+		};
+	});
+
+	if (showChassisAssembly) {
+		schematicRows.unshift({
+			id: THUMPER_CHASSIS_ASSEMBLY.id,
+			displayName: THUMPER_CHASSIS_ASSEMBLY.displayName,
+			readiness: {
+				slots: [],
+				craftableNow: chassisReadiness.assemblableNow,
+				blockers: chassisReadiness.blockers
+			},
+			craftableNow: chassisReadiness.assemblableNow
+		});
+	}
+
+	const schematic =
+		selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id
+			? SURVEY_SCANNER_MK_I
+			: (MVP_SCHEMATIC_BY_ID[selectedSchematicId] ?? SURVEY_SCANNER_MK_I);
+
 	const allocationHints = buildResourceAllocationHints(MVP_CRAFT_SCHEMATICS, inventory);
 	const slotSelections = parseSlotSelections(schematic, url.searchParams);
 	const tuning =
 		Object.keys(parseTuningFromParams(schematic, url.searchParams)).length > 0
 			? parseTuningFromParams(schematic, url.searchParams)
-			: (SUGGESTED_TUNING[schematic.id] ?? {});
+			: (WORKSHOP_SUGGESTED_TUNING[schematic.id] ?? {});
 
 	const slotFills = buildSlotFills(schematic, inventory, slotSelections);
 	const propertyPreview =
 		slotFills !== null ? previewCraftProperties(schematic, slotFills, tuning) : null;
-
 	const tuningTotal = Object.values(tuning).reduce((sum, points) => sum + points, 0);
 
-	const [scannerItems, equippedScanner, thumperPartItems, equippedThumperParts, fieldRepairKitCount] =
-		await Promise.all([
-			listScannerItemsForPilot(db, pilotId),
-			getEquippedScannerForPilot(db, pilotId),
-			listThumperPartItemsForPilot(db, pilotId),
-			getEquippedThumperPartsForPilot(db, pilotId),
-			countFieldRepairKitsForPilot(db, pilotId)
-		]);
-
-	const schematicReadiness: SchematicReadinessAnalysis = analyzeSchematicReadiness({
+	const schematicReadiness = analyzeSchematicReadiness({
 		schematic,
 		ownedStacks: inventory.map((stack) => ({
 			resourceInstanceId: stack.resourceInstanceId,
@@ -346,47 +340,33 @@ export async function loadCraftScreen(
 			quantity: stack.quantity
 		}))
 	});
-	const equipComparisons = buildCraftEquipComparisons({
-		scannerItems,
-		equippedScanner,
-		thumperPartItems,
-		equippedThumperParts
-	});
 
 	return {
-		schematics: MVP_CRAFT_SCHEMATICS.map(schematicToCraftUi),
-		selectedSchematicId: schematic.id,
-		schematic: schematicToCraftUi(schematic),
-		// Full domain schematic for client-side preview calculations
+		schematics: schematicRows,
+		selectedSchematicId:
+			selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id
+				? THUMPER_CHASSIS_ASSEMBLY.id
+				: schematic.id,
+		schematic: schematicToWorkshopUi(schematic),
 		schematicDefinition: schematic,
 		inventory,
-		veyrithStack: inventory.find((stack) => stack.resourceSlug === 'veyrith_copper') ?? null,
 		allocationHints,
 		slotSelections,
 		tuning,
 		tuningTotal,
 		propertyPreview,
-		suggestedTuning: SUGGESTED_TUNING[schematic.id] ?? {},
+		suggestedTuning: WORKSHOP_SUGGESTED_TUNING[schematic.id] ?? {},
 		deemphasizedStatsByFamily: {
 			conductive_metal: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'conductive_metal'),
 			structural_alloy: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'structural_alloy'),
 			reactive_crystal: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'reactive_crystal')
 		},
-		scannerItems: scannerItems.map((item) => ({
-			...item,
-			surveyClarity: item.propertyScores.survey_clarity ?? 0,
-			equipped: equippedScanner?.id === item.id
-		})),
-		equippedScanner,
-		thumperPartItems: thumperPartItems.flatMap((item) => {
-			const slot = thumperPartSlotForSchematic(item.schematicId);
-			return slot ? [{ ...item, slot }] : [];
-		}),
-		equippedThumperParts,
-		fieldRepairKitCount,
 		schematicReadiness,
-		equipComparisons
+		showChassisAssembly,
+		chassisAssembly: THUMPER_CHASSIS_ASSEMBLY,
+		chassisReadiness,
+		thumperParts,
+		chassisSelections,
+		rigAssembled: options?.rigAssembled ?? false
 	};
 }
-
-export { SUGGESTED_TUNING };

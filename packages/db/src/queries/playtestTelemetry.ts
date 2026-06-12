@@ -106,3 +106,51 @@ export async function countPilotDepositSamples(db: DbExecutor, pilotId: string):
 
 	return row?.count ?? 0;
 }
+
+export async function listMissionOrderNudgeShownIds(
+	db: DbExecutor,
+	pilotId: string
+): Promise<Set<string>> {
+	const rows = await db
+		.select({ payload: playtestEvents.payload })
+		.from(playtestEvents)
+		.where(
+			and(
+				eq(playtestEvents.pilotId, pilotId),
+				eq(playtestEvents.eventName, 'mission_order_nudge_shown')
+			)
+		);
+
+	const orderIds = new Set<string>();
+	for (const row of rows) {
+		const orderId =
+			typeof row.payload === 'object' &&
+			row.payload !== null &&
+			'orderId' in row.payload &&
+			typeof row.payload.orderId === 'string'
+				? row.payload.orderId
+				: null;
+		if (orderId) {
+			orderIds.add(orderId);
+		}
+	}
+
+	return orderIds;
+}
+
+export async function recordMissionOrderNudgeShown(
+	db: DbExecutor,
+	pilotId: string,
+	orderId: string
+): Promise<void> {
+	const shown = await listMissionOrderNudgeShownIds(db, pilotId);
+	if (shown.has(orderId)) {
+		return;
+	}
+
+	await recordPlaytestEvent(db, {
+		pilotId,
+		eventName: 'mission_order_nudge_shown',
+		payload: { orderId }
+	});
+}

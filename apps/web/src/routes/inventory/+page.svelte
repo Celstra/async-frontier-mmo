@@ -121,7 +121,7 @@
 		{/if}
 	</section>
 
-	<p><a href="/craft">→ Crafting + Gear</a></p>
+	<p><a href="/workshop">→ WORKSHOP</a></p>
 
 	{#if import.meta.env.DEV}
 		<details class="dev-panel">

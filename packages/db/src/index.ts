@@ -51,8 +51,11 @@ export {
 	clearPilotSettlementState,
 	deliverResourceStackToSettlementOrder,
 	ensureSettlementBootstrapForPilot,
+	getActiveSettlementMilestoneKey,
+	getSettlementMilestoneUnlockedAt,
 	getSettlementOrderById,
 	listOpenSettlementOrdersForPilot,
+	listSettlementOrdersForMilestone,
 	type DeliverStackToSettlementOrderOutcome
 } from './queries/settlement.js';
 export {
@@ -200,7 +203,9 @@ export {
 	countPilotDepositSamples,
 	countPilotFamilyScans,
 	countPlaytestEventsByName,
+	listMissionOrderNudgeShownIds,
 	listPlaytestEventsForPilot,
+	recordMissionOrderNudgeShown,
 	recordPlaytestEvent,
 	recordPlaytestEventOnce,
 	type PlaytestEventPayload

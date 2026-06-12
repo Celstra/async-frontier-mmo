@@ -76,7 +76,7 @@
 
 <style>
 	.property-preview {
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		border: 1px solid var(--border-subtle);
 		border-radius: 8px;
 		padding: 1rem;
@@ -102,7 +102,7 @@
 	}
 
 	.preview-line {
-		background: var(--surface-raised);
+		background: var(--bg-panel);
 		border: 1px solid var(--border-subtle);
 		border-radius: 6px;
 		padding: 0.625rem 0.75rem;
@@ -110,8 +110,8 @@
 	}
 
 	.preview-line.has-tuning {
-		border-color: var(--accent-info);
-		background: var(--accent-info-bg);
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
 	}
 
 	.preview-header {
@@ -135,11 +135,11 @@
 		font-weight: 600;
 	}
 
-	.band-badge.poor { background: var(--surface-hover); color: var(--text-muted); }
-	.band-badge.basic { background: var(--surface-inset); color: var(--text-secondary); }
+	.band-badge.poor { background: var(--bg-hover); color: var(--text-muted); }
+	.band-badge.basic { background: var(--bg-inset); color: var(--text-secondary); }
 	.band-badge.solid { background: var(--accent-warning-bg); color: var(--accent-warning); }
-	.band-badge.strong { background: var(--accent-success-bg); color: var(--accent-success-text); }
-	.band-badge.excellent { background: var(--accent-info-bg); color: var(--accent-info); }
+	.band-badge.strong { background: var(--phosphor-glow); color: var(--text-bright); }
+	.band-badge.excellent { background: var(--phosphor-glow); color: var(--phosphor); }
 	.band-badge.exceptional { background: #2a1f3d; color: #c084fc; }
 
 	.score-flow {
@@ -157,18 +157,18 @@
 	}
 
 	.arrow {
-		color: var(--border-muted);
+		color: var(--border-subtle);
 	}
 
 	.tuned-score {
 		font-weight: 700;
-		color: var(--accent-info);
+		color: var(--phosphor);
 	}
 
 	.tuning-boost {
 		font-size: 0.75rem;
-		color: var(--accent-success);
-		background: var(--accent-success-bg);
+		color: var(--phosphor);
+		background: var(--phosphor-glow);
 		padding: 0.1rem 0.3rem;
 		border-radius: 3px;
 	}
@@ -196,9 +196,9 @@
 	}
 
 	.tuning-status.complete {
-		background: var(--accent-success-bg);
+		background: var(--phosphor-glow);
 		border-color: rgba(74, 222, 128, 0.3);
-		color: var(--accent-success-text);
+		color: var(--text-bright);
 	}
 
 	.points-remaining {

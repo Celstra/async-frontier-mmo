@@ -74,7 +74,7 @@
 
 	function missingHintHref(readiness: SchematicSlotReadiness): string {
 		if (readiness.missing?.sourceHint.includes('thumper haul')) {
-			return '/';
+			return '/field';
 		}
 		return '/field';
 	}
@@ -357,7 +357,7 @@
 		font-size: 0.75rem;
 		text-transform: uppercase;
 		color: var(--text-muted);
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		padding: 0.15rem 0.4rem;
 		border-radius: 3px;
 	}
@@ -373,10 +373,10 @@
 		padding: 0.65rem 0.75rem;
 		font-size: 0.85rem;
 		line-height: 1.4;
-		color: #fca5a5;
-		background: #1f1010;
-		border: 1px solid #7f1d1d;
-		border-radius: 4px;
+		color: var(--text-secondary);
+		background: var(--bg-inset);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
 	}
 
 	.slot-missing a {
@@ -388,7 +388,7 @@
 		color: var(--text-muted, #9ca3af);
 		font-style: italic;
 		padding: 1rem;
-		background: var(--surface-inset, #2a2a2a);
+		background: var(--bg-inset);
 		border-radius: 4px;
 	}
 
@@ -406,7 +406,7 @@
 		padding: 0.75rem;
 		border: 2px solid var(--border-subtle);
 		border-radius: 6px;
-		background: var(--surface-raised);
+		background: var(--bg-panel);
 		color: var(--text-primary);
 		cursor: pointer;
 		transition: all 0.15s ease;
@@ -415,20 +415,20 @@
 	}
 
 	.stack-card:hover:not(:disabled) {
-		border-color: var(--accent-info);
-		background: var(--accent-info-bg);
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
 	}
 
 	.stack-card.selected {
-		border-color: var(--accent-info);
-		background: var(--accent-info-bg);
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
 		box-shadow: 0 2px 4px rgba(96, 165, 250, 0.15);
 	}
 
 	.stack-card.insufficient {
 		opacity: 0.6;
 		cursor: not-allowed;
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 	}
 
 	.card-header {
@@ -478,13 +478,13 @@
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.25rem 0.5rem;
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		border-radius: 4px;
 		font-size: 0.8rem;
 	}
 
 	.stat-pill.highlight {
-		background: var(--accent-info-bg);
+		background: var(--phosphor-glow);
 	}
 
 	.stat-name {
@@ -497,16 +497,16 @@
 	}
 
 	.stat-value.exceptional { color: #a78bfa; }
-	.stat-value.excellent { color: var(--accent-info); }
-	.stat-value.strong { color: var(--accent-success); }
+	.stat-value.excellent { color: var(--phosphor); }
+	.stat-value.strong { color: var(--phosphor); }
 	.stat-value.solid { color: var(--accent-warning); }
 	.stat-value.weak { color: var(--text-muted); }
 	.stat-value.poor { color: var(--text-muted); }
 
 	.weight-badge {
 		font-size: 0.7rem;
-		background: var(--accent-info);
-		color: var(--surface-base);
+		background: var(--phosphor);
+		color: var(--bg-base);
 		padding: 0.1rem 0.3rem;
 		border-radius: 3px;
 		font-weight: 500;
@@ -522,7 +522,7 @@
 	}
 
 	.hint-best {
-		color: var(--accent-success);
+		color: var(--phosphor);
 		font-weight: 500;
 	}
 
@@ -556,31 +556,31 @@
 		font-size: 0.75rem;
 		padding: 0.2rem 0.4rem;
 		border-radius: 4px;
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		border: 1px solid var(--border-subtle);
 		color: var(--text-secondary);
 	}
 
 	.chip.current {
-		background: var(--accent-success-bg);
+		background: var(--phosphor-glow);
 		border-color: rgba(74, 222, 128, 0.3);
-		color: var(--accent-success-text);
+		color: var(--text-bright);
 	}
 
 	.chip.positive {
-		background: var(--accent-success-bg);
+		background: var(--phosphor-glow);
 		border-color: rgba(74, 222, 128, 0.3);
-		color: var(--accent-success-text);
+		color: var(--text-bright);
 	}
 
 	.chip.negative {
-		background: var(--accent-danger-bg);
-		border-color: var(--accent-danger-border);
-		color: var(--accent-danger);
+		background: var(--bg-inset);
+		border-color: var(--border-subtle);
+		color: var(--text-muted);
 	}
 
 	.chip.neutral {
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		border-color: var(--border-subtle);
 		color: var(--text-muted);
 	}

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { equipTargetForSchematic } from './equipCraftedItem.js';
 	import {
 		previewCraftProperties,
 		getPropertyOutputBand,
@@ -16,6 +15,7 @@
 		type CraftMode,
 		type PropertyOutputBand
 	} from '@async-frontier-mmo/domain';
+	import SchematicDiagram from './SchematicDiagram.svelte';
 	import SlotSelector from './SlotSelector.svelte';
 	import TuningPanel from './TuningPanel.svelte';
 	import PropertyPreview from './PropertyPreview.svelte';
@@ -83,7 +83,6 @@
 		craftOutcome?: CraftOutcome | null;
 		schematicReadiness: SchematicReadinessAnalysis;
 		onCelebrateDismiss?: () => void;
-		onEquipCrafted?: SubmitFunction;
 	}
 
 	let {
@@ -93,11 +92,8 @@
 		defaultSelections = {},
 		craftOutcome,
 		schematicReadiness,
-		onCelebrateDismiss,
-		onEquipCrafted
+		onCelebrateDismiss
 	}: Props = $props();
-
-	const equipTarget = $derived(equipTargetForSchematic(schematic.id));
 
 	function readinessForSlot(slotId: string): SchematicSlotReadiness | undefined {
 		return schematicReadiness.slots.find((slot) => slot.slotId === slotId);
@@ -284,7 +280,11 @@
 	}
 </script>
 
-<div class="craft-workbench">
+<div class="workshop-bench panel">
+	<SchematicDiagram
+		title={schematic.displayName}
+		slots={schematic.slots.map((slot) => ({ id: slot.id, displayName: slot.displayName }))}
+	/>
 	{#if showResult && craftOutcome}
 		<div bind:this={resultPanelEl} class="result-panel flash flash--success" id="craft-result">
 			<div class="result-header">
@@ -332,17 +332,7 @@
 			</div>
 
 			<div class="result-actions">
-				{#if equipTarget.kind !== 'none' && craftOutcome && onEquipCrafted}
-					<form method="POST" action={equipTarget.action} use:enhance={onEquipCrafted}>
-						<input type="hidden" name="itemId" value={craftOutcome.item.id} />
-						{#if equipTarget.kind === 'thumper_part'}
-							<input type="hidden" name="slot" value={equipTarget.slot} />
-						{/if}
-						<button type="submit" class="equip-now-btn">Equip this item</button>
-					</form>
-				{:else}
-					<p class="result-note">This item goes to inventory — equip it from Gear + Repair below.</p>
-				{/if}
+				<p class="result-note">Item crafted — equip it from RIG when that screen ships in Phase 6.</p>
 				<button type="button" class="craft-another-btn" onclick={craftAnother}>
 					Craft another
 				</button>
@@ -357,9 +347,9 @@
 				{/each}
 			</ul>
 			<p class="blockers-actions">
-				<a href="/field">Go to Field →</a>
+				<a href="/field">Go to FIELD →</a>
 				·
-				<a href="/">Pilot Home →</a>
+				<a href="/settlement">Go to SETTLEMENT →</a>
 			</p>
 		</div>
 	{:else}
@@ -471,23 +461,20 @@
 </div>
 
 <style>
-	.craft-workbench {
-		background: var(--surface-raised, #1a1a1a);
-		border: 1px solid var(--border-subtle, #2e2e2e);
-		border-radius: 8px;
+	.workshop-bench {
 		padding: 1rem;
 	}
 
 	.blockers-panel {
 		padding: 1rem;
-		border: 2px solid var(--accent-danger-border);
-		border-radius: 8px;
-		background: var(--accent-danger-bg);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		background: var(--bg-inset);
 	}
 
 	.blockers-panel h3 {
 		margin: 0 0 0.75rem;
-		color: var(--accent-danger);
+		color: var(--accent-warning);
 		font-size: 1rem;
 	}
 
@@ -532,7 +519,7 @@
 	/* Craft Mode Section */
 	.craft-mode-section {
 		padding: 1rem;
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		border-radius: 6px;
 		border: 1px solid var(--border-subtle);
 	}
@@ -555,7 +542,7 @@
 		padding: 0.875rem;
 		border: 2px solid var(--border-subtle);
 		border-radius: 6px;
-		background: var(--surface-raised);
+		background: var(--bg-panel);
 		color: var(--text-primary);
 		cursor: pointer;
 		text-align: left;
@@ -564,13 +551,13 @@
 	}
 
 	.mode-btn:hover {
-		border-color: var(--accent-info);
-		background: var(--accent-info-bg);
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
 	}
 
 	.mode-btn.selected {
-		border-color: var(--accent-info);
-		background: var(--accent-info-bg);
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
 		box-shadow: 0 2px 4px rgba(96, 165, 250, 0.15);
 	}
 
@@ -598,8 +585,8 @@
 		padding: 1rem 1.5rem;
 		font-size: 1rem;
 		font-weight: 600;
-		background: var(--accent-info);
-		color: var(--surface-base);
+		background: var(--phosphor);
+		color: var(--bg-base);
 		border: none;
 		border-radius: 6px;
 		cursor: pointer;
@@ -614,7 +601,7 @@
 	.craft-submit-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 	}
 
 	/* Result Panel */
@@ -641,13 +628,13 @@
 		text-transform: uppercase;
 		padding: 0.25rem 0.5rem;
 		background: var(--accent-danger);
-		color: var(--surface-base);
+		color: var(--bg-base);
 		border-radius: 4px;
 		font-weight: 600;
 	}
 
 	.result-summary {
-		background: var(--accent-success-bg);
+		background: var(--phosphor-glow);
 		padding: 0.75rem;
 		border-radius: 6px;
 		margin-bottom: 1rem;
@@ -657,7 +644,7 @@
 	.summary-text {
 		margin: 0 0 0.5rem 0;
 		font-weight: 500;
-		color: var(--accent-success-text);
+		color: var(--text-bright);
 	}
 
 	.mode-text {
@@ -674,7 +661,7 @@
 	}
 
 	.property-result {
-		background: var(--surface-raised);
+		background: var(--bg-panel);
 		padding: 0.75rem;
 		border-radius: 6px;
 		border: 1px solid var(--border-subtle);
@@ -707,8 +694,8 @@
 	.prop-score.poor { color: var(--text-muted); }
 	.prop-score.basic { color: var(--text-secondary); }
 	.prop-score.solid { color: var(--accent-warning); }
-	.prop-score.strong { color: var(--accent-success); }
-	.prop-score.excellent { color: var(--accent-info); }
+	.prop-score.strong { color: var(--phosphor); }
+	.prop-score.excellent { color: var(--phosphor); }
 	.prop-score.exceptional { color: #a78bfa; }
 
 	.result-breakdown {
@@ -725,11 +712,11 @@
 	}
 
 	.breakdown-arrow {
-		color: var(--border-muted);
+		color: var(--border-subtle);
 	}
 
 	.breakdown-tuned {
-		color: var(--accent-info);
+		color: var(--phosphor);
 		font-weight: 500;
 	}
 
@@ -739,7 +726,7 @@
 	}
 
 	.breakdown-final {
-		color: var(--accent-success-text);
+		color: var(--text-bright);
 		font-weight: 600;
 	}
 
@@ -754,7 +741,7 @@
 		color: var(--text-secondary);
 		margin-bottom: 1rem;
 		padding: 0.5rem;
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 		border-radius: 4px;
 		border: 1px solid var(--border-subtle);
 	}
@@ -769,11 +756,6 @@
 		gap: 0.5rem;
 	}
 
-	.result-actions form {
-		display: flex;
-		flex: 1;
-	}
-
 	.result-note {
 		margin: 0;
 		font-size: 0.9rem;
@@ -783,7 +765,7 @@
 	.equip-now-btn {
 		width: 100%;
 		padding: 0.875rem;
-		background: var(--accent-success, #22c55e);
+		background: var(--phosphor);
 		color: #0f0f0f;
 		border: none;
 		border-radius: 6px;
@@ -799,7 +781,7 @@
 	.craft-another-btn {
 		width: 100%;
 		padding: 0.875rem;
-		background: var(--surface-hover);
+		background: var(--bg-hover);
 		color: var(--text-primary);
 		border: 1px solid var(--border-subtle);
 		border-radius: 6px;
@@ -810,7 +792,7 @@
 	}
 
 	.craft-another-btn:hover {
-		background: var(--surface-inset);
+		background: var(--bg-inset);
 	}
 
 	@media (min-width: 480px) {
