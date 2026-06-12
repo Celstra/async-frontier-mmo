@@ -4,6 +4,7 @@ import type { Db, DbExecutor } from '../client.js';
 import { pilots } from '../schema/pilots.js';
 import { ensureBloomOneResourceInstances } from './resourceInstances.js';
 import { ensureSettlementBootstrapForPilot } from './settlement.js';
+import { getPilotTutorialStep, setPilotTutorialStep } from './tutorialState.js';
 
 export async function getPilotById(db: DbExecutor, pilotId: string) {
 	const [pilot] = await db.select().from(pilots).where(eq(pilots.id, pilotId)).limit(1);
@@ -31,6 +32,11 @@ export async function ensurePilotGameReady(db: Db, pilotId: string) {
 	await ensureSessionPilot(db, pilotId);
 	await ensureBloomOneResourceInstances(db);
 	await ensureSettlementBootstrapForPilot(db, pilotId);
+
+	const tutorialStep = await getPilotTutorialStep(db, pilotId);
+	if (tutorialStep === null) {
+		await setPilotTutorialStep(db, { pilotId, step: 'prologue' });
+	}
 }
 
 /** Idempotent seed for the learning scaffold demo pilot. */

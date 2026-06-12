@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { PlaytestEventName } from '../playtest/eventNames.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
 import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
@@ -74,6 +74,20 @@ export async function listPlaytestEventsForPilot(
 		.from(playtestEvents)
 		.where(eq(playtestEvents.pilotId, pilotId))
 		.orderBy(playtestEvents.createdAt);
+}
+
+export async function getLatestPlaytestEventCreatedAt(
+	db: DbExecutor,
+	pilotId: string
+): Promise<Date | null> {
+	const [row] = await db
+		.select({ createdAt: playtestEvents.createdAt })
+		.from(playtestEvents)
+		.where(eq(playtestEvents.pilotId, pilotId))
+		.orderBy(desc(playtestEvents.createdAt))
+		.limit(1);
+
+	return row?.createdAt ?? null;
 }
 
 export async function countPlaytestEventsByName(

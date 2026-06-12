@@ -16,6 +16,7 @@ import {
 	getThumperEventWindowsForRun,
 	ensurePilotFieldSession,
 	getActiveBloomId,
+	countPlaytestEventsByName,
 	getPilotProspectingProgress,
 	scanFamilyForPilot,
 	scanPilotFieldTile,
@@ -59,6 +60,7 @@ import { resolvePilotId } from '$lib/server/pilot';
 import {
 	trackFieldDeploy,
 	trackFieldFamilyChosen,
+	trackSecondFamilyStarted,
 	trackFieldFirstClaim,
 	trackFieldMove,
 	trackFieldSampleCommit,
@@ -69,6 +71,7 @@ import {
 	trackSliceEventWindowResolved,
 	trackThumperClaimed
 } from '$lib/server/playtestTelemetry';
+import { advanceTutorialStepIf } from '$lib/server/tutorialOrchestration';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
 import { recommendedResourceSlugForBloom } from '$lib/field/constants';
 import type { Actions, PageServerLoad } from './$types';
@@ -100,7 +103,17 @@ export const actions: Actions = {
 		}
 
 		await setPilotFieldFamily(db, { pilotId, family });
-		await trackFieldFamilyChosen(db, pilotId, family);
+
+		const alreadyChoseFamily =
+			(await countPlaytestEventsByName(db, pilotId, 'first_family_chosen')) > 0;
+
+		if (!alreadyChoseFamily) {
+			await trackFieldFamilyChosen(db, pilotId, family);
+			await advanceTutorialStepIf(db, pilotId, 'first_orders', 'hunting');
+		} else {
+			await trackSecondFamilyStarted(db, pilotId, family);
+			await advanceTutorialStepIf(db, pilotId, 'hunting', 'turn_in');
+		}
 
 		return fieldData(db, pilotId);
 	},

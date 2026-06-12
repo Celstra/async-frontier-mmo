@@ -6,7 +6,7 @@ import {
 import { TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
 
-/** Root `/` routing — Phase 4 slice; expanded in Phase 7 tutorial orchestration. */
+/** Root `/` routing — tutorial step drives entry screen (Phase 7). */
 export async function resolveRootRedirect(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string
@@ -20,11 +20,25 @@ export async function resolveRootRedirect(
 		getPilotTutorialStep(db, pilotId)
 	]);
 
+	if (tutorialStep === 'prologue') {
+		return '/prologue';
+	}
+
+	if (tutorialStep === 'assemble_rig') {
+		return '/workshop';
+	}
+
 	if (fabricatorUnlocked || hasCompletedTutorial) {
 		return '/settlement';
 	}
 
-	if (tutorialStep === 'turn_in' || tutorialStep === 'fabricator_online') {
+	if (
+		tutorialStep === 'first_orders' ||
+		tutorialStep === 'turn_in' ||
+		tutorialStep === 'fabricator_online' ||
+		tutorialStep === 'hull_patch' ||
+		tutorialStep === 'async_reveal'
+	) {
 		return '/settlement';
 	}
 

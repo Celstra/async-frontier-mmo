@@ -18,8 +18,7 @@
 
 	const pathname = $derived(page.url.pathname);
 
-	/** Wired in Phase 7 from tutorial state. Hardcoded off in Phase 0. */
-	const nextActionScreen: SliceScreenId | null = null;
+	const nextActionScreen = $derived(data.nextActionScreen);
 
 	const missionTicker = $derived(data.missionTicker);
 

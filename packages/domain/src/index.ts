@@ -418,3 +418,11 @@ export type {
 export {
 	EVENT_WINDOW_TRIGGER_PROBABILITY
 } from './thumper/types';
+export {
+	TUTORIAL_STEPS,
+	isScriptedTutorialThumperStep,
+	isTutorialStep,
+	tutorialNextActionScreen,
+	type TutorialScreenId,
+	type TutorialStep
+} from './tutorial/tutorialSteps.js';

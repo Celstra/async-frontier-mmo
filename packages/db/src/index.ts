@@ -203,6 +203,7 @@ export {
 	countPilotDepositSamples,
 	countPilotFamilyScans,
 	countPlaytestEventsByName,
+	getLatestPlaytestEventCreatedAt,
 	listMissionOrderNudgeShownIds,
 	listPlaytestEventsForPilot,
 	recordMissionOrderNudgeShown,

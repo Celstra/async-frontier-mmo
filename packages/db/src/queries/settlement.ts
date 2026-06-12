@@ -163,7 +163,12 @@ export async function bindSettlementOrdersOnSample(
 }
 
 export type DeliverStackToSettlementOrderOutcome =
-	| { status: 'delivered'; deliveredUnits: number; orderFilled: boolean }
+	| {
+			status: 'delivered';
+			deliveredUnits: number;
+			orderFilled: boolean;
+			fabricatorMilestoneCompleted: boolean;
+	  }
 	| { status: 'order_not_found' }
 	| { status: 'order_not_open' }
 	| { status: 'wrong_family' }
@@ -305,8 +310,12 @@ export async function deliverResourceStackToSettlementOrder(
 		return outcome;
 	}
 
-	const { fabricatorMilestoneCompleted: _fabricatorMilestoneCompleted, ...delivered } = outcome;
-	return delivered;
+	return {
+		status: 'delivered' as const,
+		deliveredUnits: outcome.deliveredUnits,
+		orderFilled: outcome.orderFilled,
+		fabricatorMilestoneCompleted: outcome.fabricatorMilestoneCompleted
+	};
 }
 
 /** Test helper — remove settlement rows for a pilot. */

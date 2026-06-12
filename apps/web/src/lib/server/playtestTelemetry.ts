@@ -364,3 +364,34 @@ export async function trackFabricatorOnlineSeen(db: Db, pilotId: string): Promis
 export async function trackRigAssembled(db: Db, pilotId: string): Promise<void> {
 	await once(db, pilotId, 'rig_assembled');
 }
+
+export async function trackPrologueDone(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'prologue_done');
+}
+
+export async function trackSecondFamilyStarted(db: Db, pilotId: string, family: string): Promise<void> {
+	await once(db, pilotId, 'second_family_started', { family });
+}
+
+export async function trackAsyncDurationChosen(
+	db: Db,
+	pilotId: string,
+	input: { extractionTailMinutes: number }
+): Promise<void> {
+	await once(db, pilotId, 'async_duration_chosen', input);
+}
+
+export async function trackReturnVisitIfDue(
+	db: Db,
+	pilotId: string,
+	latestEventAt: Date
+): Promise<void> {
+	const gapMs = Date.now() - latestEventAt.getTime();
+	if (gapMs < 4 * 60 * 60 * 1000) {
+		return;
+	}
+
+	await once(db, pilotId, 'return_visit', {
+		gapHours: Math.round(gapMs / (60 * 60 * 1000))
+	});
+}

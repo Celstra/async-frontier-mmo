@@ -8,6 +8,7 @@ import {
 	trackFabricatorOnlineSeen,
 	trackSettlementTurnIn
 } from '$lib/server/playtestTelemetry';
+import { advanceTutorialStepIf } from '$lib/server/tutorialOrchestration';
 import type { Actions, PageServerLoad } from './$types';
 
 async function settlementData(db: ReturnType<typeof getGameDb>, pilotId: string) {
@@ -51,6 +52,11 @@ export const actions: Actions = {
 				deliveredUnits: outcome.deliveredUnits,
 				orderFilled: outcome.orderFilled
 			});
+
+			if (outcome.fabricatorMilestoneCompleted) {
+				await advanceTutorialStepIf(db, pilotId, 'turn_in', 'fabricator_online');
+			}
+
 			return settlementData(db, pilotId);
 		}
 
@@ -76,6 +82,7 @@ export const actions: Actions = {
 		const pilotId = resolvePilotId(event);
 		await requirePlayablePilot(db, pilotId);
 		await trackFabricatorOnlineSeen(db, pilotId);
+		await advanceTutorialStepIf(db, pilotId, 'fabricator_online', 'assemble_rig');
 		return settlementData(db, pilotId);
 	}
 };
