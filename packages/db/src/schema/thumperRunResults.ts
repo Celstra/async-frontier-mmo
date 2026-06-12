@@ -17,5 +17,6 @@ export const thumperRunResults = pgTable('thumper_run_results', {
 	recallReason: text('recall_reason'),
 	appliedWear: integer('applied_wear').notNull().default(0),
 	explanation: text('explanation').notNull(),
-	resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull()
+	resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull(),
+	acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true })
 });

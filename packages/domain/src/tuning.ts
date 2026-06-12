@@ -43,4 +43,6 @@ export const EVENT_WINDOW_SLOTS = { short: 2, push: 3 } as const;
 export const EVENT_WINDOW_FIRE_CHANCE = 0.55;
 
 export const SCAVENGED_HULL_INTEGRITY = 5;
+/** Foreman free patch — restores both integrity and condition (slice §6). */
 export const PATCHED_HULL_INTEGRITY = 30;
+export const PATCHED_HULL_CONDITION = PATCHED_HULL_INTEGRITY;

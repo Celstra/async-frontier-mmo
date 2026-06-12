@@ -127,7 +127,7 @@ async function persistSurveyEnergySpend(
 	});
 }
 
-async function samplesTakenOnSpot(
+export async function samplesTakenOnSpot(
 	db: DbExecutor,
 	input: { pilotId: string; spotId: string }
 ): Promise<number> {

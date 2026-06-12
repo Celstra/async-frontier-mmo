@@ -8,10 +8,13 @@ import {
 	getBloomRecord,
 	getDepositSpotYieldState,
 	getEquippedScannerForPilot,
+	backfillTutorialPatchedHullCondition,
 	getEquippedThumperPartsForPilot,
 	countFieldRepairKitsForPilot,
+	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
 	getThumperEventWindowsForRun,
+	samplesTakenOnSpot,
 	getPilotDepositSample,
 	getPilotProspectingProgress,
 	getResourceInstanceById,
@@ -33,7 +36,9 @@ import {
 	getTopology,
 	isThumperRunClaimable,
 	parseTopologySpotId,
+	hullDeployWarningLine,
 	hullTierFromIntegrity,
+	SPOT_SAMPLE_POOL,
 	spotIdFor,
 	SURVEY_ENERGY_CAP,
 	surveyEnergyOutlook,
@@ -57,9 +62,15 @@ import { loadDeployPreviewForPilot } from '$lib/server/fieldDeployLoad.js';
 import { loadClaimScreen } from '$lib/server/fieldClaimState.js';
 import { loadOpenRunState } from '$lib/server/fieldRunState.js';
 import { trackFieldStatReveal } from '$lib/server/playtestTelemetry.js';
-import { maybeAdvanceHuntingToTurnIn } from '$lib/server/tutorialOrchestration.js';
+import {
+	maybeAdvanceHuntingToTurnIn,
+	maybeAdvanceToFirstDeployAfterRigAssembly
+} from '$lib/server/tutorialOrchestration.js';
 import { resolveTargetDisplayName } from '$lib/server/targetResource.js';
-import { loadSettlementMissionTicker } from '$lib/server/settlementLoad.js';
+import {
+	loadActiveOrderStatusLine,
+	loadSettlementMissionTicker
+} from '$lib/server/settlementLoad.js';
 import type { getGameDb } from './gameDb.js';
 import {
 	firstAsyncUnlockForEquippedHull,
@@ -79,6 +90,7 @@ export type FieldLastSampleResult = {
 	statsRevealedThisSample: boolean;
 	yieldBandLabel: string;
 	stats: FieldResourceStats | null;
+	orderStatusLine: string | null;
 };
 
 function isRigDeployReady(
@@ -91,6 +103,9 @@ function deployBlockedReason(input: {
 	rigReady: boolean;
 	spotRemainingUnits: number;
 	hasOpenRun: boolean;
+	tailOptionCount: number;
+	tutorialStep: string | null;
+	tutorialDeployRun: ReturnType<typeof tutorialDeployForStep>;
 }): string | null {
 	if (!input.rigReady) {
 		return 'Assemble your rig in WORKSHOP before deploying';
@@ -101,6 +116,30 @@ function deployBlockedReason(input: {
 	if (input.spotRemainingUnits <= 0) {
 		return 'This deposit is exhausted';
 	}
+
+	if (input.tutorialStep && input.tutorialStep !== 'done' && input.tutorialDeployRun === null) {
+		if (input.tutorialStep === 'hunting' || input.tutorialStep === 'turn_in') {
+			return 'Turn in your foreman orders at SETTLEMENT, assemble the rig in WORKSHOP, then deploy';
+		}
+		if (input.tutorialStep === 'fabricator_online') {
+			return 'Return to SETTLEMENT — dismiss the fabricator briefing, then deploy from FIELD';
+		}
+		if (input.tutorialStep === 'assemble_rig') {
+			return 'Assemble your rig in WORKSHOP before deploying';
+		}
+		if (input.tutorialStep === 'recall_lesson') {
+			return 'Return to SETTLEMENT — acknowledge the recall briefing before deploying again';
+		}
+		if (input.tutorialStep === 'hull_patch') {
+			return 'Return to SETTLEMENT — foreman needs to patch your hull before the next deploy';
+		}
+		return 'Foreman has another job for you before the next deploy';
+	}
+
+	if (input.tailOptionCount === 0) {
+		return 'Hull integrity too low for any run duration — patch or craft a better hull';
+	}
+
 	return null;
 }
 
@@ -148,8 +187,16 @@ export async function loadFieldScreen(
 	let lastSampleResult: FieldLastSampleResult | null = null;
 	let sampleFlash: string | null = null;
 
+	const exhaustedSampleMessage =
+		'Surface remnants exhausted here — nothing left to hand-sample. Deploy a thumper to tap the deposit.';
+
 	if (sampleOutcome?.status === 'insufficient_energy') {
 		sampleFlash = 'Not enough survey energy to sample here';
+	} else if (
+		sampleOutcome?.status === 'spot_pool_exhausted' ||
+		sampleOutcome?.status === 'spot_already_sampled'
+	) {
+		sampleFlash = exhaustedSampleMessage;
 	} else if (sampleOutcome?.status === 'ok' && pendingResourceId) {
 		const resource = await getResourceInstanceById(db, pendingResourceId);
 		if (resource) {
@@ -166,6 +213,8 @@ export async function loadFieldScreen(
 					resourceInstanceId: pendingResourceId
 				}));
 
+			const orderStatusLine = await loadActiveOrderStatusLine(db, pilotId);
+
 			lastSampleResult = {
 				resourceDisplayName: resource.displayName,
 				trickleQuantity: sampleOutcome.trickleQuantity,
@@ -175,7 +224,8 @@ export async function loadFieldScreen(
 				surveyEnergyCap: SURVEY_ENERGY_CAP,
 				statsRevealedThisSample: sampleOutcome.statsRevealedThisSample,
 				yieldBandLabel: sampleOutcome.yieldBandLabel,
-				stats: showStats ? fieldStatsFromInstance(resource) : null
+				stats: showStats ? fieldStatsFromInstance(resource) : null,
+				orderStatusLine
 			};
 		}
 	}
@@ -183,7 +233,10 @@ export async function loadFieldScreen(
 		getActiveBloomId(db),
 		loadSettlementMissionTicker(db, pilotId)
 	]);
-	const tutorialStep = await getPilotTutorialStep(db, pilotId);
+	let tutorialStep = await getPilotTutorialStep(db, pilotId);
+	await maybeAdvanceToFirstDeployAfterRigAssembly(db, pilotId);
+	await backfillTutorialPatchedHullCondition(db, pilotId);
+	tutorialStep = await getPilotTutorialStep(db, pilotId);
 	const hasCompletedTutorial = await hasPilotClaimedTutorialRun(db, pilotId, TUTORIAL_RUN_1_SEED);
 	const tutorialDeployRun = tutorialDeployForStep(tutorialStep);
 	const prospectingProgress = await getPilotProspectingProgress(db, pilotId, now, activeBloomId);
@@ -227,14 +280,24 @@ export async function loadFieldScreen(
 			openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
 			isTutorialRun ||
 			!runClaimable;
+	}
 
-		if (runClaimable) {
-			claimView = await loadClaimScreen(db, pilotId, now);
-		}
-	} else {
-		claimView = await loadClaimScreen(db, pilotId, now);
-		if (claimView.mode === 'none') {
-			claimView = null;
+	const claimScreen = await loadClaimScreen(db, pilotId, now);
+	claimView = claimScreen.mode === 'none' ? null : claimScreen;
+
+	if (
+		(claimView?.mode === 'claimable' || claimView?.mode === 'result') &&
+		rigView === null
+	) {
+		const displayRun = await getLatestThumperRunForPilot(db, pilotId);
+		if (displayRun) {
+			const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
+			rigView = await loadOpenRunState(db, displayRun, fieldRepairKitCount, {
+				resolveDisplayName: resolveTargetDisplayName,
+				includeRunMeters: true,
+				isTutorialRun: isTutorialRunSeed(displayRun.runSeed)
+			});
+			shouldPoll = shouldPoll || claimView.mode === 'claimable';
 		}
 	}
 
@@ -268,15 +331,18 @@ export async function loadFieldScreen(
 	let deployContext = null;
 	let hereSpotId: string | null = null;
 	let pendingSampleProgress: {
+		startedAt: string;
 		completesAt: string;
 		progressPercent: number;
 	} | null = null;
+	let handSamplesLeft: { taken: number; pool: number } | null = null;
 
 	if (session.pendingSample) {
 		const elapsed = now.getTime() - session.pendingSample.startedAt.getTime();
 		const total =
 			session.pendingSample.completesAt.getTime() - session.pendingSample.startedAt.getTime();
 		pendingSampleProgress = {
+			startedAt: session.pendingSample.startedAt.toISOString(),
 			completesAt: session.pendingSample.completesAt.toISOString(),
 			progressPercent: Math.min(100, Math.round((elapsed / total) * 100))
 		};
@@ -337,6 +403,13 @@ export async function loadFieldScreen(
 			});
 
 			hereSpotId = spotIdFor(resourceInstanceId, session.positionX, session.positionY);
+			if (hereSpotId) {
+				const samplesTaken = await samplesTakenOnSpot(db, { pilotId, spotId: hereSpotId });
+				handSamplesLeft = {
+					taken: samplesTaken,
+					pool: SPOT_SAMPLE_POOL
+				};
+			}
 			const sample = await getPilotDepositSample(db, {
 				pilotId,
 				resourceInstanceId,
@@ -406,10 +479,17 @@ export async function loadFieldScreen(
 				});
 
 				const rigReady = isRigDeployReady(equipped);
+				const tutorialDeployAllowed =
+					tutorialStep === null ||
+					tutorialStep === 'done' ||
+					tutorialDeployRun !== null;
 				const blockedReason = deployBlockedReason({
 					rigReady,
 					spotRemainingUnits: spotYield.remainingUnits,
-					hasOpenRun: openRun !== null
+					hasOpenRun: openRun !== null,
+					tailOptionCount: tailOptions.length,
+					tutorialStep,
+					tutorialDeployRun
 				});
 
 				deployContext = {
@@ -423,8 +503,14 @@ export async function loadFieldScreen(
 					tailOptions,
 					defaultTailMinutes,
 					deployPreview,
+					hullDeployWarning: hullDeployWarningLine(hullIntegrity),
 					rigReady,
-					canDeploy: rigReady && spotYield.remainingUnits > 0 && !openRun,
+					canDeploy:
+						rigReady &&
+						spotYield.remainingUnits > 0 &&
+						!openRun &&
+						tailOptions.length > 0 &&
+						tutorialDeployAllowed,
 					deployBlockedReason: blockedReason
 				};
 			}
@@ -453,10 +539,12 @@ export async function loadFieldScreen(
 
 	const equippedScanner = await getEquippedScannerForPilot(db, pilotId);
 	const showRigView =
-		openRun !== null &&
-		(openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
-			isTutorialRunSeed(openRun.runSeed) ||
-			hasUnresolvedEventWindows);
+		(openRun !== null &&
+			(openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
+				isTutorialRunSeed(openRun.runSeed) ||
+				hasUnresolvedEventWindows)) ||
+		claimView?.mode === 'claimable' ||
+		claimView?.mode === 'result';
 
 	return {
 		regionId: 'red_mesa' as const,
@@ -489,6 +577,7 @@ export async function loadFieldScreen(
 		waypoints: waypoints.filter((waypoint) => !waypoint.exhausted),
 		deployContext,
 		pendingSampleProgress,
+		handSamplesLeft,
 		lastSampleResult,
 		sampleFlash,
 		showRigView,

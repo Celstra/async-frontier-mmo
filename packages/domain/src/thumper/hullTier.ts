@@ -19,3 +19,24 @@ export function hullTierFromIntegrity(integrity: number): HullTier {
 export function unlocksFirstAsyncTail(tier: HullTier): boolean {
 	return tier === 'scavenged' || tier === 'patched';
 }
+
+/** Player-facing hull integrity line for equip/deploy lists. */
+export function hullIntegrityAdvisoryLine(integrity: number): string | null {
+	const tier = hullTierFromIntegrity(integrity);
+	if (tier !== 'scavenged' && tier !== 'patched') {
+		return null;
+	}
+	return `Integrity ${integrity}% — ${tier}. Fail-safe will recall this run early.`;
+}
+
+/** Pre-deploy warning for low-integrity hulls. */
+export function hullDeployWarningLine(integrity: number): string | null {
+	const tier = hullTierFromIntegrity(integrity);
+	if (tier === 'scavenged') {
+		return 'Scavenged hull: the rig will secure itself early and recover partial yield.';
+	}
+	if (tier === 'patched') {
+		return 'Patched hull: short run ceiling — fail-safe may recall this run early.';
+	}
+	return null;
+}

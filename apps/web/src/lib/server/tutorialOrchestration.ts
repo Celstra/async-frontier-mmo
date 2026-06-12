@@ -1,6 +1,8 @@
 import {
+	countPlaytestEventsByName,
 	fabricatorTutorialOrdersFullyBound,
 	getPilotTutorialStep,
+	getSettlementMilestoneUnlockedAt,
 	setPilotTutorialStep
 } from '@async-frontier-mmo/db';
 import { isTutorialStep, type TutorialStep } from '@async-frontier-mmo/domain';
@@ -49,4 +51,41 @@ export async function maybeAdvanceHuntingToTurnIn(db: Db, pilotId: string): Prom
 	}
 
 	return advanceTutorialStepIf(db, pilotId, 'hunting', 'turn_in');
+}
+
+const STEPS_BEFORE_FIRST_DEPLOY = new Set<TutorialStep>([
+	'hunting',
+	'turn_in',
+	'fabricator_online',
+	'assemble_rig'
+]);
+
+/**
+ * Turn-in / fabricator / rig steps can fall behind when players use WORKSHOP early
+ * or turn in stacks before the tutorial step catches up to `turn_in`.
+ */
+export async function maybeAdvanceToFirstDeployAfterRigAssembly(
+	db: Db,
+	pilotId: string
+): Promise<boolean> {
+	const step = await readTutorialStep(db, pilotId);
+	if (!step || !STEPS_BEFORE_FIRST_DEPLOY.has(step)) {
+		return false;
+	}
+
+	const rigAssembled = (await countPlaytestEventsByName(db, pilotId, 'rig_assembled')) > 0;
+	if (!rigAssembled) {
+		return false;
+	}
+
+	const fabricatorOnline = await getSettlementMilestoneUnlockedAt(db, {
+		pilotId,
+		milestoneKey: 'fabricator_online'
+	});
+	if (!fabricatorOnline) {
+		return false;
+	}
+
+	await setPilotTutorialStep(db, { pilotId, step: 'first_deploy' });
+	return true;
 }

@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { ChassisAssemblyReadiness, OwnedThumperPart } from '@async-frontier-mmo/domain';
+	import {
+		hullIntegrityAdvisoryLine,
+		type ChassisAssemblyReadiness,
+		type OwnedThumperPart
+	} from '@async-frontier-mmo/domain';
 	import SchematicDiagram from './SchematicDiagram.svelte';
 
 	interface Props {
@@ -72,7 +76,9 @@
 	<p class="chassis__description">{description}</p>
 
 	{#if rigAssembled}
-		<p class="chassis__success" role="status">Rig assembled — equip and deploy from RIG (Phase 6).</p>
+		<p class="chassis__success" role="status">
+			Rig assembled — head to FIELD and deploy on a sampled deposit.
+		</p>
 	{:else if !readiness.assemblableNow}
 		<div class="chassis__blockers" role="alert">
 			<p class="chassis__blockers-label">Can't assemble yet</p>
@@ -99,6 +105,12 @@
 							<span class="socket__picked">
 								{selected.displayName} · condition {selected.condition}% · integrity
 								{selected.integrity}%
+								{#if slot.slotId === 'hull'}
+									{@const hullAdvisory = hullIntegrityAdvisoryLine(selected.integrity)}
+									{#if hullAdvisory}
+										<span class="socket__hull-advisory"> · {hullAdvisory}</span>
+									{/if}
+								{/if}
 							</span>
 						{:else}
 							<span class="socket__empty">Pick a part</span>
@@ -121,6 +133,12 @@
 										<span>{part.displayName}</span>
 										<span class="candidate-row__stats">
 											condition {part.condition}% · integrity {part.integrity}%
+											{#if slot.slotId === 'hull'}
+												{@const hullAdvisory = hullIntegrityAdvisoryLine(part.integrity)}
+												{#if hullAdvisory}
+													<span class="candidate-row__hull-advisory"> · {hullAdvisory}</span>
+												{/if}
+											{/if}
 										</span>
 									</button>
 								</li>

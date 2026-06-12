@@ -3,7 +3,8 @@ import {
 	ensureNextNeedOrdersPostedForPilot,
 	getEquippedThumperPartsForPilot,
 	getPilotTutorialStep,
-	patchEquippedHullForTutorial
+	patchEquippedHullForTutorial,
+	setPilotTutorialStep
 } from '@async-frontier-mmo/db';
 import { fail } from '@sveltejs/kit';
 import { allowedExtractionTailsForEquippedHull } from '$lib/server/fieldDeployLoad';
@@ -78,7 +79,12 @@ export const actions: Actions = {
 			});
 
 			if (outcome.fabricatorMilestoneCompleted) {
-				await advanceTutorialStepIf(db, pilotId, 'turn_in', 'fabricator_online');
+				if (!(await advanceTutorialStepIf(db, pilotId, 'turn_in', 'fabricator_online'))) {
+					const step = await getPilotTutorialStep(db, pilotId);
+					if (step === 'hunting') {
+						await setPilotTutorialStep(db, { pilotId, step: 'fabricator_online' });
+					}
+				}
 			}
 
 			return settlementData(db, pilotId);

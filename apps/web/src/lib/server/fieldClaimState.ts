@@ -136,6 +136,10 @@ export async function loadClaimScreen(
 		? await getThumperRunResultForRun(db, displayRun.id)
 		: null;
 
+	if (existingResult?.acknowledgedAt) {
+		return { mode: 'none' as const };
+	}
+
 	if (!existingResult && !claimable) {
 		return {
 			mode: 'pending' as const,

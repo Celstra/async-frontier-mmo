@@ -1,5 +1,7 @@
 import {
+	createItemDurability,
 	isThumperPartSchematic,
+	PATCHED_HULL_CONDITION,
 	PATCHED_HULL_INTEGRITY,
 	SURVEY_SCANNER_MK_I,
 	thumperPartSlotForSchematic,
@@ -273,7 +275,7 @@ export async function equipThumperPartForPilot(
 	}
 }
 
-/** Tutorial hull_patch beat — foreman patches scavenged hull to 30% integrity (slice §6). */
+/** Tutorial hull_patch beat — foreman restores scavenged hull to 30% integrity + condition (slice §6). */
 export async function patchEquippedHullForTutorial(
 	db: Db,
 	pilotId: string
@@ -283,9 +285,17 @@ export async function patchEquippedHullForTutorial(
 		return { status: 'no_hull' };
 	}
 
+	const patched = createItemDurability({
+		integrity: PATCHED_HULL_INTEGRITY,
+		condition: PATCHED_HULL_CONDITION
+	});
+
 	await db
 		.update(items)
-		.set({ integrity: PATCHED_HULL_INTEGRITY })
+		.set({
+			integrity: patched.integrity,
+			condition: patched.condition
+		})
 		.where(eq(items.id, equipped.hull.id));
 
 	await appendEconomyLedgerEntry(db, {
@@ -294,9 +304,40 @@ export async function patchEquippedHullForTutorial(
 		payload: {
 			source_type: 'tutorial_hull_patch',
 			item_id: equipped.hull.id,
-			integrity: PATCHED_HULL_INTEGRITY
+			integrity: patched.integrity,
+			condition: patched.condition
 		}
 	});
 
 	return { status: 'patched' };
+}
+
+/** Pilots patched before condition was included — backfill on second tutorial deploy. */
+export async function backfillTutorialPatchedHullCondition(
+	db: DbExecutor,
+	pilotId: string
+): Promise<boolean> {
+	const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
+	if (!equipped.hull) {
+		return false;
+	}
+
+	if (
+		equipped.hull.integrity < PATCHED_HULL_INTEGRITY ||
+		equipped.hull.condition >= PATCHED_HULL_CONDITION
+	) {
+		return false;
+	}
+
+	const patched = createItemDurability({
+		integrity: equipped.hull.integrity,
+		condition: PATCHED_HULL_CONDITION
+	});
+
+	await db
+		.update(items)
+		.set({ condition: patched.condition })
+		.where(eq(items.id, equipped.hull.id));
+
+	return true;
 }

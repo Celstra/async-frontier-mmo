@@ -2162,7 +2162,17 @@ Recommended durability rule:
 
 ---
 
-# 14. Final guardrail
+# 14. Foreman comms — next schematic nudge + pinnable requirements (deferred)
+
+**Added 2026-06-12** from field playtest fix plan (Group E — design first, no code).
+
+Hypothesis: after fabricator online, the foreman/comms channel should suggest the next schematic to build, let the player tap through to a requirements view, and allow "pinning" tracked resources so FIELD surfaces progress toward those pins.
+
+Needs UX/design pass before implementation (copy, placement on SETTLEMENT vs FIELD, pin persistence model). Do not ship until scoped against the production-point gate.
+
+---
+
+# 15. Final guardrail
 
 Do not build all of this first.
 

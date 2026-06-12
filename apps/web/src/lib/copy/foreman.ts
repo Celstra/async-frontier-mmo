@@ -9,15 +9,23 @@ export function foremanLine(input: {
 	}
 
 	if (input.tutorialStep === 'first_orders') {
-		return 'Pick a family from the foreman list and hunt it on FIELD — one stack per order, no mixing.';
+		return 'Pick a resource family from the foreman list and hunt it on FIELD — one stack per order, no mixing.';
 	}
 
 	if (input.tutorialStep === 'recall_lesson') {
-		return 'RIG SECURED — fail-safe nominal. Hull integrity spent. I can patch that scavenged hull to thirty percent if you’re ready for another run.';
+		return 'RIG SECURED — fail-safe nominal. Hull integrity spent. I can patch that scavenged hull to thirty percent condition and integrity if you’re ready for another run.';
 	}
 
 	if (input.tutorialStep === 'hull_patch') {
-		return 'Scavenge gets you thirty percent. Crafted hulls run for hours. Patch up and get back out there.';
+		return 'Patch restores condition and integrity to thirty percent — enough for your five-minute run. After that, craft a Reinforced Hull Plate in WORKSHOP before you chase hour-long tails.';
+	}
+
+	if (input.tutorialStep === 'second_deploy') {
+		return 'Second run on the patched hull — claim should land around sixty units. Craft a Reinforced Hull Plate and equip it on RIG before picking long async tails.';
+	}
+
+	if (input.tutorialStep === 'full_claim') {
+		return 'Sixty units recovered. Workshop’s open — craft a Reinforced Hull Plate next so your rig can hold a real deployment length.';
 	}
 
 	if (input.tutorialStep === 'async_reveal') {

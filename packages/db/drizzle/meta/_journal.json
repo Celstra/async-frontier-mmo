@@ -218,6 +218,13 @@
       "when": 1783800000000,
       "tag": "0030_pilot_field_discovered_tiles",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783900000000,
+      "tag": "0031_thumper_run_result_acknowledged",
+      "breakpoints": true
     }
   ]
 }

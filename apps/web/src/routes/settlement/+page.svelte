@@ -56,7 +56,7 @@
 		{#if data.showHullPatchAction}
 			<form method="POST" action="?/applyHullPatch" class="tutorial-beat">
 				<button type="submit" class="action-row action-row--primary">
-					Patch hull to 30% (free)
+					Patch hull — restore to 30% condition &amp; integrity (free)
 				</button>
 			</form>
 		{/if}

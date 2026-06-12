@@ -416,6 +416,7 @@ export async function loadOpenRunState(
 	return {
 		thumperDemo,
 		loadedAt: now.toISOString(),
+		runDurationSeconds: run.durationSeconds,
 		openRun: {
 			id: run.id,
 			targetResourceId: run.targetResourceId,

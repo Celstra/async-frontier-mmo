@@ -26,7 +26,10 @@ import {
 	trackRigAssembled,
 	trackWorkshopViewed
 } from '$lib/server/playtestTelemetry';
-import { advanceTutorialStepIf } from '$lib/server/tutorialOrchestration';
+import {
+	advanceTutorialStepIf,
+	maybeAdvanceToFirstDeployAfterRigAssembly
+} from '$lib/server/tutorialOrchestration';
 import {
 	loadWorkshopScreen,
 	parseCraftMode,
@@ -225,7 +228,9 @@ export const actions: Actions = {
 		}
 
 		await trackRigAssembled(db, pilotId);
-		await advanceTutorialStepIf(db, pilotId, 'assemble_rig', 'first_deploy');
+		if (!(await advanceTutorialStepIf(db, pilotId, 'assemble_rig', 'first_deploy'))) {
+			await maybeAdvanceToFirstDeployAfterRigAssembly(db, pilotId);
+		}
 
 		return workshopData(db, pilotId, event.url, { rigAssembled: true });
 	}

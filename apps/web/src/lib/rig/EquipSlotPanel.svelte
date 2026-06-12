@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { hullIntegrityAdvisoryLine } from '@async-frontier-mmo/domain';
 	import type { RigPartCandidate } from '$lib/server/rigLoad';
 
 	interface Props {
@@ -31,6 +32,12 @@
 								· equipped
 							{/if}
 						</span>
+						{#if slot === 'hull'}
+							{@const hullAdvisory = hullIntegrityAdvisoryLine(candidate.integrity)}
+							{#if hullAdvisory}
+								<span class="candidate__hull-advisory">{hullAdvisory}</span>
+							{/if}
+						{/if}
 					</div>
 					<div class="candidate__actions">
 						{#if !candidate.equipped}
@@ -121,6 +128,13 @@
 	.candidate__stats {
 		font-size: var(--font-size-xs);
 		color: var(--text-muted);
+	}
+
+	.candidate__hull-advisory {
+		display: block;
+		margin-top: 0.2rem;
+		font-size: var(--font-size-xs);
+		color: var(--accent-warning);
 	}
 
 	.candidate__actions {

@@ -1443,6 +1443,11 @@ The slice is: settlement ledger, sampling minigame, tutorial bootstrap, one watc
 
 ---
 
+### Playtest fix copy amendments (2026-06-12 field test)
+
+- **Prologue (render-only):** `PROLOGUE_LINES` stay verbatim in `apps/web/src/lib/copy/prologue.ts`; the takeover modal joins lines with a single space in a normal `<p>` instead of `\n` in `<pre>`, so the panel does not hard-break mid-sentence.
+- **Tutorial fail-safe claim banner (D5):** player-facing wording drops dev jargon `(scripted floor — never empty-handed)` in favor of `— the fail-safe never comes home empty-handed.` (`packages/domain/src/tutorial/tutorialClaimCopy.ts`; slice spec §6 beat unchanged in meaning).
+
 ### Open harness debt (2026-06-12)
 
 `pnpm --filter @async-frontier-mmo/db db:smoke` still fails on the unchanged first-session path: it resolves a run with zero event-window responses and hits **"First-session run expects exactly two event window responses."** Track as smoke-harness debt — rewrite the smoke script against the slice Phase 7 tutorial state machine, not a blocker for WORKSHOP (Phase 5).

@@ -15,7 +15,7 @@
 <div class="takeover" role="dialog" aria-modal="true" aria-labelledby="prologue-title">
 	<div class="takeover__panel">
 		<p id="prologue-title" class="takeover__eyebrow">Incoming brief</p>
-		<pre class="takeover__text">{PROLOGUE_LINES.join('\n')}</pre>
+		<p class="takeover__text">{PROLOGUE_LINES.join(' ')}</p>
 		<form id="prologue-dismiss" method="POST" action="?/dismissPrologue" use:enhance>
 			<button type="submit" class="takeover__button">Continue [any key]</button>
 		</form>
@@ -57,7 +57,7 @@
 		font-size: var(--font-size-sm);
 		line-height: 1.6;
 		color: var(--text-primary);
-		white-space: pre-wrap;
+		white-space: normal;
 	}
 
 	.takeover__button {

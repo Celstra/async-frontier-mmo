@@ -1,6 +1,7 @@
 import {
 	countPlaytestEventsByName,
 	getActiveSettlementMilestoneKey,
+	backfillTutorialPatchedHullCondition,
 	getEquippedThumperPartsForPilot,
 	getPilotTutorialStep,
 	getResourceInstanceById,
@@ -347,6 +348,36 @@ async function buildSettlementOrderCards(
 	return orderCards;
 }
 
+/** Order progress line after a field sample — hunting-step feedback. */
+export async function loadActiveOrderStatusLine(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string
+): Promise<string | null> {
+	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
+	const [orders, inventory] = await Promise.all([
+		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
+		listPilotResourceStacksWithInstances(db, pilotId)
+	]);
+
+	const active = pickActiveSettlementOrder(orders);
+	if (!active || active.status !== 'open') {
+		return null;
+	}
+
+	const boundInstance =
+		active.boundInstanceId !== null
+			? await getResourceInstanceById(db, active.boundInstanceId)
+			: null;
+	const candidates = mergeFamilyCandidates(active.family, inventory, boundInstance);
+	const progressUnits = boundStackProgress(active, candidates);
+
+	if (progressUnits >= active.stackSize) {
+		return `ORDER FILLED — ${familyDisplayLabel(active.family)} stack complete. Return to SETTLEMENT to turn in.`;
+	}
+
+	return `Order progress: ${progressUnits}/${active.stackSize}u`;
+}
+
 /** Layout ticker only — never records one-shot nudges (those render on /settlement). */
 export async function loadSettlementMissionTicker(
 	db: ReturnType<typeof getGameDb>,
@@ -375,6 +406,7 @@ export async function loadSettlementScreen(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string
 ): Promise<SettlementScreenData> {
+	await backfillTutorialPatchedHullCondition(db, pilotId);
 	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
 	const [
 		orders,

@@ -27,6 +27,7 @@ export {
 	ensureStarterThumperPartsForPilot,
 	getEquippedThumperPartsForPilot,
 	listThumperPartItemsForPilot,
+	backfillTutorialPatchedHullCondition,
 	patchEquippedHullForTutorial,
 	ThumperPartEquipValidationError,
 	type EquipThumperPartOutcome
@@ -115,6 +116,7 @@ export {
 	resolveThumperRunForStoredWindows
 } from './queries/thumperRunResolution.js';
 export {
+	acknowledgeThumperRunResult,
 	getThumperRunResultForRun,
 	insertThumperRunResult
 } from './queries/thumperRunResults.js';
@@ -164,6 +166,7 @@ export {
 	hasPilotFamilyScan,
 	previewFamilyScanForPilot,
 	sampleSpotForPilot,
+	samplesTakenOnSpot,
 	scanFamilyForPilot,
 	type PilotProspectingProgress,
 	type PreviewFamilyScanForPilotInput,

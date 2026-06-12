@@ -19,7 +19,9 @@ import {
 	getActiveBloomId,
 	countPlaytestEventsByName,
 	scanFamilyForPilot,
+	acknowledgeThumperRunResult,
 	scanPilotFieldTile,
+	samplesTakenOnSpot,
 	setPilotFieldFamily,
 	setPilotFieldPosition,
 	setPilotFieldResource,
@@ -34,6 +36,8 @@ import {
 	FIRST_ASYNC_TAIL_MINUTES,
 	TUTORIAL_RUN_1_MINUTES,
 	TUTORIAL_RUN_1_SEED,
+	SPOT_SAMPLE_POOL,
+	spotIdFor,
 	TUTORIAL_RUN_2_MINUTES,
 	tutorialDeployForStep,
 	tutorialRunFromSeed,
@@ -208,8 +212,14 @@ export const actions: Actions = {
 		});
 
 		if ('error' in outcome) {
+			if (outcome.error === 'out_of_bounds') {
+				return {
+					...(await fieldData(db, pilotId)),
+					mapFlash: 'Cannot move off the map',
+					mapFlashKey: Date.now()
+				};
+			}
 			const messages = {
-				out_of_bounds: 'Cannot move off the map',
 				pending_sample: 'Sampling in progress — hold position'
 			};
 			return fail(400, { message: messages[outcome.error], ...(await fieldData(db, pilotId)) });
@@ -227,6 +237,20 @@ export const actions: Actions = {
 
 		if (!session.resourceInstanceId) {
 			return fail(400, { message: 'Activate a resource map first', ...(await fieldData(db, pilotId)) });
+		}
+
+		const spotId = spotIdFor(
+			session.resourceInstanceId,
+			session.positionX,
+			session.positionY
+		);
+		const samplesTaken = await samplesTakenOnSpot(db, { pilotId, spotId });
+		if (samplesTaken >= SPOT_SAMPLE_POOL) {
+			return {
+				...(await fieldData(db, pilotId)),
+				sampleFlash:
+					'Surface remnants exhausted here — nothing left to hand-sample. Deploy a thumper to tap the deposit.'
+			};
 		}
 
 		const outcome = await startPilotFieldSample(db, {
@@ -607,5 +631,27 @@ export const actions: Actions = {
 			message: outcome.status === 'not_resolvable' ? outcome.message : 'No thumper to claim',
 			...(await fieldData(db, pilotId))
 		});
+	},
+
+	acknowledgeClaim: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		const formData = await event.request.formData();
+		const thumperRunId = formData.get('thumperRunId');
+
+		if (typeof thumperRunId !== 'string') {
+			return fail(400, { message: 'Missing thumper run', ...(await fieldData(db, pilotId)) });
+		}
+
+		const outcome = await acknowledgeThumperRunResult(db, {
+			pilotId,
+			thumperRunId
+		});
+
+		if (outcome.status === 'not_found') {
+			return fail(400, { message: 'Claim result not found', ...(await fieldData(db, pilotId)) });
+		}
+
+		return fieldData(db, pilotId);
 	}
 };

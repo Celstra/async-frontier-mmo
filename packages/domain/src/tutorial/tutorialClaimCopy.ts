@@ -4,5 +4,5 @@ import { TUTORIAL_RUN_1_YIELD_FLOOR } from '../tuning.js';
 export function tutorialHullFailsafeClaimBanner(
 	recoveredQuantity: number = TUTORIAL_RUN_1_YIELD_FLOOR
 ): string {
-	return `RIG SECURED — fail-safe nominal. Hull integrity spent. Partial yield recovered: ${recoveredQuantity}u (scripted floor — never empty-handed).`;
+	return `RIG SECURED — fail-safe nominal. Hull integrity spent. Partial yield recovered: ${recoveredQuantity}u — the fail-safe never comes home empty-handed.`;
 }

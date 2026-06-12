@@ -22,6 +22,8 @@ describe('surveyEnergyOutlook', () => {
 		expect(outlook.canSampleNow).toBe(true);
 		expect(outlook.hoursUntilNextScan).toBe(0);
 		expect(outlook.hoursUntilNextSample).toBe(0);
+		expect(outlook.secondsUntilNextEnergyBump).toBeNull();
+		expect(outlook.nextEnergyBumpAtMs).toBeNull();
 	});
 
 	it('computes hours until scan and sample from a partial pool', () => {
@@ -40,6 +42,9 @@ describe('surveyEnergyOutlook', () => {
 		expect(outlook.hoursUntilNextSample).toBeCloseTo(
 			(SAMPLE_ENERGY_COST - 6) / regenPerHour
 		);
+		expect(outlook.secondsPerEnergyBump).toBe(600);
+		expect(outlook.secondsUntilNextEnergyBump).toBe(300);
+		expect(outlook.nextEnergyBumpAtMs).toBe(300_000);
 	});
 
 	it('accrues energy continuously and clamps to cap', () => {
@@ -53,5 +58,16 @@ describe('surveyEnergyOutlook', () => {
 			nowMs: 24 * 3_600_000
 		});
 		expect(outlook.canSampleNow).toBe(true);
+	});
+
+	it('counts down to the next rounded energy bump from elapsed trickle progress', () => {
+		const outlook = surveyEnergyOutlook({
+			storedEnergy: 6,
+			lastUpdatedAtMs: 0,
+			nowMs: 60_000
+		});
+
+		expect(outlook.secondsUntilNextEnergyBump).toBe(240);
+		expect(outlook.nextEnergyBumpAtMs).toBe(300_000);
 	});
 });

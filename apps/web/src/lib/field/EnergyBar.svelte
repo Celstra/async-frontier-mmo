@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { SurveyEnergyOutlook } from '@async-frontier-mmo/domain';
 
 	interface Props {
@@ -10,18 +11,73 @@
 
 	let { energy, cap, outlook, compact = false }: Props = $props();
 
-	const fillPercent = $derived(cap > 0 ? Math.min(100, Math.round((energy / cap) * 100)) : 0);
+	let currentTimeMs = $state<number | null>(null);
+
+	const projectedEnergy = $derived.by(() => {
+		if (currentTimeMs === null || outlook.nextEnergyBumpAtMs === null) {
+			return energy;
+		}
+		if (currentTimeMs < outlook.nextEnergyBumpAtMs) {
+			return energy;
+		}
+
+		const bumpIntervalMs = outlook.secondsPerEnergyBump * 1000;
+		const bumpsSinceSnapshot =
+			1 + Math.floor((currentTimeMs - outlook.nextEnergyBumpAtMs) / bumpIntervalMs);
+		return Math.min(cap, energy + bumpsSinceSnapshot);
+	});
+	const secondsUntilNextBump = $derived.by(() => {
+		if (projectedEnergy >= cap || outlook.nextEnergyBumpAtMs === null) {
+			return null;
+		}
+		if (currentTimeMs === null) {
+			return outlook.secondsUntilNextEnergyBump;
+		}
+		if (currentTimeMs < outlook.nextEnergyBumpAtMs) {
+			return Math.max(0, Math.ceil((outlook.nextEnergyBumpAtMs - currentTimeMs) / 1000));
+		}
+
+		const bumpIntervalMs = outlook.secondsPerEnergyBump * 1000;
+		const elapsedSinceFirstBump = currentTimeMs - outlook.nextEnergyBumpAtMs;
+		const intervalRemainder = elapsedSinceFirstBump % bumpIntervalMs;
+		return Math.ceil((bumpIntervalMs - intervalRemainder) / 1000);
+	});
+	const fillPercent = $derived(
+		cap > 0 ? Math.min(100, Math.round((projectedEnergy / cap) * 100)) : 0
+	);
+
+	function formatCountdown(seconds: number): string {
+		const clamped = Math.max(0, seconds);
+		const minutes = Math.floor(clamped / 60);
+		const remainingSeconds = clamped % 60;
+		return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+	}
+
+	onMount(() => {
+		const tick = () => {
+			currentTimeMs = Date.now();
+		};
+
+		tick();
+		const id = setInterval(tick, 1000);
+		return () => clearInterval(id);
+	});
 </script>
 
 <div class="energy-bar" class:energy-bar--compact={compact}>
 	<div class="energy-bar__row">
-		<span class="energy-bar__label">Survey energy</span>
-		<span class="energy-bar__value">{energy} / {cap}</span>
+		<span class="energy-bar__label-group">
+			<span class="energy-bar__label">Survey energy</span>
+			{#if secondsUntilNextBump !== null}
+				<span class="energy-bar__timer">+1 in {formatCountdown(secondsUntilNextBump)}</span>
+			{/if}
+		</span>
+		<span class="energy-bar__value">{projectedEnergy} / {cap}</span>
 	</div>
 	<div
 		class="energy-bar__track"
 		role="meter"
-		aria-valuenow={energy}
+		aria-valuenow={projectedEnergy}
 		aria-valuemin={0}
 		aria-valuemax={cap}
 	>
@@ -58,6 +114,20 @@
 	.energy-bar__label {
 		font-size: var(--font-size-xs);
 		color: var(--text-muted);
+	}
+
+	.energy-bar__label-group {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+
+	.energy-bar__timer {
+		font-size: 0.65rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--phosphor);
+		white-space: nowrap;
 	}
 
 	.energy-bar__value {

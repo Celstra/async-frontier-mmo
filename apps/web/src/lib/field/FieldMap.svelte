@@ -3,23 +3,39 @@
 
 	interface Props {
 		map: FieldMapView;
+		mapFlash?: string | null;
+		mapFlashKey?: number | null;
 	}
 
-	let { map }: Props = $props();
+	let { map, mapFlash = null, mapFlashKey = null }: Props = $props();
 </script>
 
 <div class="field-map">
 	<div class="field-map__explore" aria-label="Deposit concentration field">
-		<pre class="field-map__grid">{#each map.rows as row}{#each row as cell}<span
+		{#if mapFlash}
+			{#key mapFlashKey}
+				<p class="field-map__flash" aria-live="polite">{mapFlash}</p>
+			{/key}
+		{/if}
+		<div
+			class="field-map__grid"
+			style:--map-width={map.gridWidth}
+			style:--map-height={map.gridHeight}
+		>
+			{#each map.rows as row}
+				{#each row as cell}
+					<span
 					class="field-map__cell"
 					class:field-map__cell--void={cell.char === ' '}
 					class:field-map__cell--player={cell.char === '@'}
 					class:field-map__cell--waypoint={cell.char === '▲'}
 					class:field-map__cell--signal={cell.char === '~'}
 					class:field-map__cell--dot={cell.char === '·'}
-				>{cell.char === ' ' ? ' ' : cell.char}</span
-				>{/each}
-{'\n'}{/each}</pre>
+					>{cell.char === ' ' ? '·' : cell.char}</span
+					>
+				{/each}
+			{/each}
+		</div>
 	</div>
 	<aside class="field-map__readout panel-inset">
 		<dl class="readout-list">
@@ -53,8 +69,11 @@
 	}
 
 	.field-map__explore {
+		position: relative;
 		width: 100%;
+		min-height: 26rem;
 		padding: 0.75rem;
+		display: flex;
 		background: var(--bg-inset);
 		border: 1px solid var(--phosphor-dim);
 		border-radius: var(--radius-sm);
@@ -62,19 +81,59 @@
 		overflow-x: auto;
 	}
 
+	.field-map__flash {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		z-index: 2;
+		transform: translate(-50%, -50%);
+		margin: 0;
+		padding: 0.45rem 0.75rem;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		color: var(--phosphor);
+		background: var(--bg-inset);
+		border: 1px solid var(--phosphor-dim);
+		border-radius: var(--radius-sm);
+		box-shadow: 0 0 12px var(--phosphor-glow);
+		pointer-events: none;
+		animation: map-flash-fade 1.2s ease forwards;
+	}
+
+	@keyframes map-flash-fade {
+		0%,
+		70% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+
 	.field-map__grid {
 		margin: 0;
-		width: max-content;
+		width: 100%;
+		flex: 1;
+		display: grid;
+		grid-template-columns: repeat(var(--map-width), minmax(0, 1fr));
+		grid-template-rows: repeat(var(--map-height), minmax(0, 1fr));
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
-		line-height: 1.35;
+		line-height: 1;
 		letter-spacing: 0.08em;
 		color: var(--text-secondary);
-		white-space: pre;
+	}
+
+	.field-map__cell {
+		display: grid;
+		place-items: center;
+		min-width: 0;
+		min-height: 0;
 	}
 
 	.field-map__cell--void {
-		color: transparent;
+		color: var(--text-muted);
+		opacity: 0.15;
 	}
 
 	.field-map__cell--dot {

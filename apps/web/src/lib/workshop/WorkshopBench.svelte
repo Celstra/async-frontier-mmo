@@ -332,7 +332,7 @@
 			</div>
 
 			<div class="result-actions">
-				<p class="result-note">Item crafted — equip it from RIG when that screen ships in Phase 6.</p>
+				<p class="result-note">Item crafted — equip it from RIG.</p>
 				<button type="button" class="craft-another-btn" onclick={craftAnother}>
 					Craft another
 				</button>

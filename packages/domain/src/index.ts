@@ -236,6 +236,7 @@ export {
 	FIRST_ASYNC_TAIL_MINUTES,
 	HULL_CEILING_EXPONENT,
 	HULL_TIER_BASE,
+	PATCHED_HULL_CONDITION,
 	PATCHED_HULL_INTEGRITY,
 	RUN_TAILS_MINUTES,
 	SAMPLE_BASE_YIELD,
@@ -358,7 +359,12 @@ export {
 	type EventWindowResponseValidation
 } from './thumper/validateEventWindowResponse';
 export { availableTails, maxRunMinutes, type AvailableTailOption } from './thumper/hullRunCeiling.js';
-export { hullTierFromIntegrity, unlocksFirstAsyncTail } from './thumper/hullTier.js';
+export {
+	hullDeployWarningLine,
+	hullIntegrityAdvisoryLine,
+	hullTierFromIntegrity,
+	unlocksFirstAsyncTail
+} from './thumper/hullTier.js';
 export {
 	computeHullFailsafeProrata,
 	effectiveThumperRunDurationSeconds,
