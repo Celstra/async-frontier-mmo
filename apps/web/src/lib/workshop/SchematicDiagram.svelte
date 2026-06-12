@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { THUMPER_CHASSIS_ASSEMBLY } from '@async-frontier-mmo/domain';
+	import ThumperAsciiPre from '$lib/rig/ThumperAsciiPre.svelte';
+	import { buildThumperAscii, type ThumperAsciiSlot } from '$lib/rig/thumperAscii';
 
 	interface SlotLabel {
 		id: string;
@@ -11,30 +13,41 @@
 		slots: SlotLabel[];
 		activeSlotId?: string | null;
 		variant?: 'craft' | 'chassis';
+		assemblySlots?: {
+			hull?: ThumperAsciiSlot;
+			drill?: ThumperAsciiSlot;
+			pump?: ThumperAsciiSlot;
+		};
 	}
 
-	let { title, slots, activeSlotId = null, variant = 'craft' }: Props = $props();
+	let { title, slots, activeSlotId = null, variant = 'craft', assemblySlots }: Props = $props();
 
 	const isChassis = $derived(variant === 'chassis' || title === THUMPER_CHASSIS_ASSEMBLY.displayName);
+
+	const chassisAscii = $derived(
+		buildThumperAscii({
+			mode: 'workshop',
+			showProspectorScale: true,
+			header: title,
+			hull: assemblySlots?.hull ?? { equipped: false },
+			drill: assemblySlots?.drill ?? { equipped: false },
+			pump: assemblySlots?.pump ?? { equipped: false }
+		})
+	);
 </script>
 
 <div class="diagram panel" aria-hidden="true">
+	{#if isChassis}
+		<ThumperAsciiPre art={chassisAscii} />
+	{:else}
 	<pre class="diagram__ascii">
-{#if isChassis}
-      ___[ {title.toUpperCase()} ]___
-     /                         \
-    |  [ HULL ]                 |
-    |    +-------+-------+      |
-    |    | DRILL | PUMP  |      |
-     \_________________________/
-{:else}
       ___[ {title.toUpperCase()} ]___
      /    SCHEMATIC DIAGRAM       \
     {#each slots as slot, index}
     |  ({index + 1}) {slot.displayName.toUpperCase().padEnd(18, ' ')} |
     {/each}
-     \___________________________/
-{/if}</pre>
+     \___________________________/</pre>
+	{/if}
 	<ul class="diagram__legend">
 		{#each slots as slot (slot.id)}
 			<li class:diagram__legend-item--active={activeSlotId === slot.id}>

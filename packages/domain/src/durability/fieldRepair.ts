@@ -45,6 +45,12 @@ export const HULL_DAMAGE_WITHOUT_FIELD_REPAIR = {
 	integrityLoss: 3
 } as const;
 
+/** Field Repair kits restore Condition only, up to the Integrity cap. */
+export function canRestoreConditionWithFieldRepair(target: ItemDurability): boolean {
+	const before = createItemDurability(target);
+	return before.condition < before.integrity;
+}
+
 /**
  * Spend a crafted kit during a run — restores Condition partially, capped at Integrity.
  * Does not restore lost Integrity (overhaul deferred).

@@ -24,8 +24,13 @@
 		<div class="scanner__equipped panel-inset">
 			<p class="scanner__name">{equippedScanner.displayName}</p>
 			<p class="scanner__clarity">Survey Clarity {equippedScanner.surveyClarity.toFixed(1)}</p>
-			<WearBar label="Condition" value={equippedScanner.condition} />
-			<WearBar label="Integrity" value={equippedScanner.integrity} />
+			<WearBar
+				kind="condition"
+				label="Condition"
+				value={equippedScanner.condition}
+				ceiling={equippedScanner.integrity}
+			/>
+			<WearBar kind="integrity" label="Integrity" value={equippedScanner.integrity} />
 		</div>
 	{:else}
 		<p class="scanner__empty">No scanner equipped — pick one below or craft in WORKSHOP.</p>

@@ -73,6 +73,7 @@ export {
 	applyFieldRepairWithKit,
 	applyHullDamageFieldRepair,
 	applyHullDamageWithoutFieldRepair,
+	canRestoreConditionWithFieldRepair,
 	conditionRestoredPointsFromKitScore,
 	HULL_DAMAGE_WITHOUT_FIELD_REPAIR,
 	integrityLossMitigatedFromSafetyScore,

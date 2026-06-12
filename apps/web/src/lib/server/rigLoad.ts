@@ -7,6 +7,7 @@ import {
 	listThumperPartItemsForPilot
 } from '@async-frontier-mmo/db';
 import {
+	canRestoreConditionWithFieldRepair,
 	maxRunMinutes,
 	PATCHED_HULL_INTEGRITY,
 	SCAVENGED_HULL_INTEGRITY,
@@ -93,8 +94,8 @@ function hullTierFromIntegrity(integrity: number): HullTier {
 	return 'basic';
 }
 
-function needsRepair(condition: number, integrity: number): boolean {
-	return condition < 100 || integrity < 100;
+function needsConditionRepair(condition: number, integrity: number): boolean {
+	return canRestoreConditionWithFieldRepair({ condition, integrity });
 }
 
 function formatMaxRunLine(minutes: number): string {
@@ -135,7 +136,7 @@ export async function loadRigScreen(
 			displayName: part?.displayName ?? null,
 			condition: part?.condition ?? null,
 			integrity: part?.integrity ?? null,
-			needsRepair: part ? needsRepair(part.condition, part.integrity) : false
+			needsRepair: part ? needsConditionRepair(part.condition, part.integrity) : false
 		};
 	});
 
@@ -157,7 +158,7 @@ export async function loadRigScreen(
 				item.id === equippedParts.drill?.id ||
 				item.id === equippedParts.pump?.id ||
 				item.id === equippedParts.hull?.id,
-			canRepair: repairKitCount > 0 && needsRepair(item.condition, item.integrity)
+			canRepair: repairKitCount > 0 && needsConditionRepair(item.condition, item.integrity)
 		});
 	}
 
@@ -168,7 +169,7 @@ export async function loadRigScreen(
 		integrity: item.integrity,
 		surveyClarity: item.propertyScores.survey_clarity ?? 0,
 		equipped: item.id === equippedScanner?.id,
-		canRepair: repairKitCount > 0 && needsRepair(item.condition, item.integrity)
+		canRepair: repairKitCount > 0 && needsConditionRepair(item.condition, item.integrity)
 	}));
 
 	const familyGroups = new Map<string, RigResourceStack[]>();

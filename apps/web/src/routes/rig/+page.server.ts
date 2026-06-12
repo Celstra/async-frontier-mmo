@@ -115,7 +115,7 @@ export const actions: Actions = {
 			});
 		}
 
-		if (outcome.status === 'invalid_target') {
+		if (outcome.status === 'invalid_target' || outcome.status === 'nothing_to_repair') {
 			return fail(400, {
 				message: outcome.reason,
 				...(await rigData(db, pilotId))

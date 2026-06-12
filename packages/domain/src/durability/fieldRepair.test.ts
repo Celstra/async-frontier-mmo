@@ -3,6 +3,7 @@ import {
 	applyFieldRepairWithKit,
 	applyHullDamageFieldRepair,
 	applyHullDamageWithoutFieldRepair,
+	canRestoreConditionWithFieldRepair,
 	conditionRestoredPointsFromKitScore
 } from './fieldRepair.js';
 import { getMaxCondition } from './itemDurability.js';
@@ -17,6 +18,15 @@ describe('field repair with kit', () => {
 		expect(outcome.conditionRestored).toBeGreaterThan(0);
 		expect(outcome.conditionAfter).toBeLessThan(100);
 		expect(outcome.integrityAfter).toBe(100);
+	});
+
+	it('is not repairable when Condition already equals Integrity', () => {
+		expect(canRestoreConditionWithFieldRepair({ condition: 5, integrity: 5 })).toBe(false);
+		expect(canRestoreConditionWithFieldRepair({ condition: 70, integrity: 70 })).toBe(false);
+	});
+
+	it('is repairable only when Condition is below Integrity', () => {
+		expect(canRestoreConditionWithFieldRepair({ condition: 50, integrity: 70 })).toBe(true);
 	});
 
 	it('cannot exceed Integrity-limited maximum', () => {

@@ -3,6 +3,7 @@ import {
 	applyHullDamageFieldRepair,
 	applyHullDamageWithoutFieldRepair,
 	applyFieldRepairWithKit,
+	canRestoreConditionWithFieldRepair,
 	FIELD_REPAIR_KIT,
 	parseEventWindowSeverity,
 	resolveEventWindowOutcome,
@@ -361,11 +362,24 @@ export async function applyRepairKitToItemForPilot(
 			};
 		}
 
+		const durability = { condition: target.condition, integrity: target.integrity };
+
+		if (!canRestoreConditionWithFieldRepair(durability)) {
+			return {
+				status: 'nothing_to_repair' as const,
+				reason: 'Condition is already at the Integrity cap — kits restore wear only, not structural ceiling'
+			};
+		}
+
 		const kitScores = kitScoresFromItem(kit.propertyScores);
-		const outcome = applyFieldRepairWithKit(
-			{ condition: target.condition, integrity: target.integrity },
-			kitScores
-		);
+		const outcome = applyFieldRepairWithKit(durability, kitScores);
+
+		if (outcome.conditionRestored <= 0) {
+			return {
+				status: 'nothing_to_repair' as const,
+				reason: 'This kit would not restore any Condition'
+			};
+		}
 
 		const consumed = await consumeRepairKit(tx, kit.id);
 		if (!consumed) {

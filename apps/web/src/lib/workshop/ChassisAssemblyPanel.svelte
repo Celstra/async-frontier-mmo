@@ -53,6 +53,20 @@
 		slots={readiness.slots.map((slot) => ({ id: slot.slotId, displayName: slot.displayName }))}
 		activeSlotId={activeSlot}
 		variant="chassis"
+		assemblySlots={{
+			hull: {
+				equipped: Boolean(localSelections.hull),
+				label: selectedPart('hull')?.displayName ?? null
+			},
+			drill: {
+				equipped: Boolean(localSelections.drill),
+				label: selectedPart('drill')?.displayName ?? null
+			},
+			pump: {
+				equipped: Boolean(localSelections.pump),
+				label: selectedPart('pump')?.displayName ?? null
+			}
+		}}
 	/>
 
 	<p class="chassis__description">{description}</p>

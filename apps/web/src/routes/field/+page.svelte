@@ -5,11 +5,31 @@
 	import FieldMap from '$lib/field/FieldMap.svelte';
 	import SampleResultPanel from '$lib/field/SampleResultPanel.svelte';
 	import { FIELD_FAMILY_OPTIONS } from '$lib/field/constants';
+	import ThumperAsciiPre from '$lib/rig/ThumperAsciiPre.svelte';
+	import { buildThumperAscii } from '$lib/rig/thumperAscii';
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
 
 	let sampleResultEl: HTMLElement | undefined = $state();
+
+	const deployedThumperAscii = $derived.by(() => {
+		if (!data.rigView) return '';
+
+		const target = data.rigView.openRun.targetDisplayName.slice(0, 18);
+		const hullPct = data.rigView.runHullCondition;
+		const threat = data.rigView.runMeters?.threatPressure ?? 0;
+
+		return buildThumperAscii({
+			mode: 'deployed',
+			showProspectorScale: false,
+			header: target,
+			hull: { equipped: true, label: 'HULL' },
+			drill: { equipped: true, label: 'DRILL' },
+			pump: { equipped: true, label: 'PUMP' },
+			footer: `HULL ${hullPct}% · THREAT ${threat}%`
+		});
+	});
 
 	$effect(() => {
 		if (!data.shouldPoll) return;
@@ -46,11 +66,7 @@
 
 	{#if data.showRigView && data.rigView}
 		<div class="rig-view panel">
-			<pre class="rig-art" aria-hidden="true">
-   ___[/THUMPER]___
-  |  {data.rigView.openRun.targetDisplayName.slice(0, 12).padEnd(12)} |
-  |  HULL {data.rigView.runHullCondition}%  THREAT {data.rigView.runMeters?.threatPressure ?? 0}% |
-  `---------------'</pre>
+			<ThumperAsciiPre art={deployedThumperAscii} />
 
 			{#if data.rigView.runMeters}
 				<ul class="meter-list">
@@ -438,13 +454,6 @@
 	.flash--error {
 		background: var(--accent-danger-dim);
 		color: #ffd0d0;
-	}
-
-	.rig-art {
-		margin: 0 0 1rem;
-		font-family: var(--font-mono);
-		font-size: var(--font-size-sm);
-		color: var(--phosphor);
 	}
 
 	.meter-list {
