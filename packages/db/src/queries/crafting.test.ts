@@ -15,7 +15,6 @@ import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
 import { craftSchematicForPilot, craftSurveyScannerForPilot } from './crafting.js';
 import { grantResourceToPilot } from './resourceGrants.js';
 import { ensureBloomOneResourceInstances, getResourceInstanceByBloomSlug } from './resourceInstances.js';
-import { ensureStarterStockpileForPilot } from './starterStockpile.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeDb = databaseUrl ? describe : describe.skip;
@@ -51,8 +50,7 @@ describeDb('transactional scanner craft', () => {
 
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
-		await ensureStarterStockpileForPilot(db, testPilotId);
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 
 		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
 		const keth = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'keth_iron');
@@ -239,7 +237,7 @@ describeDb('transactional scanner craft', () => {
 
 	it('rejects reusing one stack across two slots when combined quantity is short', async () => {
 		const hullPilotId = `hull-craft-${Date.now()}`;
-		await db.insert(pilots).values({ id: hullPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: hullPilotId }).onConflictDoNothing();
 
 		const craftSetup = { type: 'test_grant' as const, id: 'hull-craft-setup' };
 		await grantResourceToPilot(db, {

@@ -7,7 +7,6 @@ import {
 	getDepositSpotYieldState,
 	getOpenThumperRunForPilot,
 	getPilotDepositSample,
-	getPilotFrame,
 	getResourceInstanceByBloomSlug,
 	getResourceInstanceById,
 	hasPilotCompletedTutorialThumper
@@ -225,7 +224,6 @@ export const actions: Actions = {
 			isTutorialRun
 		});
 
-		const pilotFrame = await getPilotFrame(db, pilotId);
 		const runSeed = isTutorialRun ? TUTORIAL_RUN_SEED : crypto.randomUUID();
 		const plan = generateThumperEventWindows({
 			targetResourceId: targetResourceId as NamedResourceId,
@@ -237,7 +235,6 @@ export const actions: Actions = {
 		try {
 			await deployThumperRunWithEventWindows(db, {
 				pilotId,
-				pilotFrameId: pilotFrame,
 				targetResourceId,
 				runSeed: plan.runSeed,
 				isPushRun: plan.isPushRun,

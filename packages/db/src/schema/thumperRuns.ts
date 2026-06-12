@@ -6,8 +6,6 @@ export const thumperRuns = pgTable(
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
 		pilotId: text('pilot_id').notNull(),
-		/** Frame snapshotted at deploy — part of run config for audit replay. */
-		pilotFrameId: text('pilot_frame_id').notNull().default('recon'),
 		targetResourceId: text('target_resource_id').notNull(),
 		/** Sampled deposit spot from Decision 019 prospecting. */
 		depositSpotId: text('deposit_spot_id'),

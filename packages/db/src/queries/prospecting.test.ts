@@ -40,7 +40,7 @@ describeDb('prospecting persistence', () => {
 
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 
 		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
 		expect(veyrith).not.toBeNull();
@@ -202,7 +202,7 @@ describeDb('prospecting persistence', () => {
 		const lowEnergyAt = new Date();
 		await db
 			.update(pilotSurveyEnergy)
-			.set({ surveyEnergy: 5, lastUpdatedAt: lowEnergyAt })
+			.set({ rawEnergy: 5, updatedAt: lowEnergyAt })
 			.where(eq(pilotSurveyEnergy.pilotId, testPilotId));
 
 		const progress = await getPilotProspectingProgress(db, testPilotId, lowEnergyAt);
@@ -314,7 +314,7 @@ describeDb('prospecting persistence', () => {
 		const lowEnergyAt = new Date();
 		await db
 			.update(pilotSurveyEnergy)
-			.set({ surveyEnergy: SAMPLE_ENERGY_COST, lastUpdatedAt: lowEnergyAt })
+			.set({ rawEnergy: SAMPLE_ENERGY_COST, updatedAt: lowEnergyAt })
 			.where(eq(pilotSurveyEnergy.pilotId, testPilotId));
 
 		const [first, second] = await Promise.all([

@@ -35,10 +35,7 @@ export {
 	ensureDemoPilotReady,
 	ensurePilotGameReady,
 	ensureSessionPilot,
-	getPilotById,
-	getPilotFrame,
-	pilotNeedsFrameChoice,
-	setPilotFrame
+	getPilotById
 } from './queries/pilots.js';
 export { listPilotResourceStacksWithInstances } from './queries/pilotInventory.js';
 export { consumeResourceFromPilotTx, InsufficientResourceError } from './queries/resourceConsumes.js';
@@ -49,7 +46,27 @@ export {
 	listScannerItemsForPilot,
 	type EquipScannerOutcome
 } from './queries/scannerEquipment.js';
-export { ensureStarterStockpileForPilot, hasStarterStockpileGrant } from './queries/starterStockpile.js';
+export {
+	bindSettlementOrdersOnSample,
+	clearPilotSettlementState,
+	deliverResourceStackToSettlementOrder,
+	ensureSettlementBootstrapForPilot,
+	getSettlementOrderById,
+	listOpenSettlementOrdersForPilot,
+	type DeliverStackToSettlementOrderOutcome
+} from './queries/settlement.js';
+export {
+	accrueAndPersistSurveyEnergy,
+	ensurePilotSurveyEnergyRow,
+	persistSurveyEnergyAt,
+	resolveStoredSurveyEnergy,
+	type PersistedSurveyEnergy
+} from './queries/surveyEnergy.js';
+export {
+	clearPilotTutorialState,
+	getPilotTutorialStep,
+	setPilotTutorialStep
+} from './queries/tutorialState.js';
 export { craftingAttempts, type CraftSlotSelection } from './schema/craftingAttempts.js';
 export { items, type CraftSlotProvenance } from './schema/items.js';
 export {
@@ -152,6 +169,9 @@ export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';
 export { pilotFamilyScans } from './schema/pilotFamilyScans.js';
 export { pilotResourceStatReveals } from './schema/pilotResourceStatReveals.js';
 export { pilotSurveyEnergy } from './schema/pilotSurveyEnergy.js';
+export { pilotTutorialState } from './schema/pilotTutorialState.js';
+export { settlementMilestones } from './schema/settlementMilestones.js';
+export { settlementOrders } from './schema/settlementOrders.js';
 export {
 	PLAYTEST_COMPREHENSION_EVENTS,
 	PLAYTEST_EVENT_NAMES,

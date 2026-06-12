@@ -28,7 +28,7 @@ describeDb('resource economy integrity', () => {
 
 	beforeAll(async () => {
 		await ensureDemoPilot(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 		await ensureBloomOneResourceInstances(db);
 	});
 

@@ -11,7 +11,6 @@ import {
 	type ThumperEventActionId
 } from '@async-frontier-mmo/domain';
 import { fail, redirect } from '@sveltejs/kit';
-import { frameChoiceLabel, frameChoiceVerb } from '$lib/pilotHome';
 import { getGameDb } from '$lib/server/gameDb';
 import { requireFrameChosenPilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
@@ -43,8 +42,6 @@ export const load: PageServerLoad = async (event) => {
 
 	return {
 		...state,
-		frameLabel: frameChoiceLabel(state.openRun.pilotFrameId),
-		frameVerb: frameChoiceVerb(state.openRun.pilotFrameId),
 		fieldRepairRequiresKitReason: FIELD_REPAIR_REQUIRES_KIT_REASON
 	};
 };
@@ -117,7 +114,6 @@ export const actions: Actions = {
 				matchingAction: window.matchingAction,
 				severity: window.severity ?? 'minor',
 				chosenResponse,
-				pilotFrameId: run.pilotFrameId,
 				currentMeters: preRespondState.runMeters,
 				totalWindowCount: windows.length,
 				runHullCondition: run.runHullCondition,
@@ -146,8 +142,6 @@ export const actions: Actions = {
 
 		return {
 			...state,
-			frameLabel: frameChoiceLabel(state.openRun.pilotFrameId),
-			frameVerb: frameChoiceVerb(state.openRun.pilotFrameId),
 			fieldRepairRequiresKitReason: FIELD_REPAIR_REQUIRES_KIT_REASON
 		};
 	}

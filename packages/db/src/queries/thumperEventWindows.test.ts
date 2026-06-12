@@ -68,7 +68,7 @@ describeDb('thumper event window before/after state', () => {
 	const testPilotId = `event-window-state-${Date.now()}`;
 
 	beforeAll(async () => {
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 		await ensureStarterThumperPartsForPilot(db, testPilotId);
 	});
 
@@ -106,7 +106,6 @@ describeDb('thumper event window before/after state', () => {
 		const deployedAt = new Date(Date.now() - 120_000);
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
-			pilotFrameId: 'recon',
 			targetResourceId: 'veyrith_copper',
 			runSeed: `state-test-${Date.now()}`,
 			isPushRun: false,
@@ -139,7 +138,6 @@ describeDb('thumper event window before/after state', () => {
 			matchingAction: 'signal_tune',
 			severity: windows[0]!.severity ?? 'minor',
 			chosenResponse: 'hold',
-			pilotFrameId: 'recon',
 			currentMeters,
 			totalWindowCount: windows.length,
 			runHullCondition: run.runHullCondition,

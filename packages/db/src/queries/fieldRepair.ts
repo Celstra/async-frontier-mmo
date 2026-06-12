@@ -186,7 +186,6 @@ export type RecordThumperResponseInput = {
 	matchingAction: string;
 	severity: string;
 	chosenResponse: string;
-	pilotFrameId: string;
 	currentMeters: EventWindowMeterSnapshot;
 	totalWindowCount: number;
 	runHullCondition: number;

@@ -51,7 +51,7 @@ describeDb('deposit spot yield depletion', () => {
 
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 		await ensureStarterThumperPartsForPilot(db, testPilotId);
 
 		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
@@ -160,7 +160,6 @@ describeDb('deposit spot yield depletion', () => {
 		const deployedAt = new Date(Date.now() - 120_000);
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
-			pilotFrameId: 'recon',
 			targetResourceId: veyrithSlug,
 			runSeed: input.runSeed,
 			isPushRun: false,
@@ -199,7 +198,6 @@ describeDb('deposit spot yield depletion', () => {
 		await expect(
 			deployThumperRunWithEventWindows(db, {
 				pilotId: testPilotId,
-				pilotFrameId: 'recon',
 				targetResourceId: veyrithSlug,
 				runSeed: `exhausted-deploy-${Date.now()}`,
 				isPushRun: false,

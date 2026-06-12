@@ -22,6 +22,11 @@ import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
 import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
 import { pilotResourceStatReveals } from '../schema/pilotResourceStatReveals.js';
 import { pilotSurveyEnergy } from '../schema/pilotSurveyEnergy.js';
+import { bindSettlementOrdersOnSample } from './settlement.js';
+import {
+	ensurePilotSurveyEnergyRow,
+	persistSurveyEnergyAt
+} from './surveyEnergy.js';
 import { items } from '../schema/items.js';
 import { resourceInstances } from '../schema/resourceInstances.js';
 import { appendEconomyLedgerEntry, appendItemConditionChangedLedger } from './economyLedger.js';
@@ -47,44 +52,6 @@ async function getBloomGenerationSeed(db: DbExecutor, bloomId: number): Promise<
 	return bloom?.generationSeed ?? `red-mesa-bloom-${bloomId}`;
 }
 
-async function ensurePilotSurveyEnergyRow(db: DbExecutor, pilotId: string, now: Date) {
-	const [existing] = await db
-		.select()
-		.from(pilotSurveyEnergy)
-		.where(eq(pilotSurveyEnergy.pilotId, pilotId))
-		.limit(1);
-
-	if (existing) {
-		return existing;
-	}
-
-	const [created] = await db
-		.insert(pilotSurveyEnergy)
-		.values({
-			pilotId,
-			surveyEnergy: SURVEY_ENERGY_CAP,
-			lastUpdatedAt: now
-		})
-		.onConflictDoNothing()
-		.returning();
-
-	if (created) {
-		return created;
-	}
-
-	const [loaded] = await db
-		.select()
-		.from(pilotSurveyEnergy)
-		.where(eq(pilotSurveyEnergy.pilotId, pilotId))
-		.limit(1);
-
-	if (!loaded) {
-		throw new Error(`Failed to ensure survey energy row for pilot ${pilotId}`);
-	}
-
-	return loaded;
-}
-
 async function loadPilotSurveyProgress(
 	db: DbExecutor,
 	pilotId: string,
@@ -94,8 +61,8 @@ async function loadPilotSurveyProgress(
 	const now = new Date(nowMs);
 	const energyRow = await ensurePilotSurveyEnergyRow(db, pilotId, now);
 	const resolved = resolveSurveyEnergy({
-		storedEnergy: energyRow.surveyEnergy,
-		lastUpdatedAtMs: energyRow.lastUpdatedAt.getTime(),
+		storedEnergy: energyRow.rawEnergy,
+		lastUpdatedAtMs: energyRow.updatedAt.getTime(),
 		nowMs
 	});
 
@@ -150,22 +117,31 @@ async function persistSurveyEnergySpend(
 		nextLastUpdatedAtMs: number;
 	}
 ): Promise<boolean> {
-	const [updated] = await db
-		.update(pilotSurveyEnergy)
-		.set({
-			surveyEnergy: input.nextEnergy,
-			lastUpdatedAt: new Date(input.nextLastUpdatedAtMs)
-		})
+	return persistSurveyEnergyAt(db, {
+		pilotId: input.pilotId,
+		rawEnergy: input.nextEnergy,
+		updatedAtMs: input.nextLastUpdatedAtMs,
+		expectedRawEnergy: input.expectedStoredEnergy,
+		expectedUpdatedAt: input.expectedLastUpdatedAt
+	});
+}
+
+async function samplesTakenOnSpot(
+	db: DbExecutor,
+	input: { pilotId: string; spotId: string }
+): Promise<number> {
+	const [row] = await db
+		.select({ samplesTaken: pilotDepositSpotSamples.samplesTaken })
+		.from(pilotDepositSpotSamples)
 		.where(
 			and(
-				eq(pilotSurveyEnergy.pilotId, input.pilotId),
-				eq(pilotSurveyEnergy.surveyEnergy, input.expectedStoredEnergy),
-				eq(pilotSurveyEnergy.lastUpdatedAt, input.expectedLastUpdatedAt)
+				eq(pilotDepositSpotSamples.pilotId, input.pilotId),
+				eq(pilotDepositSpotSamples.spotId, input.spotId)
 			)
 		)
-		.returning();
+		.limit(1);
 
-	return Boolean(updated);
+	return row?.samplesTaken ?? 0;
 }
 
 async function applyEquippedScannerWear(
@@ -499,8 +475,8 @@ export async function scanFamilyForPilot(
 
 		const persisted = await persistSurveyEnergySpend(tx, {
 			pilotId: input.pilotId,
-			expectedStoredEnergy: energyRow.surveyEnergy,
-			expectedLastUpdatedAt: energyRow.lastUpdatedAt,
+			expectedStoredEnergy: energyRow.rawEnergy,
+			expectedLastUpdatedAt: energyRow.updatedAt,
 			nextEnergy: scanResult.pilotProgress.surveyEnergy,
 			nextLastUpdatedAtMs: scanResult.pilotProgress.lastEnergyUpdatedAtMs
 		});
@@ -603,15 +579,24 @@ export async function sampleSpotForPilot(
 		const energyRow = await ensurePilotSurveyEnergyRow(tx, input.pilotId, now);
 		const pilotProgress = await loadPilotSurveyProgress(tx, input.pilotId, nowMs, bloomId);
 
+		const samplesTakenOnSpotCount = await samplesTakenOnSpot(tx, {
+			pilotId: input.pilotId,
+			spotId: input.spotId
+		});
+
 		const sampleResult = sampleDepositSpot({
 			resource,
 			spot,
 			pilotProgress,
-			nowMs
+			nowMs,
+			samplesTakenOnSpot: samplesTakenOnSpotCount
 		});
 
 		if ('error' in sampleResult) {
-			if (sampleResult.error === 'spot_already_sampled') {
+			if (
+				sampleResult.error === 'spot_already_sampled' ||
+				sampleResult.error === 'spot_pool_exhausted'
+			) {
 				return { status: 'spot_already_sampled' as const };
 			}
 			if (sampleResult.error === 'spot_resource_mismatch') {
@@ -622,8 +607,8 @@ export async function sampleSpotForPilot(
 
 		const persisted = await persistSurveyEnergySpend(tx, {
 			pilotId: input.pilotId,
-			expectedStoredEnergy: energyRow.surveyEnergy,
-			expectedLastUpdatedAt: energyRow.lastUpdatedAt,
+			expectedStoredEnergy: energyRow.rawEnergy,
+			expectedLastUpdatedAt: energyRow.updatedAt,
 			nextEnergy: sampleResult.pilotProgress.surveyEnergy,
 			nextLastUpdatedAtMs: sampleResult.pilotProgress.lastEnergyUpdatedAtMs
 		});
@@ -639,6 +624,7 @@ export async function sampleSpotForPilot(
 				resourceInstanceId: input.resourceInstanceId,
 				spotId: input.spotId,
 				trueConcentrationPercent: spot.trueConcentrationPercent,
+				samplesTaken: 1,
 				sampledAt: now
 			})
 			.onConflictDoNothing({
@@ -686,6 +672,12 @@ export async function sampleSpotForPilot(
 				trickle_quantity: sampleResult.trickleGrant.quantity
 			},
 			createdAt: now
+		});
+
+		await bindSettlementOrdersOnSample(tx, {
+			pilotId: input.pilotId,
+			resourceInstanceId: input.resourceInstanceId,
+			family
 		});
 
 		await applyEquippedScannerWear(tx, {

@@ -16,6 +16,8 @@ export const pilotDepositSpotSamples = pgTable(
 		/** Domain spot id (e.g. veyrith_copper:spot:0) — unique per pilot. */
 		spotId: text('spot_id').notNull(),
 		trueConcentrationPercent: integer('true_concentration_percent').notNull(),
+		/** Hand-samples taken on this spot toward {@link SPOT_SAMPLE_POOL} (Decision 022). */
+		samplesTaken: integer('samples_taken').notNull().default(1),
 		sampledAt: timestamp('sampled_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [

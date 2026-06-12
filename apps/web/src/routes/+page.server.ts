@@ -5,8 +5,6 @@ import {
 	getEquippedScannerForPilot,
 	getEquippedThumperPartsForPilot,
 	getOpenThumperRunForPilot,
-	getPilotById,
-	getPilotFrame,
 	getPilotProspectingProgress,
 	createDb,
 	ensurePilotGameReady,
@@ -15,9 +13,7 @@ import {
 	hasPilotFamilyScan,
 	listPilotResourceStacksWithInstances,
 	listScannerItemsForPilot,
-	pilotNeedsFrameChoice,
-	rotateActiveBloom,
-	setPilotFrame
+	rotateActiveBloom
 } from '@async-frontier-mmo/db';
 import {
 	analyzeSchematicReadiness,
@@ -32,19 +28,15 @@ import {
 import { dev } from '$app/environment';
 import { error, fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { isFrameId, parseFrameId } from 'shared';
 import {
 	activeBloomDisplayName,
 	buildHubTiles,
 	buildRunStatusSummary,
 	buildSuggestedNextAction,
-	frameChoiceLabel,
-	frameChoiceVerb,
 	FRAME_CHOICE_OPTIONS,
 	type HubTile
 } from '$lib/pilotHome';
 import { resolvePilotId } from '$lib/server/pilot';
-import { trackFrameChosen } from '$lib/server/playtestTelemetry';
 import { loadOpenRunState } from '$lib/server/runLoad';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
 import type { Actions, PageServerLoad } from './$types';
@@ -237,7 +229,6 @@ async function loadScannerContext(db: ReturnType<typeof getDb>, pilotId: string)
 async function loadPilotHomeContext(
 	db: ReturnType<typeof getDb>,
 	input: {
-		pilotFrame: ReturnType<typeof parseFrameId>;
 		needsFrameChoice: boolean;
 		activeBloomId: number;
 		inventory: Awaited<ReturnType<typeof listPilotResourceStacksWithInstances>>;
@@ -260,9 +251,8 @@ async function loadPilotHomeContext(
 	return {
 		needsFrameChoice: input.needsFrameChoice,
 		frameChoiceOptions: FRAME_CHOICE_OPTIONS,
-		pilotFrame: input.pilotFrame,
-		frameLabel: frameChoiceLabel(input.pilotFrame),
-		frameVerb: frameChoiceVerb(input.pilotFrame),
+		frameLabel: '',
+		frameVerb: '',
 		activeBloomName: activeBloomDisplayName(input.activeBloomId),
 		runStatusSummary: buildRunStatusSummary({
 			openRun: input.openRun,
@@ -292,59 +282,13 @@ export const load: PageServerLoad = async (event) => {
 	const db = getDb();
 	const pilotId = resolvePilotId(event);
 	await ensureSessionPilot(db, pilotId);
-	const pilot = await getPilotById(db, pilotId);
-	if (!pilot) {
-		error(500, 'Session pilot missing after ensure');
-	}
+	await ensurePilotGameReady(db, pilotId);
 
-	const needsFrameChoice = pilotNeedsFrameChoice(pilot);
-	if (!needsFrameChoice) {
-		await ensurePilotGameReady(db, pilotId);
-	}
-
-	const pilotFrame = await getPilotFrame(db, pilotId);
-	const hasCompletedTutorial = needsFrameChoice
-		? false
-		: await hasPilotCompletedTutorialThumper(db, pilotId, TUTORIAL_RUN_SEED);
-
-	if (needsFrameChoice) {
-		const equippedThumperParts = { drill: null, pump: null, hull: null };
-		const hubTiles = await assembleHubTiles(db, {
-			pilotId,
-			needsFrameChoice: true,
-			activeBloomId: BLOOM_ONE_ID,
-			inventory: [],
-			equippedThumperParts,
-			openRun: null,
-			thumperDemo: null,
-			runReadyToResolve: false
-		});
-
-		return {
-			...(await loadPilotHomeContext(db, {
-				pilotFrame,
-				needsFrameChoice: true,
-				activeBloomId: BLOOM_ONE_ID,
-				inventory: [],
-				equippedScanner: null,
-				scannerItems: [],
-				equippedThumperParts,
-				openRun: null,
-				thumperDemo: null,
-				runReadyToResolve: false,
-				eventWindows: [],
-				hasCompletedTutorial: false
-			})),
-			hubTiles,
-			thumperDemo: null,
-			loadedAt: null,
-			openRun: null,
-			eventWindows: [],
-			runReadyToResolve: false,
-			hasCompletedTutorial: false,
-			activeBloomId: BLOOM_ONE_ID
-		};
-	}
+	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
+		db,
+		pilotId,
+		TUTORIAL_RUN_SEED
+	);
 
 	const surveyContext = await loadScannerContext(db, pilotId);
 	const inventory = await listPilotResourceStacksWithInstances(db, pilotId);
@@ -352,7 +296,6 @@ export const load: PageServerLoad = async (event) => {
 	const run = await getOpenThumperRunForPilot(db, pilotId);
 
 	const pilotHomeBase = {
-		pilotFrame,
 		needsFrameChoice: false,
 		activeBloomId: surveyContext.activeBloomId,
 		inventory,
@@ -425,26 +368,6 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions: Actions = {
-	chooseFrame: async (event) => {
-		const db = getDb();
-		const pilotId = resolvePilotId(event);
-		await ensureSessionPilot(db, pilotId);
-
-		const pilot = await getPilotById(db, pilotId);
-		if (pilot && !pilotNeedsFrameChoice(pilot)) {
-			return fail(400, { message: 'Frame already chosen for this pilot' });
-		}
-
-		const formData = await event.request.formData();
-		const frameIdRaw = formData.get('frameId');
-		if (typeof frameIdRaw !== 'string' || !isFrameId(frameIdRaw)) {
-			return fail(400, { message: 'Choose Recon, Engineer, or Vanguard' });
-		}
-
-		await setPilotFrame(db, pilotId, frameIdRaw);
-		await trackFrameChosen(db, pilotId, frameIdRaw);
-	},
-
 	rotateBloom: async (event) => {
 		if (!dev) {
 			return fail(403, { message: 'Rotate bloom is only available in dev builds' });
@@ -453,10 +376,6 @@ export const actions: Actions = {
 		const db = getDb();
 		const pilotId = resolvePilotId(event);
 		await ensureSessionPilot(db, pilotId);
-		const pilot = await getPilotById(db, pilotId);
-		if (!pilot || pilotNeedsFrameChoice(pilot)) {
-			return fail(400, { message: 'Choose a frame before continuing' });
-		}
 		await ensurePilotGameReady(db, pilotId);
 
 		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(

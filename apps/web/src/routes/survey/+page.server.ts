@@ -1,9 +1,7 @@
 import {
 	getActiveBloomId,
-	getPilotById,
 	getResourceInstanceById,
 	hasPilotCompletedTutorialThumper,
-	pilotNeedsFrameChoice,
 	sampleSpotForPilot,
 	scanFamilyForPilot
 } from '@async-frontier-mmo/db';
@@ -24,9 +22,8 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async (event) => {
 	const db = getGameDb();
 	const pilotId = resolvePilotId(event);
-	const pilot = await getPilotById(db, pilotId);
-
-	if (!pilot || pilotNeedsFrameChoice(pilot)) {
+	const gate = await requireFrameChosenPilot(db, pilotId);
+	if (gate) {
 		redirect(303, '/');
 	}
 

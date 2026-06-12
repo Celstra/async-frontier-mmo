@@ -80,7 +80,7 @@ describeDb('transactional claim reward', () => {
 	beforeAll(async () => {
 		await ensureDemoPilot(db);
 		await ensureBloomOneResourceInstances(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 		await ensureStarterThumperPartsForPilot(db, testPilotId);
 	});
 
@@ -133,7 +133,6 @@ describeDb('transactional claim reward', () => {
 		const deployedAt = new Date(Date.now() - 120_000);
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
-			pilotFrameId: 'recon',
 			targetResourceId: 'veyrith_copper',
 			runSeed: 'first-session-scripted',
 			isPushRun: false,
@@ -222,7 +221,7 @@ describeDb('transactional claim reward', () => {
 
 	it('claims a seeded non-tutorial run with deploy and claim ledger rows', async () => {
 		const seededPilotId = `${testPilotId}-seeded`;
-		await db.insert(pilots).values({ id: seededPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: seededPilotId }).onConflictDoNothing();
 		await ensureStarterThumperPartsForPilot(db, seededPilotId);
 
 		const veyrithInstance = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
@@ -254,7 +253,6 @@ describeDb('transactional claim reward', () => {
 
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: seededPilotId,
-			pilotFrameId: 'recon',
 			targetResourceId: 'veyrith_copper',
 			runSeed: plan.runSeed,
 			isPushRun: plan.isPushRun,

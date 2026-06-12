@@ -6,7 +6,6 @@ export async function insertThumperRun(
 	db: DbExecutor,
 	input: {
 		pilotId: string;
-		pilotFrameId: string;
 		targetResourceId: string;
 		runSeed: string;
 		isPushRun: boolean;
@@ -22,7 +21,6 @@ export async function insertThumperRun(
 		.insert(thumperRuns)
 		.values({
 			pilotId: input.pilotId,
-			pilotFrameId: input.pilotFrameId,
 			targetResourceId: input.targetResourceId,
 			runSeed: input.runSeed,
 			isPushRun: input.isPushRun,

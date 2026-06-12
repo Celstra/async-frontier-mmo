@@ -81,7 +81,6 @@ export async function deployThumperRunWithEventWindows(
 	db: Db,
 	input: {
 		pilotId: string;
-		pilotFrameId: string;
 		targetResourceId: string;
 		runSeed: string;
 		isPushRun: boolean;
@@ -116,7 +115,6 @@ export async function deployThumperRunWithEventWindows(
 
 		const run = await insertThumperRun(tx, {
 			pilotId: input.pilotId,
-			pilotFrameId: input.pilotFrameId,
 			targetResourceId: input.targetResourceId,
 			runSeed: input.runSeed,
 			isPushRun: input.isPushRun,
@@ -202,7 +200,7 @@ export async function claimOpenThumperRunForPilot(
 		isResolvableRun: (run: { runSeed: string }) => boolean;
 		notResolvableMessage?: string;
 		validateWindows: (
-			run: { id: string; targetResourceId: string; pilotFrameId: string; runSeed: string },
+			run: { id: string; targetResourceId: string; runSeed: string },
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => void;
 		buildResult: (
@@ -210,7 +208,6 @@ export async function claimOpenThumperRunForPilot(
 			run: {
 				id: string;
 				targetResourceId: string;
-				pilotFrameId: string;
 				runSeed: string;
 				isPushRun: boolean;
 				trueConcentrationPercent: number | null;

@@ -19,7 +19,7 @@ import {
 	generateThumperEventWindows,
 	overallThumperCondition,
 	parseEventWindowSeverity,
-	frameFlavoredActionLabel,
+	eventActionLabel,
 	getEventWindowResponseOptions,
 	isThumperRunReadyToResolve,
 	resolveThumperState,
@@ -33,7 +33,6 @@ import {
 	validateEventWindowRespondOrder,
 	validateEventWindowResponse
 } from '@async-frontier-mmo/domain';
-import { parseFrameId, type FrameId } from 'shared';
 import type { NamedResourceId } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
 
@@ -164,7 +163,6 @@ export type EventWindowForUi = {
 export function mapEventWindowsForUi(
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
 	fieldRepairKitCount: number,
-	pilotFrameId: FrameId,
 	deployMeters: EventWindowMeterSnapshot,
 	// For non-tutorial runs, we regenerate the full plan to include quiet windows
 	runSeed?: string,
@@ -291,7 +289,7 @@ export function mapEventWindowsForUi(
 			complication,
 			matchingAction,
 			severity,
-			matchingActionLabel: frameFlavoredActionLabel(pilotFrameId, matchingAction),
+			matchingActionLabel: eventActionLabel(matchingAction),
 			chosenResponse: window?.chosenResponse ?? null,
 			responded: window?.chosenResponse !== null && window?.chosenResponse !== undefined,
 		responseOptions: getEventWindowResponseOptions({
@@ -306,7 +304,7 @@ export function mapEventWindowsForUi(
 					? 'Hold'
 					: option.id === 'recall_early'
 						? 'Recall Early'
-						: frameFlavoredActionLabel(pilotFrameId, option.id as ThumperEventActionId);
+						: eventActionLabel(option.id as ThumperEventActionId);
 			return {
 				id: option.id,
 				label,
@@ -345,8 +343,6 @@ export async function loadOpenRunState(
 		: run.targetResourceId;
 	const eventWindowsRaw = await getThumperEventWindowsForRun(db, run.id);
 	const recalled = isRunEndedByRecall(eventWindowsRaw);
-	const pilotFrameId = parseFrameId(run.pilotFrameId);
-
 	let runMeters = null;
 	let overallCondition = null;
 	let gearYieldPenalty = null;
@@ -420,7 +416,6 @@ export async function loadOpenRunState(
 			id: run.id,
 			targetResourceId: run.targetResourceId,
 			targetDisplayName,
-			pilotFrameId,
 			runSeed: run.runSeed,
 			isPushRun: run.isPushRun,
 			recalled
@@ -428,7 +423,6 @@ export async function loadOpenRunState(
 		eventWindows: mapEventWindowsForUi(
 			eventWindowsRaw,
 			fieldRepairKitCount,
-			pilotFrameId,
 			deployMeters ?? {
 				projectedRecovery: 0,
 				signalLock: 0,

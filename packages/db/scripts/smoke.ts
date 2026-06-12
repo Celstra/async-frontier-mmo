@@ -4,7 +4,7 @@ import {
 	resolveThumperState,
 	type ThumperEventActionId
 } from '@async-frontier-mmo/domain';
-import { DEMO_PILOT_ID, parseFrameId } from 'shared';
+import { DEMO_PILOT_ID } from 'shared';
 import {
 	BLOOM_ONE_ID,
 	claimOpenThumperRunForPilot,
@@ -16,7 +16,6 @@ import {
 	getOpenThumperRunForPilot,
 	getThumperRunPartSnapshots,
 	partModifiersFromRunSnapshots,
-	getPilotFrame,
 	getResourceInstanceByBloomSlug,
 	getResourceStackForPilotInstance,
 	getThumperEventWindowsForRun,
@@ -159,11 +158,6 @@ if (grantAfterLedger < grantBeforeLedger + 2) {
 	failSmoke('every grant should append a resource_granted ledger row');
 }
 
-const pilotFrame = await getPilotFrame(db, DEMO_PILOT_ID);
-if (pilotFrame !== 'recon') {
-	failSmoke('demo pilot should default to recon frame');
-}
-
 await clearOpenRuns();
 
 const deployedAt = new Date(Date.now() - 120_000);
@@ -172,7 +166,6 @@ const targetResourceId = 'veyrith_copper';
 
 const run = await deployThumperRunWithEventWindows(db, {
 	pilotId: DEMO_PILOT_ID,
-	pilotFrameId: pilotFrame,
 	targetResourceId,
 	runSeed: 'first-session-scripted',
 	isPushRun: false,
@@ -183,10 +176,6 @@ const run = await deployThumperRunWithEventWindows(db, {
 		{ windowIndex: 2, complication: 'pump_strain', matchingAction: 'clear_pump_problem' }
 	]
 });
-
-if (run.pilotFrameId !== 'recon') {
-	failSmoke('deploy should snapshot pilot frame on thumper_runs');
-}
 
 const windowsAfterDeploy = await getThumperEventWindowsForRun(db, run.id);
 if (windowsAfterDeploy.length !== 2) {
@@ -287,7 +276,6 @@ await clearOpenRuns();
 
 const runWithoutWindows = await insertThumperRun(db, {
 	pilotId: DEMO_PILOT_ID,
-	pilotFrameId: pilotFrame,
 	targetResourceId,
 	runSeed: 'first-session-scripted',
 	isPushRun: false,
@@ -327,7 +315,6 @@ if (claimedRunsWithResults.length < 1) {
 
 console.log({
 	deployedRunId: run.id,
-	pilotFrameId: run.pilotFrameId,
 	windowsAfterDeploy: windowsAfterDeploy.length,
 	firstClaim: firstClaim.claimResult.id,
 	secondClaimStatus: secondClaim.status,

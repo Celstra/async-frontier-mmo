@@ -20,7 +20,7 @@ describeDb('applyRunWearToPartItems', () => {
 	const testPilotId = `run-wear-${Date.now()}`;
 
 	beforeAll(async () => {
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'engineer' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 		await ensureStarterThumperPartsForPilot(db, testPilotId);
 	});
 
@@ -55,7 +55,6 @@ describeDb('applyRunWearToPartItems', () => {
 	it('applies matching-action wear to the correct equipped part at claim', async () => {
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
-			pilotFrameId: 'engineer',
 			targetResourceId: 'veyrith_copper',
 			runSeed: `wear-claim-${Date.now()}`,
 			isPushRun: false,

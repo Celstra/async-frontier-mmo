@@ -10,7 +10,8 @@ export const ECONOMY_LEDGER_EVENT_TYPES = [
 	'item_condition_changed',
 	'repair_kit_consumed',
 	'item_repaired',
-	'bloom_rotated'
+	'bloom_rotated',
+	'settlement_turn_in'
 ] as const;
 
 export type EconomyLedgerEventType = (typeof ECONOMY_LEDGER_EVENT_TYPES)[number];

@@ -23,7 +23,7 @@ describeDb('playtest telemetry', () => {
 	});
 
 	it('records funnel events once per pilot when using recordPlaytestEventOnce', async () => {
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 
 		const first = await recordPlaytestEventOnce(db, {
 			pilotId: testPilotId,

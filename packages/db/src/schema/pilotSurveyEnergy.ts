@@ -6,7 +6,7 @@ export const pilotSurveyEnergy = pgTable('pilot_survey_energy', {
 	pilotId: text('pilot_id')
 		.primaryKey()
 		.references(() => pilots.id),
-	/** Stored value before regen — resolve with domain {@link resolveSurveyEnergy} on read. */
-	surveyEnergy: integer('survey_energy').notNull(),
-	lastUpdatedAt: timestamp('last_updated_at', { withTimezone: true }).notNull()
+	/** Stored raw energy before trickle accrual — resolve with domain {@link accrueEnergy} on read. */
+	rawEnergy: integer('raw_energy').notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
 });

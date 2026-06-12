@@ -59,7 +59,7 @@ describeDb('prospecting cycle after claim', () => {
 
 	beforeAll(async () => {
 		await ensureBloomOneResourceInstances(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 		await ensureStarterThumperPartsForPilot(db, testPilotId);
 
 		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
@@ -178,7 +178,6 @@ describeDb('prospecting cycle after claim', () => {
 
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
-			pilotFrameId: 'recon',
 			targetResourceId: veyrithSlug as NamedResourceId,
 			runSeed: plan.runSeed,
 			isPushRun: false,
@@ -288,7 +287,6 @@ describeDb('prospecting cycle after claim', () => {
 		await expect(
 			deployThumperRunWithEventWindows(db, {
 				pilotId: testPilotId,
-				pilotFrameId: 'recon',
 				targetResourceId: veyrithSlug as NamedResourceId,
 				runSeed: `stale-deploy-${Date.now()}`,
 				isPushRun: false,
@@ -391,7 +389,6 @@ describeDb('prospecting cycle after claim', () => {
 		const deployedAt = new Date(Date.now() - 120_000);
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
-			pilotFrameId: 'recon',
 			targetResourceId: veyrithSlug as NamedResourceId,
 			runSeed: plan.runSeed,
 			isPushRun: false,

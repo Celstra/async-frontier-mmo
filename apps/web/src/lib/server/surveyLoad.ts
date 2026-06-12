@@ -4,7 +4,6 @@ import {
 	getEquippedScannerForPilot,
 	hasPilotCompletedTutorialThumper,
 	hasPilotFamilyScan,
-	pilotNeedsFrameChoice,
 	previewFamilyScanForPilot,
 	getPilotProspectingProgress
 } from '@async-frontier-mmo/db';
@@ -92,5 +91,3 @@ export async function loadSurveyScreenData(
 		resources: preview ? enrichSurveyResources(preview.resources) : []
 	};
 }
-
-export { pilotNeedsFrameChoice };

@@ -27,7 +27,7 @@ describeDb('manual bloom rotation', () => {
 	beforeAll(async () => {
 		await ensureDemoPilot(db);
 		await ensureBloomOneResourceInstances(db);
-		await db.insert(pilots).values({ id: testPilotId, frameId: 'recon' }).onConflictDoNothing();
+		await db.insert(pilots).values({ id: testPilotId }).onConflictDoNothing();
 	});
 
 	afterAll(async () => {

@@ -121,13 +121,11 @@ $effect(() => {
 	{/if}
 </header>
 
-<!-- Frame Context -->
-<p class="frame-context">
-	Frame: <strong>{data.frameLabel}</strong> — {data.frameVerb}
-	{#if openRun.isPushRun}
+{#if openRun.isPushRun}
+	<p class="frame-context">
 		<span class="push-tag">Push Run ({eventWindows.length} windows)</span>
-	{/if}
-</p>
+	</p>
+{/if}
 
 <!-- Thumper Condition Summary -->
 {#if data.overallThumperCondition}
