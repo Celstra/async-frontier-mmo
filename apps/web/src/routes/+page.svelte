@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { formatDuration } from '$lib/formatDuration';
-	import SurveyEnergyMeter from '$lib/SurveyEnergyMeter.svelte';
+	import EnergyBar from '$lib/field/EnergyBar.svelte';
 	import { familyDisplayLabel } from '$lib/displayLabels';
 	import type { HubTile } from '$lib/pilotHome';
 	import type { PageProps } from './$types';
@@ -189,7 +189,7 @@
 						</span>
 					{:else if tile.id === 'survey'}
 						<span class="hub-tile__status">
-							<SurveyEnergyMeter
+							<EnergyBar
 								energy={tile.surveyEnergy}
 								cap={tile.surveyEnergyCap}
 								outlook={tile.outlook}

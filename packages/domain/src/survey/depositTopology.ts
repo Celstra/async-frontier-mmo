@@ -1,4 +1,5 @@
 import { createSeededRng } from '../rng.js';
+import { findDepositSpot, type DepositSpot } from './prospectingSampling.js';
 
 export const TOPOLOGY_GRID_WIDTH = 16;
 export const TOPOLOGY_GRID_HEIGHT = 11;
@@ -173,4 +174,78 @@ export function concentrationAt(topology: DepositTopology, x: number, y: number)
 
 export function spotIdFor(instanceId: string, x: number, y: number): string {
 	return `${instanceId}@${x},${y}`;
+}
+
+export function parseTopologySpotId(
+	spotId: string
+): { instanceId: string; x: number; y: number } | null {
+	const match = spotId.match(/^(.+)@(\d+),(\d+)$/);
+	if (!match) {
+		return null;
+	}
+	return {
+		instanceId: match[1]!,
+		x: Number.parseInt(match[2]!, 10),
+		y: Number.parseInt(match[3]!, 10)
+	};
+}
+
+export function depositSpotAtTile(input: {
+	instanceId: string;
+	resourceSlug: string;
+	x: number;
+	y: number;
+	concentrationRange: ConcentrationRange;
+}): DepositSpot | null {
+	const topology = getTopology(input.instanceId, input.concentrationRange);
+	const concentration = concentrationAt(topology, input.x, input.y);
+	if (concentration === null) {
+		return null;
+	}
+
+	return {
+		spotId: spotIdFor(input.instanceId, input.x, input.y),
+		resourceSlug: input.resourceSlug,
+		spotIndex: input.y * topology.width + input.x,
+		trueConcentrationPercent: concentration
+	};
+}
+
+/** FIELD topology tiles (`instanceId@x,y`) or legacy cycle-indexed spot ids. */
+export function resolveDepositSpot(input: {
+	spotId: string;
+	resourceInstanceId?: string;
+	resourceSlug: string;
+	bloomGenerationSeed: string;
+	concentrationMinPercent: number;
+	concentrationMaxPercent: number;
+	prospectingCycle: number;
+}): DepositSpot | undefined {
+	const topologyCoords = parseTopologySpotId(input.spotId);
+	if (
+		topologyCoords &&
+		(!input.resourceInstanceId || topologyCoords.instanceId === input.resourceInstanceId)
+	) {
+		return (
+			depositSpotAtTile({
+				instanceId: topologyCoords.instanceId,
+				resourceSlug: input.resourceSlug,
+				x: topologyCoords.x,
+				y: topologyCoords.y,
+				concentrationRange: {
+					minPercent: input.concentrationMinPercent,
+					maxPercent: input.concentrationMaxPercent
+				}
+			}) ?? undefined
+		);
+	}
+
+	return findDepositSpot({
+		resourceSlug: input.resourceSlug,
+		bloomGenerationSeed: input.bloomGenerationSeed,
+		concentrationMinPercent: input.concentrationMinPercent,
+		concentrationMaxPercent: input.concentrationMaxPercent,
+		prospectingCycle: input.prospectingCycle,
+		spotId: input.spotId
+	});
 }

@@ -18,6 +18,7 @@ export function generateThumperEventWindows(input: {
 	runSeed: string;
 	isPushRun: boolean;
 	isTutorialRun: boolean;
+	extractionTailMinutes?: number;
 }): ThumperRunWindowPlan {
 	if (input.isTutorialRun) {
 		if (input.isPushRun) {
@@ -45,6 +46,6 @@ export function generateThumperEventWindows(input: {
 		runSeed: input.runSeed,
 		targetResourceId: input.targetResourceId,
 		isPushRun: input.isPushRun,
-		extractionTailMinutes: 60
+		extractionTailMinutes: input.extractionTailMinutes
 	});
 }

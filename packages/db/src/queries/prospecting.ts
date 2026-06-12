@@ -2,7 +2,7 @@ import {
 	applyProspectingScannerWear,
 	buildFamilyScanPreview,
 	createEmptyPilotSurveyProgress,
-	findDepositSpot,
+	resolveDepositSpot,
 	generateDepositSpots,
 	isDeemphasizedSurveyStat,
 	resolveSurveyEnergy,
@@ -564,19 +564,18 @@ export async function sampleSpotForPilot(
 
 		const bloomGenerationSeed = await getBloomGenerationSeed(tx, bloomId);
 		const resource = resourceInstanceToSurveyResource(resourceRow);
-		const spot = findDepositSpot({
+		const spot = resolveDepositSpot({
+			spotId: input.spotId,
+			resourceInstanceId: input.resourceInstanceId,
 			resourceSlug: resource.resourceSlug,
 			bloomGenerationSeed,
 			concentrationMinPercent: resource.concentrationMinPercent,
 			concentrationMaxPercent: resource.concentrationMaxPercent,
-			prospectingCycle: resourceRow.prospectingCycle,
-			spotId: input.spotId
+			prospectingCycle: resourceRow.prospectingCycle
 		});
 		if (!spot) {
 			return { status: 'spot_not_found' as const };
 		}
-
-		const spots = depositSpotsForResourceInstance(resourceRow, bloomGenerationSeed);
 
 		const energyRow = await ensurePilotSurveyEnergyRow(tx, input.pilotId, now);
 		const pilotProgress = await loadPilotSurveyProgress(tx, input.pilotId, nowMs, bloomId);
@@ -715,7 +714,7 @@ export async function sampleSpotForPilot(
 
 		const yieldBySpotId = await yieldBySpotIdForFamilyInstances(tx, {
 			familyInstances: [resourceRow],
-			spotsByResourceSlug: { [resource.resourceSlug]: spots },
+			spotsByResourceSlug: { [resource.resourceSlug]: [spot] },
 			bloomGenerationSeed
 		});
 		const spotYield = yieldBySpotId[input.spotId];

@@ -195,4 +195,24 @@ describe('generateThumperEventWindows', () => {
 			})
 		).toThrow(/push/i);
 	});
+
+	it('forwards extraction tail length to seeded window generation', () => {
+		const shortPlan = generateThumperEventWindows({
+			targetResourceId: 'veyrith_copper',
+			runSeed: 'tail-test',
+			isPushRun: false,
+			isTutorialRun: false,
+			extractionTailMinutes: 15
+		});
+		const longPlan = generateThumperEventWindows({
+			targetResourceId: 'veyrith_copper',
+			runSeed: 'tail-test',
+			isPushRun: false,
+			isTutorialRun: false,
+			extractionTailMinutes: 240
+		});
+
+		expect(shortPlan.windowCount).toBe(2);
+		expect(longPlan.windowCount).toBe(3);
+	});
 });

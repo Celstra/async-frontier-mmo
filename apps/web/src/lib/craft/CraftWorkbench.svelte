@@ -357,7 +357,7 @@
 				{/each}
 			</ul>
 			<p class="blockers-actions">
-				<a href="/survey">Go to Survey →</a>
+				<a href="/field">Go to Field →</a>
 				·
 				<a href="/">Pilot Home →</a>
 			</p>

@@ -3,10 +3,14 @@ import {
 	getEquippedThumperPartsForPilot
 } from '@async-frontier-mmo/db';
 import {
+	availableTails,
 	buildDeployPreview,
 	buildGearYieldPenaltySummary,
 	computeThumperPartRunModifiers,
 	FIRST_SESSION_SCANNER_MINIMUM,
+	PATCHED_HULL_INTEGRITY,
+	SCAVENGED_HULL_INTEGRITY,
+	type HullTier,
 	type ThumperPartSnapshot
 } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
@@ -44,6 +48,24 @@ function equippedPartSnapshots(
 		});
 	}
 	return snapshots;
+}
+
+function hullTierFromIntegrity(integrity: number): HullTier {
+	if (integrity <= SCAVENGED_HULL_INTEGRITY) {
+		return 'scavenged';
+	}
+	if (integrity <= PATCHED_HULL_INTEGRITY) {
+		return 'patched';
+	}
+	return 'basic';
+}
+
+export function allowedExtractionTailsForEquippedHull(
+	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>
+): number[] {
+	const hullIntegrity = equipped.hull?.integrity ?? 100;
+	const hullTier = hullTierFromIntegrity(hullIntegrity);
+	return availableTails(hullTier, hullIntegrity).map((tail) => tail.minutes);
 }
 
 export async function loadDeployPreviewForPilot(

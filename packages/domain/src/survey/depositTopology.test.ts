@@ -4,6 +4,7 @@ import {
 	getTopology,
 	PLAYER_SPAWN_X,
 	PLAYER_SPAWN_Y,
+	resolveDepositSpot,
 	spotIdFor
 } from './depositTopology.js';
 
@@ -37,5 +38,21 @@ describe('depositTopology', () => {
 
 	it('formats stable spot ids from tile coordinates', () => {
 		expect(spotIdFor(instanceId, 4, 9)).toBe(`${instanceId}@4,9`);
+	});
+
+	it('resolveDepositSpot accepts FIELD topology spot ids', () => {
+		const spotId = spotIdFor(instanceId, PLAYER_SPAWN_X, PLAYER_SPAWN_Y);
+		const spot = resolveDepositSpot({
+			spotId,
+			resourceInstanceId: instanceId,
+			resourceSlug: 'veyrith_copper',
+			bloomGenerationSeed: 'bloom-seed',
+			concentrationMinPercent: range.minPercent,
+			concentrationMaxPercent: range.maxPercent,
+			prospectingCycle: 1
+		});
+
+		expect(spot?.spotId).toBe(spotId);
+		expect(spot?.resourceSlug).toBe('veyrith_copper');
 	});
 });

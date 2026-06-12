@@ -1,7 +1,7 @@
-import { SURVEY_FAMILY_OPTIONS } from '$lib/surveyScreen';
+import { FIELD_FAMILY_OPTIONS } from '$lib/field/constants';
 
 export function familyDisplayLabel(familyId: string): string {
-	return SURVEY_FAMILY_OPTIONS.find((option) => option.id === familyId)?.label ?? familyId;
+	return FIELD_FAMILY_OPTIONS.find((option) => option.id === familyId)?.label ?? familyId;
 }
 
 export function spotDisplayLabel(spotId: string, spotIndex?: number): string {

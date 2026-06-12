@@ -1,0 +1,2311 @@
+{
+  "id": "c172988f-b269-48b7-aa51-5026a27981a2",
+  "prevId": "3cecccaf-0d72-46ee-a687-edc82cbf1f83",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.blooms": {
+      "name": "blooms",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "generation_seed": {
+          "name": "generation_seed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "rotated_at": {
+          "name": "rotated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.crafting_attempts": {
+      "name": "crafting_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schematic_id": {
+          "name": "schematic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schematic_version": {
+          "name": "schematic_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "craft_mode": {
+          "name": "craft_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "experiment_seed": {
+          "name": "experiment_seed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tuning": {
+          "name": "tuning",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot_selections": {
+          "name": "slot_selections",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preview": {
+          "name": "preview",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_explanation": {
+          "name": "result_explanation",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "experiment_outcome": {
+          "name": "experiment_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_minor_flaw": {
+          "name": "has_minor_flaw",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failure_reason": {
+          "name": "failure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "crafting_attempts_pilot_idempotency_idx": {
+          "name": "crafting_attempts_pilot_idempotency_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "crafting_attempts_pilot_id_pilots_id_fk": {
+          "name": "crafting_attempts_pilot_id_pilots_id_fk",
+          "tableFrom": "crafting_attempts",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crafting_attempts_item_id_items_id_fk": {
+          "name": "crafting_attempts_item_id_items_id_fk",
+          "tableFrom": "crafting_attempts",
+          "tableTo": "items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deposit_spot_yields": {
+      "name": "deposit_spot_yields",
+      "schema": "",
+      "columns": {
+        "spot_id": {
+          "name": "spot_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "units_capacity": {
+          "name": "units_capacity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "units_extracted": {
+          "name": "units_extracted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "exhausted_at": {
+          "name": "exhausted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deposit_spot_yields_resource_instance_id_resource_instances_id_fk": {
+          "name": "deposit_spot_yields_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "deposit_spot_yields",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.economy_ledger": {
+      "name": "economy_ledger",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_stack_id": {
+          "name": "resource_stack_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity_delta": {
+          "name": "quantity_delta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "economy_ledger_pilot_id_idx": {
+          "name": "economy_ledger_pilot_id_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "economy_ledger_pilot_id_pilots_id_fk": {
+          "name": "economy_ledger_pilot_id_pilots_id_fk",
+          "tableFrom": "economy_ledger",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "economy_ledger_resource_instance_id_resource_instances_id_fk": {
+          "name": "economy_ledger_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "economy_ledger",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "economy_ledger_resource_stack_id_resource_stacks_id_fk": {
+          "name": "economy_ledger_resource_stack_id_resource_stacks_id_fk",
+          "tableFrom": "economy_ledger",
+          "tableTo": "resource_stacks",
+          "columnsFrom": [
+            "resource_stack_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.items": {
+      "name": "items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schematic_id": {
+          "name": "schematic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schematic_version": {
+          "name": "schematic_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "property_scores": {
+          "name": "property_scores",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provenance": {
+          "name": "provenance",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "has_minor_flaw": {
+          "name": "has_minor_flaw",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "condition": {
+          "name": "condition",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "integrity": {
+          "name": "integrity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "items_pilot_id_idx": {
+          "name": "items_pilot_id_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "items_pilot_id_pilots_id_fk": {
+          "name": "items_pilot_id_pilots_id_fk",
+          "tableFrom": "items",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilot_deposit_spot_samples": {
+      "name": "pilot_deposit_spot_samples",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spot_id": {
+          "name": "spot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "true_concentration_percent": {
+          "name": "true_concentration_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "samples_taken": {
+          "name": "samples_taken",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "sampled_at": {
+          "name": "sampled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pilot_deposit_spot_samples_pilot_spot_idx": {
+          "name": "pilot_deposit_spot_samples_pilot_spot_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "spot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pilot_deposit_spot_samples_pilot_id_pilots_id_fk": {
+          "name": "pilot_deposit_spot_samples_pilot_id_pilots_id_fk",
+          "tableFrom": "pilot_deposit_spot_samples",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilot_deposit_spot_samples_resource_instance_id_resource_instances_id_fk": {
+          "name": "pilot_deposit_spot_samples_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "pilot_deposit_spot_samples",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilot_family_scans": {
+      "name": "pilot_family_scans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bloom_id": {
+          "name": "bloom_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "family": {
+          "name": "family",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scanned_at": {
+          "name": "scanned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pilot_family_scans_pilot_bloom_family_idx": {
+          "name": "pilot_family_scans_pilot_bloom_family_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bloom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "family",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pilot_family_scans_pilot_id_pilots_id_fk": {
+          "name": "pilot_family_scans_pilot_id_pilots_id_fk",
+          "tableFrom": "pilot_family_scans",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilot_field_state": {
+      "name": "pilot_field_state",
+      "schema": "",
+      "columns": {
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "selected_family": {
+          "name": "selected_family",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 8
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "scanned_tiles": {
+          "name": "scanned_tiles",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "pending_sample_spot_id": {
+          "name": "pending_sample_spot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_sample_resource_instance_id": {
+          "name": "pending_sample_resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_sample_started_at": {
+          "name": "pending_sample_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_sample_completes_at": {
+          "name": "pending_sample_completes_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pilot_field_state_pilot_id_pilots_id_fk": {
+          "name": "pilot_field_state_pilot_id_pilots_id_fk",
+          "tableFrom": "pilot_field_state",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilot_field_state_resource_instance_id_resource_instances_id_fk": {
+          "name": "pilot_field_state_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "pilot_field_state",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilot_field_state_pending_sample_resource_instance_id_resource_instances_id_fk": {
+          "name": "pilot_field_state_pending_sample_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "pilot_field_state",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "pending_sample_resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilot_resource_stat_reveals": {
+      "name": "pilot_resource_stat_reveals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revealed_at": {
+          "name": "revealed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pilot_resource_stat_reveals_pilot_instance_idx": {
+          "name": "pilot_resource_stat_reveals_pilot_instance_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_instance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pilot_resource_stat_reveals_pilot_id_pilots_id_fk": {
+          "name": "pilot_resource_stat_reveals_pilot_id_pilots_id_fk",
+          "tableFrom": "pilot_resource_stat_reveals",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilot_resource_stat_reveals_resource_instance_id_resource_instances_id_fk": {
+          "name": "pilot_resource_stat_reveals_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "pilot_resource_stat_reveals",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilot_survey_energy": {
+      "name": "pilot_survey_energy",
+      "schema": "",
+      "columns": {
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "raw_energy": {
+          "name": "raw_energy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pilot_survey_energy_pilot_id_pilots_id_fk": {
+          "name": "pilot_survey_energy_pilot_id_pilots_id_fk",
+          "tableFrom": "pilot_survey_energy",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilot_tutorial_state": {
+      "name": "pilot_tutorial_state",
+      "schema": "",
+      "columns": {
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "step": {
+          "name": "step",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pilot_tutorial_state_pilot_id_pilots_id_fk": {
+          "name": "pilot_tutorial_state_pilot_id_pilots_id_fk",
+          "tableFrom": "pilot_tutorial_state",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pilots": {
+      "name": "pilots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "equipped_scanner_item_id": {
+          "name": "equipped_scanner_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equipped_drill_item_id": {
+          "name": "equipped_drill_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equipped_pump_item_id": {
+          "name": "equipped_pump_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equipped_hull_item_id": {
+          "name": "equipped_hull_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "starter_thumper_parts_granted_at": {
+          "name": "starter_thumper_parts_granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pilots_equipped_scanner_item_id_items_id_fk": {
+          "name": "pilots_equipped_scanner_item_id_items_id_fk",
+          "tableFrom": "pilots",
+          "tableTo": "items",
+          "columnsFrom": [
+            "equipped_scanner_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilots_equipped_drill_item_id_fkey": {
+          "name": "pilots_equipped_drill_item_id_fkey",
+          "tableFrom": "pilots",
+          "tableTo": "items",
+          "columnsFrom": [
+            "equipped_drill_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilots_equipped_pump_item_id_fkey": {
+          "name": "pilots_equipped_pump_item_id_fkey",
+          "tableFrom": "pilots",
+          "tableTo": "items",
+          "columnsFrom": [
+            "equipped_pump_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pilots_equipped_hull_item_id_fkey": {
+          "name": "pilots_equipped_hull_item_id_fkey",
+          "tableFrom": "pilots",
+          "tableTo": "items",
+          "columnsFrom": [
+            "equipped_hull_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.playtest_events": {
+      "name": "playtest_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_name": {
+          "name": "event_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "playtest_events_pilot_id_idx": {
+          "name": "playtest_events_pilot_id_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "playtest_events_pilot_event_idx": {
+          "name": "playtest_events_pilot_event_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "playtest_events_created_at_idx": {
+          "name": "playtest_events_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "playtest_events_pilot_id_pilots_id_fk": {
+          "name": "playtest_events_pilot_id_pilots_id_fk",
+          "tableFrom": "playtest_events",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.repair_actions": {
+      "name": "repair_actions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repair_kit_item_id": {
+          "name": "repair_kit_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thumper_run_id": {
+          "name": "thumper_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thumper_event_window_index": {
+          "name": "thumper_event_window_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "context": {
+          "name": "context",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "condition_before": {
+          "name": "condition_before",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "condition_after": {
+          "name": "condition_after",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integrity_before": {
+          "name": "integrity_before",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integrity_after": {
+          "name": "integrity_after",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kit_condition_restored_score": {
+          "name": "kit_condition_restored_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kit_integrity_safety_score": {
+          "name": "kit_integrity_safety_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "explanation": {
+          "name": "explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "repair_actions_pilot_id_idx": {
+          "name": "repair_actions_pilot_id_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "repair_actions_thumper_run_id_idx": {
+          "name": "repair_actions_thumper_run_id_idx",
+          "columns": [
+            {
+              "expression": "thumper_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "repair_actions_pilot_id_pilots_id_fk": {
+          "name": "repair_actions_pilot_id_pilots_id_fk",
+          "tableFrom": "repair_actions",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "repair_actions_repair_kit_item_id_items_id_fk": {
+          "name": "repair_actions_repair_kit_item_id_items_id_fk",
+          "tableFrom": "repair_actions",
+          "tableTo": "items",
+          "columnsFrom": [
+            "repair_kit_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "repair_actions_thumper_run_id_thumper_runs_id_fk": {
+          "name": "repair_actions_thumper_run_id_thumper_runs_id_fk",
+          "tableFrom": "repair_actions",
+          "tableTo": "thumper_runs",
+          "columnsFrom": [
+            "thumper_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.resource_instances": {
+      "name": "resource_instances",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "resource_slug": {
+          "name": "resource_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "family": {
+          "name": "family",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stat_oq": {
+          "name": "stat_oq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stat_conductivity": {
+          "name": "stat_conductivity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stat_hardness": {
+          "name": "stat_hardness",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stat_heat_resistance": {
+          "name": "stat_heat_resistance",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stat_malleability": {
+          "name": "stat_malleability",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bloom_id": {
+          "name": "bloom_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "concentration_min_percent": {
+          "name": "concentration_min_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "concentration_max_percent": {
+          "name": "concentration_max_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lifespan_days": {
+          "name": "lifespan_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prospecting_cycle": {
+          "name": "prospecting_cycle",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "spawned_at": {
+          "name": "spawned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "extinct_at": {
+          "name": "extinct_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "resource_instances_display_name_idx": {
+          "name": "resource_instances_display_name_idx",
+          "columns": [
+            {
+              "expression": "display_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "resource_instances_bloom_slug_idx": {
+          "name": "resource_instances_bloom_slug_idx",
+          "columns": [
+            {
+              "expression": "bloom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.resource_stacks": {
+      "name": "resource_stacks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "resource_stacks_pilot_instance_idx": {
+          "name": "resource_stacks_pilot_instance_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_instance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "resource_stacks_pilot_id_pilots_id_fk": {
+          "name": "resource_stacks_pilot_id_pilots_id_fk",
+          "tableFrom": "resource_stacks",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "resource_stacks_resource_instance_id_resource_instances_id_fk": {
+          "name": "resource_stacks_resource_instance_id_resource_instances_id_fk",
+          "tableFrom": "resource_stacks",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "resource_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.settlement_milestones": {
+      "name": "settlement_milestones",
+      "schema": "",
+      "columns": {
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "milestone_key": {
+          "name": "milestone_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unlocked_at": {
+          "name": "unlocked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "settlement_milestones_pilot_id_pilots_id_fk": {
+          "name": "settlement_milestones_pilot_id_pilots_id_fk",
+          "tableFrom": "settlement_milestones",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "settlement_milestones_pilot_id_milestone_key_pk": {
+          "name": "settlement_milestones_pilot_id_milestone_key_pk",
+          "columns": [
+            "pilot_id",
+            "milestone_key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.settlement_orders": {
+      "name": "settlement_orders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "milestone_key": {
+          "name": "milestone_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "family": {
+          "name": "family",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stack_size": {
+          "name": "stack_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bound_instance_id": {
+          "name": "bound_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_units": {
+          "name": "delivered_units",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "settlement_orders_pilot_milestone_family_idx": {
+          "name": "settlement_orders_pilot_milestone_family_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "milestone_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "family",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "settlement_orders_pilot_id_pilots_id_fk": {
+          "name": "settlement_orders_pilot_id_pilots_id_fk",
+          "tableFrom": "settlement_orders",
+          "tableTo": "pilots",
+          "columnsFrom": [
+            "pilot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "settlement_orders_bound_instance_id_resource_instances_id_fk": {
+          "name": "settlement_orders_bound_instance_id_resource_instances_id_fk",
+          "tableFrom": "settlement_orders",
+          "tableTo": "resource_instances",
+          "columnsFrom": [
+            "bound_instance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.thumper_event_windows": {
+      "name": "thumper_event_windows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "thumper_run_id": {
+          "name": "thumper_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_index": {
+          "name": "window_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "complication": {
+          "name": "complication",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "matching_action": {
+          "name": "matching_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'minor'"
+        },
+        "chosen_response": {
+          "name": "chosen_response",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "before_state": {
+          "name": "before_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after_state": {
+          "name": "after_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "thumper_event_windows_run_window_idx": {
+          "name": "thumper_event_windows_run_window_idx",
+          "columns": [
+            {
+              "expression": "thumper_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "window_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "thumper_event_windows_thumper_run_id_thumper_runs_id_fk": {
+          "name": "thumper_event_windows_thumper_run_id_thumper_runs_id_fk",
+          "tableFrom": "thumper_event_windows",
+          "tableTo": "thumper_runs",
+          "columnsFrom": [
+            "thumper_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.thumper_run_part_snapshots": {
+      "name": "thumper_run_part_snapshots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "thumper_run_id": {
+          "name": "thumper_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot": {
+          "name": "slot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schematic_id": {
+          "name": "schematic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "property_scores": {
+          "name": "property_scores",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "condition_at_deploy": {
+          "name": "condition_at_deploy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integrity_at_deploy": {
+          "name": "integrity_at_deploy",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "thumper_run_part_snapshots_thumper_run_id_slot_key": {
+          "name": "thumper_run_part_snapshots_thumper_run_id_slot_key",
+          "columns": [
+            {
+              "expression": "thumper_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slot",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "thumper_run_part_snapshots_run_id_idx": {
+          "name": "thumper_run_part_snapshots_run_id_idx",
+          "columns": [
+            {
+              "expression": "thumper_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "thumper_run_part_snapshots_thumper_run_id_thumper_runs_id_fk": {
+          "name": "thumper_run_part_snapshots_thumper_run_id_thumper_runs_id_fk",
+          "tableFrom": "thumper_run_part_snapshots",
+          "tableTo": "thumper_runs",
+          "columnsFrom": [
+            "thumper_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "thumper_run_part_snapshots_item_id_items_id_fk": {
+          "name": "thumper_run_part_snapshots_item_id_items_id_fk",
+          "tableFrom": "thumper_run_part_snapshots",
+          "tableTo": "items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.thumper_run_results": {
+      "name": "thumper_run_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "thumper_run_id": {
+          "name": "thumper_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_resource_id": {
+          "name": "target_resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "projected_recovery": {
+          "name": "projected_recovery",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recovered_quantity": {
+          "name": "recovered_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "waste_quantity": {
+          "name": "waste_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "forfeited_recovery": {
+          "name": "forfeited_recovery",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "resolution_type": {
+          "name": "resolution_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'completed'"
+        },
+        "recall_reason": {
+          "name": "recall_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applied_wear": {
+          "name": "applied_wear",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "explanation": {
+          "name": "explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "thumper_run_results_thumper_run_id_thumper_runs_id_fk": {
+          "name": "thumper_run_results_thumper_run_id_thumper_runs_id_fk",
+          "tableFrom": "thumper_run_results",
+          "tableTo": "thumper_runs",
+          "columnsFrom": [
+            "thumper_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "thumper_run_results_thumper_run_id_unique": {
+          "name": "thumper_run_results_thumper_run_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "thumper_run_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.thumper_runs": {
+      "name": "thumper_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pilot_id": {
+          "name": "pilot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_resource_id": {
+          "name": "target_resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deposit_spot_id": {
+          "name": "deposit_spot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "true_concentration_percent": {
+          "name": "true_concentration_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extraction_tail_minutes": {
+          "name": "extraction_tail_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "resource_instance_id": {
+          "name": "resource_instance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "run_seed": {
+          "name": "run_seed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'legacy'"
+        },
+        "is_push_run": {
+          "name": "is_push_run",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "deployed_at": {
+          "name": "deployed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_seconds": {
+          "name": "duration_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "run_hull_condition": {
+          "name": "run_hull_condition",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "run_hull_integrity": {
+          "name": "run_hull_integrity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "thumper_runs_one_open_per_pilot": {
+          "name": "thumper_runs_one_open_per_pilot",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"thumper_runs\".\"claimed_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "thumper_runs_pilot_id_deployed_at_idx": {
+          "name": "thumper_runs_pilot_id_deployed_at_idx",
+          "columns": [
+            {
+              "expression": "pilot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deployed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -1,7 +1,7 @@
 import {
 	depositSpotCapacityUnits,
-	findDepositSpot,
 	presentDepositSpotYield,
+	resolveDepositSpot,
 	type DepositSpotYieldBand
 } from '@async-frontier-mmo/domain';
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -224,13 +224,14 @@ export async function assertDepositSpotDeployable(
 		prospectingCycle: number;
 	}
 ): Promise<DepositSpotYieldState> {
-	const currentSpot = findDepositSpot({
+	const currentSpot = resolveDepositSpot({
+		spotId: input.spotId,
+		resourceInstanceId: input.resourceInstanceId,
 		resourceSlug: input.resourceSlug,
 		bloomGenerationSeed: input.generationSeed,
 		concentrationMinPercent: input.concentrationMinPercent,
 		concentrationMaxPercent: input.concentrationMaxPercent,
-		prospectingCycle: input.prospectingCycle,
-		spotId: input.spotId
+		prospectingCycle: input.prospectingCycle
 	});
 	if (!currentSpot) {
 		throw new DepositSpotStaleError(input.spotId);

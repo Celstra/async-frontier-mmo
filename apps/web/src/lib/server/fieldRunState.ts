@@ -168,7 +168,8 @@ export function mapEventWindowsForUi(
 	runSeed?: string,
 	isPushRun?: boolean,
 	targetResourceId?: NamedResourceId,
-	isTutorialRun?: boolean
+	isTutorialRun?: boolean,
+	extractionTailMinutes?: number
 ): EventWindowForUi[] {
 	// Build lookup map of stored event windows
 	const storedWindows = new Map(windows.map((w) => [w.windowIndex, w]));
@@ -209,7 +210,8 @@ export function mapEventWindowsForUi(
 		const seeded = generateSeededThumperEventWindows({
 			runSeed,
 			targetResourceId,
-			isPushRun: isPushRun ?? false
+			isPushRun: isPushRun ?? false,
+			extractionTailMinutes
 		});
 		fullPlan = seeded.windows.map((w) =>
 			w.quiet
@@ -433,7 +435,8 @@ export async function loadOpenRunState(
 			run.runSeed,
 			run.isPushRun,
 			run.targetResourceId as NamedResourceId,
-			options?.isTutorialRun
+			options?.isTutorialRun,
+			run.extractionTailMinutes
 		),
 		runHullCondition: run.runHullCondition,
 		runHullIntegrity: run.runHullIntegrity,

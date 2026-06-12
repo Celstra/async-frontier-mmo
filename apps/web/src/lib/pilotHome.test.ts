@@ -43,7 +43,7 @@ describe('buildHubTiles', () => {
 		expect(tiles.map((tile) => tile.id)).toEqual(['thumper', 'survey', 'workbench', 'storage']);
 	});
 
-	it('routes an active thumper run to /run', () => {
+	it('routes an active thumper run to /field', () => {
 		const tiles = buildHubTiles({
 			...baseInput,
 			openRun: { targetDisplayName: 'Veyrith Copper', recalled: false },
@@ -52,12 +52,12 @@ describe('buildHubTiles', () => {
 		const thumper = tiles.find((tile) => tile.id === 'thumper');
 		expect(thumper?.id === 'thumper' && thumper.state).toBe('active');
 		if (thumper?.id === 'thumper') {
-			expect(thumper.href).toBe('/run');
+			expect(thumper.href).toBe('/field');
 			expect(thumper.secondsRemaining).toBe(240);
 		}
 	});
 
-	it('routes a claimable run to /claim', () => {
+	it('routes a claimable run to /field', () => {
 		const tiles = buildHubTiles({
 			...baseInput,
 			openRun: { targetDisplayName: 'Veyrith Copper', recalled: false },
@@ -67,7 +67,7 @@ describe('buildHubTiles', () => {
 		const thumper = tiles.find((tile) => tile.id === 'thumper');
 		if (thumper?.id === 'thumper') {
 			expect(thumper.state).toBe('ready_to_claim');
-			expect(thumper.href).toBe('/claim');
+			expect(thumper.href).toBe('/field');
 		}
 	});
 });

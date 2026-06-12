@@ -204,6 +204,20 @@
       "when": 1783600000000,
       "tag": "0028_thumper_recall_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1783700000000,
+      "tag": "0029_pilot_field_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783800000000,
+      "tag": "0030_pilot_field_discovered_tiles",
+      "breakpoints": true
     }
   ]
 }

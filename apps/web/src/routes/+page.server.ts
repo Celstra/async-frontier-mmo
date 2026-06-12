@@ -37,7 +37,7 @@ import {
 	type HubTile
 } from '$lib/pilotHome';
 import { resolvePilotId } from '$lib/server/pilot';
-import { loadOpenRunState } from '$lib/server/runLoad';
+import { loadOpenRunState } from '$lib/server/fieldRunState';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
 import type { Actions, PageServerLoad } from './$types';
 

@@ -76,7 +76,7 @@
 		if (readiness.missing?.sourceHint.includes('thumper haul')) {
 			return '/';
 		}
-		return '/survey';
+		return '/field';
 	}
 
 	// Determine which stats actually matter for this slot by examining property weights

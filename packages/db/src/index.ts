@@ -133,6 +133,21 @@ export {
 	type RotateBloomOutcome
 } from './queries/bloomRotation.js';
 export {
+	clearPilotFieldPendingSample,
+	discoverPilotFieldTiles,
+	ensurePilotFieldSession,
+	getPilotFieldSession,
+	hasPilotResourceStatReveal,
+	listPilotWaypointSamples,
+	movePilotOnField,
+	scanPilotFieldTile,
+	setPilotFieldFamily,
+	setPilotFieldPosition,
+	setPilotFieldResource,
+	startPilotFieldSample,
+	type PilotFieldSession
+} from './queries/fieldSession.js';
+export {
 	clearPilotProspectingState,
 	getPilotDepositSample,
 	getPilotProspectingProgress,
@@ -169,6 +184,7 @@ export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';
 export { pilotFamilyScans } from './schema/pilotFamilyScans.js';
 export { pilotResourceStatReveals } from './schema/pilotResourceStatReveals.js';
 export { pilotSurveyEnergy } from './schema/pilotSurveyEnergy.js';
+export { pilotFieldState } from './schema/pilotFieldState.js';
 export { pilotTutorialState } from './schema/pilotTutorialState.js';
 export { settlementMilestones } from './schema/settlementMilestones.js';
 export { settlementOrders } from './schema/settlementOrders.js';
@@ -176,6 +192,7 @@ export {
 	PLAYTEST_COMPREHENSION_EVENTS,
 	PLAYTEST_EVENT_NAMES,
 	PLAYTEST_FUNNEL_EVENTS,
+	SLICE_FUNNEL_EVENTS,
 	isPlaytestEventName,
 	type PlaytestEventName
 } from './playtest/eventNames.js';

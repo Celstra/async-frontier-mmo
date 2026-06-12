@@ -1,11 +1,6 @@
 import type { ResourceFamily } from '@async-frontier-mmo/domain';
-import { SURVEY_ENERGY_CAP } from '@async-frontier-mmo/domain';
 
-export { SURVEY_ENERGY_CAP };
-export const FAMILY_SCAN_ENERGY_LABEL = 'Scan costs 8 energy';
-export const SAMPLE_SPOT_ENERGY_LABEL = 'Sample costs 12 energy';
-
-export const SURVEY_FAMILY_OPTIONS: ReadonlyArray<{
+export const FIELD_FAMILY_OPTIONS: ReadonlyArray<{
 	id: ResourceFamily;
 	label: string;
 }> = [
@@ -14,12 +9,12 @@ export const SURVEY_FAMILY_OPTIONS: ReadonlyArray<{
 	{ id: 'reactive_crystal', label: 'Reactive Crystal' }
 ];
 
-export const TUTORIAL_SURVEY_FAMILY: ResourceFamily = 'conductive_metal';
+export const DEFAULT_FIELD_FAMILY: ResourceFamily = 'conductive_metal';
 export const TUTORIAL_RECOMMENDED_RESOURCE_SLUG = 'veyrith_copper';
 
-export function parseSurveyFamily(value: string | null): ResourceFamily {
-	const match = SURVEY_FAMILY_OPTIONS.find((option) => option.id === value);
-	return match?.id ?? TUTORIAL_SURVEY_FAMILY;
+export function parseFieldFamily(value: string | null): ResourceFamily {
+	const match = FIELD_FAMILY_OPTIONS.find((option) => option.id === value);
+	return match?.id ?? DEFAULT_FIELD_FAMILY;
 }
 
 export function recommendedResourceSlugForBloom(
@@ -32,7 +27,7 @@ export function recommendedResourceSlugForBloom(
 	return null;
 }
 
-export function surveyTeachingNote(resourceSlug: string): string | null {
+export function resourceTeachingNote(resourceSlug: string): string | null {
 	if (resourceSlug === 'veyrith_copper') {
 		return 'High Conductivity find — recommended first thump target, not required.';
 	}

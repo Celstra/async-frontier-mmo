@@ -299,3 +299,59 @@ export async function trackItemEquipped(
 ): Promise<void> {
 	await once(db, pilotId, 'item_equipped', input);
 }
+
+export async function trackFieldFamilyChosen(db: Db, pilotId: string, family: string): Promise<void> {
+	await once(db, pilotId, 'first_family_chosen', { family });
+}
+
+export async function trackFieldTileScan(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'first_scan');
+}
+
+export async function trackFieldMove(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'first_move');
+}
+
+export async function trackFieldSampleCommit(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'first_sample');
+}
+
+export async function trackFieldStatReveal(
+	db: Db,
+	pilotId: string,
+	resourceSlug: string
+): Promise<void> {
+	await once(db, pilotId, 'first_stat_reveal', { resourceSlug });
+}
+
+export async function trackFieldDeploy(
+	db: Db,
+	pilotId: string,
+	input: { targetResourceId: string; extractionTailMinutes: number; isTutorialRun: boolean }
+): Promise<void> {
+	await once(db, pilotId, 'first_deploy', input);
+	await trackThumperDeployed(db, pilotId, input);
+	if (!input.isTutorialRun) {
+		await once(db, pilotId, 'second_deploy_voluntary', input);
+	}
+}
+
+export async function trackSliceEventWindowResolved(
+	db: Db,
+	pilotId: string,
+	input: { windowIndex: number; chosenResponse: string; complication: string }
+): Promise<void> {
+	await once(db, pilotId, 'event_window_resolved', input);
+	await trackEventWindowResolved(db, pilotId, input.windowIndex, {
+		chosenResponse: input.chosenResponse,
+		complication: input.complication
+	});
+}
+
+export async function trackFieldFirstClaim(
+	db: Db,
+	pilotId: string,
+	input: { recoveredQuantity: number }
+): Promise<void> {
+	await once(db, pilotId, 'first_claim', input);
+}

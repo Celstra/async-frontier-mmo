@@ -166,12 +166,26 @@ export {
 } from './survey/prospectingSampling.js';
 export {
 	concentrationAt,
+	depositSpotAtTile,
 	getTopology,
+	parseTopologySpotId,
+	resolveDepositSpot,
+	PLAYER_SPAWN_X,
+	PLAYER_SPAWN_Y,
 	spotIdFor,
 	TOPOLOGY_GRID_HEIGHT,
 	TOPOLOGY_GRID_WIDTH,
 	type DepositTopology
 } from './survey/depositTopology.js';
+export { buildFieldMapView, type FieldMapCell, type FieldMapView } from './field/buildFieldMapView.js';
+export {
+	discoveryPatchAround,
+	fieldTileKey,
+	fieldViewportBounds,
+	mergeDiscoveredTiles,
+	parseFieldTileKey,
+	type FieldViewportBounds
+} from './field/fieldDiscovery.js';
 export {
 	surveyEnergyOutlook,
 	type SurveyEnergyOutlook

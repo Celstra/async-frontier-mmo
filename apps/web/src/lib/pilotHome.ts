@@ -122,14 +122,14 @@ export function buildSuggestedNextAction(input: {
 			return {
 				label: 'Respond to thumper event',
 				detail: `Window ${pendingWindow.windowIndex} needs a choice on ${input.openRun.targetDisplayName}.`,
-				href: '/run'
+				href: '/field'
 			};
 		}
 
 		return {
 			label: 'Monitor thumper run',
 			detail: `${input.openRun.targetDisplayName} — about ${input.thumperDemo.secondsRemaining}s remaining.`,
-			href: '/run'
+			href: '/field'
 		};
 	}
 
@@ -141,7 +141,7 @@ export function buildSuggestedNextAction(input: {
 		return {
 			label: 'Claim thumper run',
 			detail: `Secure recovered ${input.openRun.targetDisplayName} into inventory.`,
-			href: '/claim'
+			href: '/field'
 		};
 	}
 
@@ -149,7 +149,7 @@ export function buildSuggestedNextAction(input: {
 		return {
 			label: 'Survey Red Mesa',
 			detail: 'Scan Conductive Metal, sample deposit spots, then deploy on recommended Veyrith Copper.',
-			href: '/survey'
+			href: '/field'
 		};
 	}
 
@@ -172,7 +172,7 @@ export function buildSuggestedNextAction(input: {
 	return {
 		label: 'Survey Red Mesa',
 		detail: 'Scout the active bloom for your next thumper target.',
-		href: '/survey'
+		href: '/field'
 	};
 }
 
@@ -235,7 +235,7 @@ export function buildHubTiles(input: {
 	let thumperState: HubThumperState = 'idle';
 	let thumperHeadline = 'No thumper deployed';
 	let thumperDetail = 'Survey a deposit spot, then deploy your personal thumper.';
-	let thumperHref = '/survey';
+	let thumperHref = '/field';
 	let targetResource: string | null = null;
 	let secondsRemaining: number | null = null;
 
@@ -252,7 +252,7 @@ export function buildHubTiles(input: {
 		thumperHeadline = 'Thumper ready to claim';
 		targetResource = input.openRun.targetDisplayName;
 		thumperDetail = `Secure recovered ${input.openRun.targetDisplayName} into inventory.`;
-		thumperHref = '/claim';
+		thumperHref = '/field';
 	} else if (input.openRun && input.thumperDemo) {
 		thumperState = 'active';
 		targetResource = input.openRun.targetDisplayName;
@@ -263,7 +263,7 @@ export function buildHubTiles(input: {
 		thumperDetail = input.openRun.recalled
 			? 'Run ended early — claim partial recovery when ready.'
 			: `${input.thumperDemo.secondsRemaining}s remaining in this run phase.`;
-		thumperHref = '/run';
+		thumperHref = '/field';
 	}
 
 	const scannerSummary = input.workbenchSummaries.find(
@@ -302,7 +302,7 @@ export function buildHubTiles(input: {
 		{
 			id: 'survey',
 			why: 'Find deposit signals, sample spots, and pick your next thumper target.',
-			href: '/survey',
+			href: '/field',
 			surveyEnergy: input.surveyEnergy,
 			surveyEnergyCap: input.surveyEnergyCap,
 			outlook: input.surveyEnergyOutlook,

@@ -1,4 +1,6 @@
-import type { Handle } from '@sveltejs/kit';
+import { redirect, type Handle } from '@sveltejs/kit';
+
+const LEGACY_LOOP_PREFIXES = ['/survey', '/deploy', '/run', '/claim'];
 
 const PILOT_ID_COOKIE = 'pilot_id';
 const PILOT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -16,5 +18,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	event.locals.pilotId = pilotId;
+
+	if (LEGACY_LOOP_PREFIXES.some((prefix) => event.url.pathname.startsWith(prefix))) {
+		redirect(303, '/field');
+	}
+
 	return resolve(event);
 };
