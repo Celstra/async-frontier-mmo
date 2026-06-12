@@ -113,8 +113,7 @@ export type DeliverStackToSettlementOrderOutcome =
 	| { status: 'order_not_open' }
 	| { status: 'wrong_family' }
 	| { status: 'wrong_instance' }
-	| { status: 'stack_empty' }
-	| { status: 'over_delivery' };
+	| { status: 'stack_empty' };
 
 /**
  * Turn in one resource stack toward an open order — consumes the full stack in one transaction.
@@ -159,15 +158,17 @@ export async function deliverResourceStackToSettlementOrder(
 		}
 
 		const remaining = orderRow.stackSize - orderRow.deliveredUnits;
-		if (stack.quantity > remaining) {
-			return { status: 'over_delivery' as const };
+		if (remaining <= 0) {
+			return { status: 'order_not_open' as const };
 		}
+
+		const quantityToConsume = Math.min(stack.quantity, remaining);
 
 		try {
 			await consumeResourceFromPilotTx(tx, {
 				pilotId: input.pilotId,
 				resourceInstanceId: input.resourceInstanceId,
-				quantity: stack.quantity,
+				quantity: quantityToConsume,
 				source: { type: 'settlement_turn_in', id: orderRow.id }
 			});
 		} catch (error) {
@@ -177,7 +178,7 @@ export async function deliverResourceStackToSettlementOrder(
 			throw error;
 		}
 
-		const nextDelivered = orderRow.deliveredUnits + stack.quantity;
+		const nextDelivered = orderRow.deliveredUnits + quantityToConsume;
 		const orderFilled = nextDelivered >= orderRow.stackSize;
 
 		await tx
@@ -218,7 +219,7 @@ export async function deliverResourceStackToSettlementOrder(
 			eventType: 'settlement_turn_in',
 			pilotId: input.pilotId,
 			resourceInstanceId: input.resourceInstanceId,
-			quantityDelta: -stack.quantity,
+			quantityDelta: -quantityToConsume,
 			payload: {
 				order_id: orderRow.id,
 				milestone_key: orderRow.milestoneKey,

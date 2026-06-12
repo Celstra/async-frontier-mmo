@@ -4,6 +4,7 @@ import {
 	FAMILY_SCAN_ENERGY_COST,
 	generateDepositSpots,
 	SAMPLE_ENERGY_COST,
+	SPOT_SAMPLE_POOL,
 	sampleYieldFromConcentration,
 	SURVEY_ENERGY_CAP
 } from '@async-frontier-mmo/domain';
@@ -152,36 +153,39 @@ describeDb('prospecting persistence', () => {
 		});
 	});
 
-	it('re-sampling the same spot does not re-grant trickle or duplicate ledger rows', async () => {
+	it('allows repeat samples on the same spot until the pool is exhausted', async () => {
 		await clearPilotProspectingState(db, testPilotId);
 		await scanConductiveMetalFamily();
 
-		const first = await sampleSpotForPilot(db, {
+		let stackQuantity = 0;
+		const ledgerBaseline = (await listEconomyLedgerEntriesForPilot(db, testPilotId)).filter(
+			(entry) => entry.eventType === 'survey_completed'
+		).length;
+
+		for (let sampleIndex = 0; sampleIndex < SPOT_SAMPLE_POOL; sampleIndex += 1) {
+			const result = await sampleSpotForPilot(db, {
+				pilotId: testPilotId,
+				resourceInstanceId: veyrithInstanceId,
+				spotId: firstSpotId
+			});
+			expect(result.status).toBe('ok');
+
+			const stack = await getResourceStackForPilotInstance(db, testPilotId, veyrithInstanceId);
+			expect(stack?.quantity).toBeGreaterThan(stackQuantity);
+			stackQuantity = stack?.quantity ?? 0;
+
+			const ledger = (await listEconomyLedgerEntriesForPilot(db, testPilotId)).filter(
+				(entry) => entry.eventType === 'survey_completed'
+			);
+			expect(ledger.length).toBe(ledgerBaseline + sampleIndex + 1);
+		}
+
+		const exhausted = await sampleSpotForPilot(db, {
 			pilotId: testPilotId,
 			resourceInstanceId: veyrithInstanceId,
 			spotId: firstSpotId
 		});
-		expect(first.status).toBe('ok');
-
-		const stackAfterFirst = await getResourceStackForPilotInstance(db, testPilotId, veyrithInstanceId);
-		const ledgerAfterFirst = (await listEconomyLedgerEntriesForPilot(db, testPilotId)).filter(
-			(entry) => entry.eventType === 'survey_completed'
-		);
-
-		const second = await sampleSpotForPilot(db, {
-			pilotId: testPilotId,
-			resourceInstanceId: veyrithInstanceId,
-			spotId: firstSpotId
-		});
-		expect(second.status).toBe('spot_already_sampled');
-
-		const stackAfterSecond = await getResourceStackForPilotInstance(db, testPilotId, veyrithInstanceId);
-		expect(stackAfterSecond?.quantity).toBe(stackAfterFirst?.quantity);
-
-		const ledgerAfterSecond = (await listEconomyLedgerEntriesForPilot(db, testPilotId)).filter(
-			(entry) => entry.eventType === 'survey_completed'
-		);
-		expect(ledgerAfterSecond.length).toBe(ledgerAfterFirst.length);
+		expect(exhausted.status).toBe('spot_pool_exhausted');
 	});
 
 	it('spends energy and rejects insufficient energy cleanly', async () => {

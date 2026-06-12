@@ -320,7 +320,9 @@ export {
 export { availableTails, maxRunMinutes, type AvailableTailOption } from './thumper/hullRunCeiling.js';
 export {
 	computeHullFailsafeProrata,
+	effectiveThumperRunDurationSeconds,
 	hullMaxRunSeconds,
+	isHullFailsafeActive,
 	type HullFailsafeProrata,
 	type HullFailsafeRecallReason
 } from './thumper/hullFailsafeRecall.js';

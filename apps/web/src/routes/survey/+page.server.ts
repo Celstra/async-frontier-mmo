@@ -97,6 +97,7 @@ export const actions: Actions = {
 				insufficient_energy: 'Not enough survey energy to sample this spot',
 				family_scan_required: 'Scan this resource family before sampling deposit spots',
 				spot_already_sampled: 'You already sampled this deposit spot',
+				spot_pool_exhausted: 'This deposit spot is tapped out for now',
 				spot_not_found: 'That deposit signal has faded — scan for fresh spots.',
 				spot_resource_mismatch: 'Spot does not belong to this resource',
 				resource_not_found: 'Resource not found in this bloom'

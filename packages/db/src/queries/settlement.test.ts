@@ -112,6 +112,34 @@ describeDb('settlement persistence', () => {
 		expect(result.status).toBe('wrong_instance');
 	});
 
+	it('accepts an overfilled single stack and consumes only the remaining order units', async () => {
+		await bindSettlementOrdersOnSample(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: bendrelInstanceId,
+			family: 'structural_alloy'
+		});
+
+		const overshoot = TUTORIAL_ORDER_SA_STACK + 5;
+		await grantResourceToPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: bendrelInstanceId,
+			quantity: overshoot,
+			source: { type: 'test_grant', id: 'overshoot-stack' }
+		});
+
+		const result = await deliverResourceStackToSettlementOrder(db, {
+			pilotId: testPilotId,
+			orderId: structuralOrderId,
+			resourceInstanceId: bendrelInstanceId
+		});
+
+		expect(result).toEqual({
+			status: 'delivered',
+			deliveredUnits: TUTORIAL_ORDER_SA_STACK,
+			orderFilled: true
+		});
+	});
+
 	it('completes an order exactly at stack_size and unlocks the milestone', async () => {
 		await bindSettlementOrdersOnSample(db, {
 			pilotId: testPilotId,

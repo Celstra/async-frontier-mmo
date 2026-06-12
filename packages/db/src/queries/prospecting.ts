@@ -7,6 +7,7 @@ import {
 	isDeemphasizedSurveyStat,
 	resolveSurveyEnergy,
 	SAMPLE_ENERGY_COST,
+	SPOT_SAMPLE_POOL,
 	SURVEY_ENERGY_CAP,
 	sampleDepositSpot,
 	scanFamilyProspect,
@@ -15,7 +16,7 @@ import {
 	type PilotSurveyProgress,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { loadDepositSpotYieldMap, yieldPresentationMap } from './depositSpotYields.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
@@ -530,6 +531,7 @@ export type SampleSpotForPilotOutcome =
 	| { status: 'insufficient_energy' }
 	| { status: 'family_scan_required' }
 	| { status: 'spot_already_sampled' }
+	| { status: 'spot_pool_exhausted' }
 	| { status: 'spot_not_found' }
 	| { status: 'spot_resource_mismatch' }
 	| { status: 'resource_not_found' };
@@ -593,10 +595,10 @@ export async function sampleSpotForPilot(
 		});
 
 		if ('error' in sampleResult) {
-			if (
-				sampleResult.error === 'spot_already_sampled' ||
-				sampleResult.error === 'spot_pool_exhausted'
-			) {
+			if (sampleResult.error === 'spot_pool_exhausted') {
+				return { status: 'spot_pool_exhausted' as const };
+			}
+			if (sampleResult.error === 'spot_already_sampled') {
 				return { status: 'spot_already_sampled' as const };
 			}
 			if (sampleResult.error === 'spot_resource_mismatch') {
@@ -617,23 +619,47 @@ export async function sampleSpotForPilot(
 			return { status: 'insufficient_energy' as const };
 		}
 
-		const [reservedSample] = await tx
-			.insert(pilotDepositSpotSamples)
-			.values({
-				pilotId: input.pilotId,
-				resourceInstanceId: input.resourceInstanceId,
-				spotId: input.spotId,
-				trueConcentrationPercent: spot.trueConcentrationPercent,
-				samplesTaken: 1,
-				sampledAt: now
-			})
-			.onConflictDoNothing({
-				target: [pilotDepositSpotSamples.pilotId, pilotDepositSpotSamples.spotId]
-			})
-			.returning();
+		let reservedSample: typeof pilotDepositSpotSamples.$inferSelect;
 
-		if (!reservedSample) {
-			return { status: 'spot_already_sampled' as const };
+		if (samplesTakenOnSpotCount > 0) {
+			const [updated] = await tx
+				.update(pilotDepositSpotSamples)
+				.set({
+					samplesTaken: sql`${pilotDepositSpotSamples.samplesTaken} + 1`,
+					sampledAt: now
+				})
+				.where(
+					and(
+						eq(pilotDepositSpotSamples.pilotId, input.pilotId),
+						eq(pilotDepositSpotSamples.spotId, input.spotId),
+						sql`${pilotDepositSpotSamples.samplesTaken} < ${SPOT_SAMPLE_POOL}`
+					)
+				)
+				.returning();
+
+			if (!updated) {
+				return { status: 'spot_pool_exhausted' as const };
+			}
+
+			reservedSample = updated;
+		} else {
+			const [inserted] = await tx
+				.insert(pilotDepositSpotSamples)
+				.values({
+					pilotId: input.pilotId,
+					resourceInstanceId: input.resourceInstanceId,
+					spotId: input.spotId,
+					trueConcentrationPercent: spot.trueConcentrationPercent,
+					samplesTaken: 1,
+					sampledAt: now
+				})
+				.returning();
+
+			if (!inserted) {
+				return { status: 'spot_already_sampled' as const };
+			}
+
+			reservedSample = inserted;
 		}
 
 		if (sampleResult.statsRevealedThisSample) {

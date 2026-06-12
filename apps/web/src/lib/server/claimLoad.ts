@@ -8,14 +8,16 @@ import {
 } from '@async-frontier-mmo/db';
 import {
 	buildThumperClaimResultExplanation,
+	effectiveThumperRunDurationSeconds,
+	isHullFailsafeActive,
 	isThumperRunClaimable,
 	isThumperRunReadyToResolve,
 	resolveThumperState,
+	type HullTier,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
-import { parseFrameId } from 'shared';
 import type { getGameDb } from './gameDb.js';
 import { resolveTargetDisplayName } from './targetResource.js';
 
@@ -35,6 +37,48 @@ function ledgerEntryRelatesToRun(
 		return true;
 	}
 	return false;
+}
+
+function hullTierFromIntegrity(integrity: number): HullTier {
+	if (integrity <= 10) {
+		return 'scavenged';
+	}
+	if (integrity <= 35) {
+		return 'patched';
+	}
+	return 'basic';
+}
+
+function pendingClaimMessage(input: {
+	run: { deployedAt: Date; durationSeconds: number; runHullIntegrity?: number };
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>;
+	now: Date;
+}): string {
+	const runHullIntegrity = input.run.runHullIntegrity ?? 100;
+	const hullConfig = {
+		hullTier: hullTierFromIntegrity(runHullIntegrity),
+		hullIntegrityAtDeploy: runHullIntegrity,
+		plannedDurationSeconds: input.run.durationSeconds
+	};
+
+	if (isHullFailsafeActive(hullConfig)) {
+		const hullOutReached =
+			resolveThumperState({
+				deployedAt: input.run.deployedAt,
+				durationSeconds: effectiveThumperRunDurationSeconds(hullConfig),
+				now: input.now
+			}).status === 'claimable';
+
+		if (!hullOutReached) {
+			return 'Hull fail-safe active — wait for the rig to secure.';
+		}
+	}
+
+	if (isThumperRunReadyToResolve(input.windows)) {
+		return 'Thumper timer has not finished yet.';
+	}
+
+	return 'Resolve event windows on the Thumper Run screen before claiming.';
 }
 
 export async function loadClaimScreen(
@@ -62,10 +106,8 @@ export async function loadClaimScreen(
 		now
 	});
 	const runReadyToResolve = isThumperRunReadyToResolve(windows);
-	const claimable =
-		!displayRun.claimedAt &&
-		isThumperRunClaimable({ run: displayRun, windows, now }) &&
-		runReadyToResolve;
+	const claimableByDomain = isThumperRunClaimable({ run: displayRun, windows, now });
+	const claimable = !displayRun.claimedAt && claimableByDomain;
 
 	const existingResult = displayRun.claimedAt
 		? await getThumperRunResultForRun(db, displayRun.id)
@@ -78,9 +120,7 @@ export async function loadClaimScreen(
 			thumperDemo,
 			secondsRemaining: thumperDemo.status === 'active' ? thumperDemo.secondsRemaining : undefined,
 			runReadyToResolve,
-			message: runReadyToResolve
-				? 'Thumper timer has not finished yet.'
-				: 'Resolve event windows on the Thumper Run screen before claiming.'
+			message: pendingClaimMessage({ run: displayRun, windows, now })
 		};
 	}
 

@@ -21,6 +21,27 @@ export function hullMaxRunSeconds(tier: HullTier, integrityPct: number): number 
 	return maxRunMinutes(tier, integrityPct) * 60;
 }
 
+/** Wall-clock run length before claim — capped by hull ceiling when fail-safe applies. */
+export function effectiveThumperRunDurationSeconds(input: {
+	hullTier: HullTier;
+	hullIntegrityAtDeploy: number;
+	plannedDurationSeconds: number;
+}): number {
+	const maxRunSeconds = hullMaxRunSeconds(input.hullTier, input.hullIntegrityAtDeploy);
+	return Math.min(input.plannedDurationSeconds, maxRunSeconds);
+}
+
+/** True when planned tail exceeds hull ceiling — run ends at hull-out, not full tail. */
+export function isHullFailsafeActive(input: {
+	hullTier: HullTier;
+	hullIntegrityAtDeploy: number;
+	plannedDurationSeconds: number;
+}): boolean {
+	return (
+		effectiveThumperRunDurationSeconds(input) < input.plannedDurationSeconds
+	);
+}
+
 /**
  * Hull 0% = fail-safe auto-recall: run ends at hull-out time with pro-rata yield kept.
  * When planned duration fits within the hull ceiling, no failsafe applies.

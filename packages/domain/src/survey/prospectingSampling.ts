@@ -556,10 +556,6 @@ export function sampleDepositSpot(input: {
 
 	let progress = withResolvedEnergy(input.pilotProgress, input.nowMs);
 
-	if (progress.sampledSpotIds.has(input.spot.spotId)) {
-		return { error: 'spot_already_sampled' };
-	}
-
 	const afterSpend = spendEnergy(progress, SAMPLE_ENERGY_COST);
 	if (!afterSpend) {
 		return { error: 'insufficient_energy' };

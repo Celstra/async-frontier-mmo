@@ -142,4 +142,25 @@ describe('resolveThumperRunResult', () => {
 		expect(result.resolutionType).toBe('recalled');
 		expect(result.recoveredQuantity).toBeLessThan(60);
 	});
+
+	it('hull fail-safe resolves only answered windows and forfeits the rest', () => {
+		const result = resolveThumperRunResult({
+			runConfig: {
+				targetResourceId: 'keth_iron',
+				projectedRecovery: 60,
+				hullTier: 'scavenged',
+				hullIntegrityAtDeploy: 5,
+				plannedDurationSeconds: 15 * 60
+			},
+			eventWindows: firstSessionWindows,
+			responses: [perfectResponses[0]!]
+		});
+
+		expect(result.recallReason).toBe('hull_failsafe');
+		expect(result.resolutionType).toBe('recalled');
+		expect(result.recoveredQuantity).toBeGreaterThan(0);
+		expect(result.recoveredQuantity).toBeLessThan(60);
+		expect(result.forfeitedRecovery).toBeGreaterThan(0);
+		expect(result.explanation).toContain('fail-safe nominal');
+	});
 });

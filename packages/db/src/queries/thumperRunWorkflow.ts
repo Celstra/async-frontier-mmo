@@ -31,6 +31,7 @@ export type ThumperRunResultPayload = {
 	wasteQuantity: number;
 	forfeitedRecovery: number;
 	resolutionType: string;
+	recallReason?: string;
 	appliedWear: number;
 	explanation: string;
 };
@@ -339,6 +340,7 @@ export async function claimOpenThumperRunForPilot(
 			wasteQuantity: resultPayload.wasteQuantity,
 			forfeitedRecovery: resultPayload.forfeitedRecovery,
 			resolutionType: resultPayload.resolutionType,
+			recallReason: resultPayload.recallReason ?? null,
 			appliedWear: resultPayload.appliedWear,
 			explanation: resultPayload.explanation,
 			resolvedAt: input.now

@@ -86,4 +86,22 @@ describe('isThumperRunClaimable', () => {
 			})
 		).toBe(true);
 	});
+
+	it('is claimable at hull fail-safe time even when later windows are unanswered', () => {
+		const longRunSeconds = 3_600;
+		expect(
+			isThumperRunClaimable({
+				run: { deployedAt, durationSeconds: longRunSeconds, runHullIntegrity: 5 },
+				windows: [{ chosenResponse: 'signal_tune' }, { chosenResponse: null }],
+				now: new Date('2026-01-01T12:03:00.000Z')
+			})
+		).toBe(true);
+		expect(
+			isThumperRunClaimable({
+				run: { deployedAt, durationSeconds: longRunSeconds, runHullIntegrity: 5 },
+				windows: [{ chosenResponse: 'signal_tune' }, { chosenResponse: null }],
+				now: new Date('2026-01-01T12:01:00.000Z')
+			})
+		).toBe(false);
+	});
 });

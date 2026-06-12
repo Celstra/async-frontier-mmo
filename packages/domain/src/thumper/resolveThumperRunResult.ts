@@ -221,19 +221,68 @@ export function resolveThumperRunResult(input: {
 	}
 
 	if (hullRecallReason && recallWindowIndex === null) {
-		const result = resolveAnsweredWindows({
-			runConfig,
-			eventWindows: input.eventWindows,
-			responses: input.responses,
-			applyRecoveryFloor: true
+		const hullDurationForfeit = Math.max(
+			0,
+			input.runConfig.projectedRecovery - runConfig.projectedRecovery
+		);
+		const answeredResponses = input.responses.filter(
+			(response) => response.chosenResponse !== 'recall_early'
+		);
+		const securedWindows = input.eventWindows.filter((window) =>
+			answeredResponses.some((response) => response.windowIndex === window.windowIndex)
+		);
+		const securedResponses = answeredResponses.filter((response) =>
+			securedWindows.some((window) => window.windowIndex === response.windowIndex)
+		);
+		const failsafeSuffix = 'RIG SECURED — fail-safe nominal. Hull integrity spent.';
+
+		if (securedWindows.length === 0) {
+			return {
+				targetResourceId: runConfig.targetResourceId,
+				projectedRecovery: runConfig.projectedRecovery,
+				recoveredQuantity:
+					input.eventWindows.length === 0 ? runConfig.projectedRecovery : 0,
+				wasteQuantity: 0,
+				forfeitedRecovery: hullDurationForfeit,
+				resolutionType: 'recalled',
+				appliedWear,
+				recallReason: hullRecallReason,
+				explanation:
+					input.eventWindows.length === 0
+						? failsafeSuffix
+						: `${RECALL_EXPLANATION_PREFIX} No windows were secured before hull fail-safe.`
+			};
+		}
+
+		const skippedWindowCount = input.eventWindows.length - securedWindows.length;
+		const windowForfeit =
+			skippedWindowCount > 0
+				? Math.round(
+						(runConfig.projectedRecovery * skippedWindowCount) / input.eventWindows.length
+					)
+				: 0;
+
+		const secured = resolveAnsweredWindows({
+			runConfig: {
+				...runConfig,
+				projectedRecovery: runConfig.projectedRecovery - windowForfeit
+			},
+			eventWindows: securedWindows,
+			responses: securedResponses,
+			applyRecoveryFloor: false
 		});
 
 		return {
-			...result,
-			forfeitedRecovery: Math.max(0, input.runConfig.projectedRecovery - runConfig.projectedRecovery),
+			...secured,
+			projectedRecovery: runConfig.projectedRecovery,
+			forfeitedRecovery: hullDurationForfeit + windowForfeit,
 			resolutionType: 'recalled',
+			appliedWear,
 			recallReason: hullRecallReason,
-			explanation: `${result.explanation} RIG SECURED — fail-safe nominal. Hull integrity spent.`
+			explanation:
+				skippedWindowCount > 0
+					? `${secured.explanation} ${failsafeSuffix}`
+					: `${secured.explanation} ${failsafeSuffix}`
 		};
 	}
 

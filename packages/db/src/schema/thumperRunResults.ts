@@ -13,6 +13,8 @@ export const thumperRunResults = pgTable('thumper_run_results', {
 	wasteQuantity: integer('waste_quantity').notNull(),
 	forfeitedRecovery: integer('forfeited_recovery').notNull().default(0),
 	resolutionType: text('resolution_type').notNull().default('completed'),
+	/** Set when hull integrity forces an early auto-recall (Decision 022). */
+	recallReason: text('recall_reason'),
 	appliedWear: integer('applied_wear').notNull().default(0),
 	explanation: text('explanation').notNull(),
 	resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull()
