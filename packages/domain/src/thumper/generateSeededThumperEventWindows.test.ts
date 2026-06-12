@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { THUMPER_COMPLICATION_TABLE } from './complicationTable.js';
-import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
+import { generateTutorialEventWindows } from './tutorialEventWindows.js';
 import { generateThumperEventWindows } from './generateThumperEventWindows.js';
 import {
 	DEFAULT_RUN_WINDOW_COUNT,
@@ -165,11 +165,12 @@ describe('generateThumperEventWindows', () => {
 			targetResourceId: 'veyrith_copper',
 			runSeed: 'ignored-for-tutorial',
 			isPushRun: false,
-			isTutorialRun: true
+			tutorialRun: 2
 		});
 
-		const tutorialOnly = generateFirstSessionEventWindows({
-			targetResourceId: 'veyrith_copper'
+		const tutorialOnly = generateTutorialEventWindows({
+			targetResourceId: 'veyrith_copper',
+			tutorialRun: 2
 		});
 
 		// Tutorial windows are all event windows (no quiet)
@@ -191,7 +192,7 @@ describe('generateThumperEventWindows', () => {
 				targetResourceId: 'veyrith_copper',
 				runSeed: 'tutorial',
 				isPushRun: true,
-				isTutorialRun: true
+				tutorialRun: 1
 			})
 		).toThrow(/push/i);
 	});
@@ -201,14 +202,12 @@ describe('generateThumperEventWindows', () => {
 			targetResourceId: 'veyrith_copper',
 			runSeed: 'tail-test',
 			isPushRun: false,
-			isTutorialRun: false,
 			extractionTailMinutes: 15
 		});
 		const longPlan = generateThumperEventWindows({
 			targetResourceId: 'veyrith_copper',
 			runSeed: 'tail-test',
 			isPushRun: false,
-			isTutorialRun: false,
 			extractionTailMinutes: 240
 		});
 

@@ -233,6 +233,7 @@ export {
 	ENERGY_REGEN_SAMPLES_PER_HOUR,
 	EVENT_WINDOW_FIRE_CHANCE,
 	EVENT_WINDOW_SLOTS,
+	FIRST_ASYNC_TAIL_MINUTES,
 	HULL_CEILING_EXPONENT,
 	HULL_TIER_BASE,
 	PATCHED_HULL_INTEGRITY,
@@ -260,7 +261,7 @@ export {
 	THUMPER_COMPLICATIONS,
 	THUMPER_COMPLICATION_TABLE
 } from './thumper/complicationTable';
-export { generateFirstSessionEventWindows } from './thumper/generateFirstSessionEventWindows';
+export { generateTutorialEventWindows } from './thumper/tutorialEventWindows.js';
 export {
 	DEFAULT_PROJECTED_RECOVERY,
 	DEFAULT_RUN_WINDOW_COUNT,
@@ -276,8 +277,10 @@ export {
 	computeDeployProjectedRecovery,
 	effectiveExtractionTailYieldMultiplier,
 	EXTRACTION_TAIL_OPTIONS,
+	extractionTailOptionsForHull,
 	extractionTailYieldMultiplier,
 	parseExtractionTailMinutes,
+	preferredExtractionTailMinutes,
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
 	TUTORIAL_EXTRACTION_TAIL_OPTION_5M,
 	projectedRecoveryForStoredRun,
@@ -285,7 +288,8 @@ export {
 	type ActiveRunMeterPreview,
 	type DeployPreview,
 	type DeployRunMeterPreview,
-	type ExtractionTailId
+	type ExtractionTailId,
+	type HullExtractionTailOption
 } from './thumper/deployPreview.js';
 export {
 	buildGearYieldPenaltySummary,
@@ -305,9 +309,17 @@ export {
 } from './thumper/buildThumperClaimResultExplanation.js';
 export {
 	generateThumperEventWindows,
+	TUTORIAL_RUN_1_SEED,
+	TUTORIAL_RUN_2_SEED,
 	TUTORIAL_RUN_SEED,
+	isScriptedTutorialDeployStep,
+	isTutorialRunSeed,
+	tutorialDeployForStep,
+	tutorialRunFromSeed,
+	tutorialRunSeed,
+	type TutorialThumperRun,
 	type ThumperRunWindowPlan
-} from './thumper/generateThumperEventWindows';
+} from './thumper/generateThumperEventWindows.js';
 export {
 	FIELD_REPAIR_REQUIRES_KIT_REASON,
 	getEventWindowResponseOptions,
@@ -337,7 +349,6 @@ export {
 	type EventWindowSeverity
 } from './thumper/eventWindowSeverity.js';
 export { assertRecallResponseAudit } from './thumper/assertRecallResponseAudit';
-export { isTutorialThumperDeploy } from './thumper/isTutorialThumperDeploy';
 export {
 	validateEventWindowRespondOrder,
 	type EventWindowRow
@@ -347,9 +358,11 @@ export {
 	type EventWindowResponseValidation
 } from './thumper/validateEventWindowResponse';
 export { availableTails, maxRunMinutes, type AvailableTailOption } from './thumper/hullRunCeiling.js';
+export { hullTierFromIntegrity, unlocksFirstAsyncTail } from './thumper/hullTier.js';
 export {
 	computeHullFailsafeProrata,
 	effectiveThumperRunDurationSeconds,
+	resolveFirstAsyncWaiverActive,
 	hullMaxRunSeconds,
 	isHullFailsafeActive,
 	type HullFailsafeProrata,
@@ -357,9 +370,9 @@ export {
 } from './thumper/hullFailsafeRecall.js';
 export {
 	FIRST_SESSION_PROJECTED_RECOVERY,
-	FIRST_SESSION_SCANNER_MINIMUM,
-	resolveFirstSessionThumperRunResult
-} from './thumper/resolveFirstSessionThumperRunResult';
+	FIRST_SESSION_SCANNER_MINIMUM
+} from './thumper/tutorialThumperRuns.js';
+export { resolveTutorialThumperRunResult } from './thumper/resolveTutorialThumperRunResult.js';
 export {
 	isThumperPartSchematic,
 	THUMPER_PART_SCHEMATIC_IDS,
@@ -426,3 +439,4 @@ export {
 	type TutorialScreenId,
 	type TutorialStep
 } from './tutorial/tutorialSteps.js';
+export { tutorialHullFailsafeClaimBanner } from './tutorial/tutorialClaimCopy.js';

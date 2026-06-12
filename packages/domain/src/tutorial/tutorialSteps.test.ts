@@ -12,6 +12,13 @@ describe('tutorialNextActionScreen', () => {
 	it('highlights field during hunt and deploy beats', () => {
 		expect(tutorialNextActionScreen('hunting')).toBe('field');
 		expect(tutorialNextActionScreen('first_deploy')).toBe('field');
+		expect(tutorialNextActionScreen('second_deploy')).toBe('field');
+	});
+
+	it('highlights settlement for recall, full claim, and async reveal', () => {
+		expect(tutorialNextActionScreen('recall_lesson')).toBe('settlement');
+		expect(tutorialNextActionScreen('full_claim')).toBe('settlement');
+		expect(tutorialNextActionScreen('async_reveal')).toBe('settlement');
 	});
 
 	it('returns null when tutorial is finished', () => {

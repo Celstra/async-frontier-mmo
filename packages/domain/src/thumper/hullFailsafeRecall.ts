@@ -1,5 +1,46 @@
-import type { HullTier } from '../tuning.js';
+import { FIRST_ASYNC_TAIL_MINUTES, type HullTier } from '../tuning.js';
 import { maxRunMinutes } from './hullRunCeiling.js';
+import { unlocksFirstAsyncTail } from './hullTier.js';
+
+function exceedsHullCeilingForTail(input: {
+	hullTier: HullTier;
+	hullIntegrityAtDeploy: number;
+	extractionTailMinutes: number;
+}): boolean {
+	if (input.extractionTailMinutes !== FIRST_ASYNC_TAIL_MINUTES) {
+		return false;
+	}
+	if (!unlocksFirstAsyncTail(input.hullTier)) {
+		return false;
+	}
+
+	return (
+		FIRST_ASYNC_TAIL_MINUTES >
+		maxRunMinutes(input.hullTier, input.hullIntegrityAtDeploy) + 0.001
+	);
+}
+
+/**
+ * One-time slice §6 first-async deploy — pending until used, then pinned to that run id.
+ */
+export function resolveFirstAsyncWaiverActive(input: {
+	hullTier: HullTier;
+	hullIntegrityAtDeploy: number;
+	extractionTailMinutes: number;
+	firstAsyncUnlockPending?: boolean;
+	waiverRunId?: string | null;
+	thumperRunId?: string;
+}): boolean {
+	if (!exceedsHullCeilingForTail(input)) {
+		return false;
+	}
+
+	if (input.thumperRunId && input.waiverRunId) {
+		return input.thumperRunId === input.waiverRunId;
+	}
+
+	return input.firstAsyncUnlockPending === true;
+}
 
 export type HullFailsafeRecallReason = 'hull_failsafe';
 
@@ -26,7 +67,13 @@ export function effectiveThumperRunDurationSeconds(input: {
 	hullTier: HullTier;
 	hullIntegrityAtDeploy: number;
 	plannedDurationSeconds: number;
+	extractionTailMinutes?: number;
+	firstAsyncWaiverActive?: boolean;
 }): number {
+	if (input.firstAsyncWaiverActive) {
+		return input.plannedDurationSeconds;
+	}
+
 	const maxRunSeconds = hullMaxRunSeconds(input.hullTier, input.hullIntegrityAtDeploy);
 	return Math.min(input.plannedDurationSeconds, maxRunSeconds);
 }
@@ -36,6 +83,8 @@ export function isHullFailsafeActive(input: {
 	hullTier: HullTier;
 	hullIntegrityAtDeploy: number;
 	plannedDurationSeconds: number;
+	extractionTailMinutes?: number;
+	firstAsyncWaiverActive?: boolean;
 }): boolean {
 	return (
 		effectiveThumperRunDurationSeconds(input) < input.plannedDurationSeconds
@@ -51,8 +100,14 @@ export function computeHullFailsafeProrata(input: {
 	hullIntegrityAtDeploy: number;
 	plannedDurationSeconds: number;
 	projectedRecovery: number;
+	extractionTailMinutes?: number;
+	firstAsyncWaiverActive?: boolean;
 }): HullFailsafeProrata | HullRunCapacity {
 	const maxRunSeconds = hullMaxRunSeconds(input.hullTier, input.hullIntegrityAtDeploy);
+
+	if (input.firstAsyncWaiverActive) {
+		return { triggered: false, maxRunSeconds };
+	}
 
 	if (input.plannedDurationSeconds <= maxRunSeconds) {
 		return { triggered: false, maxRunSeconds };

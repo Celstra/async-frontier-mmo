@@ -346,6 +346,18 @@ export async function hasPilotResourceStatReveal(
 	return row !== undefined;
 }
 
+export async function listPilotRevealedResourceInstanceIds(
+	db: DbExecutor,
+	pilotId: string
+): Promise<Set<string>> {
+	const rows = await db
+		.select({ resourceInstanceId: pilotResourceStatReveals.resourceInstanceId })
+		.from(pilotResourceStatReveals)
+		.where(eq(pilotResourceStatReveals.pilotId, pilotId));
+
+	return new Set(rows.map((row) => row.resourceInstanceId));
+}
+
 export async function listPilotWaypointSamples(
 	db: DbExecutor,
 	input: { pilotId: string; bloomId: number }

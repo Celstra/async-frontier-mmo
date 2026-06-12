@@ -2,6 +2,7 @@ import {
 	countFieldRepairKitsForPilot,
 	getEquippedScannerForPilot,
 	getEquippedThumperPartsForPilot,
+	listPilotRevealedResourceInstanceIds,
 	listPilotResourceStacksWithInstances,
 	listScannerItemsForPilot,
 	listThumperPartItemsForPilot
@@ -9,12 +10,11 @@ import {
 import {
 	canRestoreConditionWithFieldRepair,
 	maxRunMinutes,
-	PATCHED_HULL_INTEGRITY,
-	SCAVENGED_HULL_INTEGRITY,
+	hullTierFromIntegrity,
 	thumperPartSlotForSchematic,
-	type HullTier,
 	type ThumperPartSlot
 } from '@async-frontier-mmo/domain';
+import { fieldStatsFromInstance, type FieldResourceStats } from '$lib/field/resourceStats';
 import { familyDisplayLabel, thumperPartSlotLabel } from '$lib/displayLabels';
 import type { getGameDb } from './gameDb.js';
 
@@ -56,6 +56,8 @@ export type RigResourceStack = {
 	resourceInstanceId: string;
 	displayName: string;
 	quantity: number;
+	statsRevealed: boolean;
+	stats: FieldResourceStats | null;
 };
 
 export type RigResourceFamilyGroup = {
@@ -84,16 +86,6 @@ export type RigScreenData = {
 	resourcesByFamily: RigResourceFamilyGroup[];
 };
 
-function hullTierFromIntegrity(integrity: number): HullTier {
-	if (integrity <= SCAVENGED_HULL_INTEGRITY) {
-		return 'scavenged';
-	}
-	if (integrity <= PATCHED_HULL_INTEGRITY) {
-		return 'patched';
-	}
-	return 'basic';
-}
-
 function needsConditionRepair(condition: number, integrity: number): boolean {
 	return canRestoreConditionWithFieldRepair({ condition, integrity });
 }
@@ -109,6 +101,7 @@ export async function loadRigScreen(
 ): Promise<RigScreenData> {
 	const [
 		resourceStacks,
+		revealedInstanceIds,
 		scannerItems,
 		equippedScanner,
 		thumperPartItems,
@@ -116,6 +109,7 @@ export async function loadRigScreen(
 		repairKitCount
 	] = await Promise.all([
 		listPilotResourceStacksWithInstances(db, pilotId),
+		listPilotRevealedResourceInstanceIds(db, pilotId),
 		listScannerItemsForPilot(db, pilotId),
 		getEquippedScannerForPilot(db, pilotId),
 		listThumperPartItemsForPilot(db, pilotId),
@@ -174,11 +168,14 @@ export async function loadRigScreen(
 
 	const familyGroups = new Map<string, RigResourceStack[]>();
 	for (const stack of resourceStacks) {
+		const statsRevealed = revealedInstanceIds.has(stack.resourceInstanceId);
 		const existing = familyGroups.get(stack.family) ?? [];
 		existing.push({
 			resourceInstanceId: stack.resourceInstanceId,
 			displayName: stack.displayName,
-			quantity: stack.quantity
+			quantity: stack.quantity,
+			statsRevealed,
+			stats: statsRevealed ? fieldStatsFromInstance(stack) : null
 		});
 		familyGroups.set(stack.family, existing);
 	}

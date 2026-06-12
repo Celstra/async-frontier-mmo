@@ -1,4 +1,9 @@
-import { TUTORIAL_ORDER_CM_STACK, TUTORIAL_ORDER_SA_STACK } from '../tuning.js';
+import {
+	NEXT_NEED_ORDER_CM_STACK,
+	NEXT_NEED_ORDER_SA_STACK,
+	TUTORIAL_ORDER_CM_STACK,
+	TUTORIAL_ORDER_SA_STACK
+} from '../tuning.js';
 import type { ResourceFamily } from '../resources/types.js';
 
 export type SettlementMilestoneKey =
@@ -36,6 +41,9 @@ export const SETTLEMENT_MILESTONES: ReadonlyArray<SettlementMilestoneDefinition>
 	{
 		key: 'next_need',
 		label: 'Foreman posts the next need',
-		orders: []
+		orders: [
+			{ family: 'structural_alloy', stackSize: NEXT_NEED_ORDER_SA_STACK },
+			{ family: 'conductive_metal', stackSize: NEXT_NEED_ORDER_CM_STACK }
+		]
 	}
 ];

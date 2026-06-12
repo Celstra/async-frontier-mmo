@@ -27,6 +27,7 @@ export {
 	ensureStarterThumperPartsForPilot,
 	getEquippedThumperPartsForPilot,
 	listThumperPartItemsForPilot,
+	patchEquippedHullForTutorial,
 	ThumperPartEquipValidationError,
 	type EquipThumperPartOutcome
 } from './queries/thumperPartEquipment.js';
@@ -50,7 +51,9 @@ export {
 	bindSettlementOrdersOnSample,
 	clearPilotSettlementState,
 	deliverResourceStackToSettlementOrder,
+	ensureNextNeedOrdersPostedForPilot,
 	ensureSettlementBootstrapForPilot,
+	fabricatorTutorialOrdersFullyBound,
 	getActiveSettlementMilestoneKey,
 	getSettlementMilestoneUnlockedAt,
 	getSettlementOrderById,
@@ -79,8 +82,10 @@ export {
 } from './queries/thumperEventWindows.js';
 export {
 	claimThumperRun,
+	getClaimedTutorialRunDeployTarget,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
+	hasPilotClaimedTutorialRun,
 	hasPilotCompletedTutorialThumper,
 	insertThumperRun
 } from './queries/thumperRuns.js';
@@ -141,6 +146,7 @@ export {
 	ensurePilotFieldSession,
 	getPilotFieldSession,
 	hasPilotResourceStatReveal,
+	listPilotRevealedResourceInstanceIds,
 	listPilotWaypointSamples,
 	movePilotOnField,
 	scanPilotFieldTile,
@@ -203,6 +209,7 @@ export {
 	countPilotDepositSamples,
 	countPilotFamilyScans,
 	countPlaytestEventsByName,
+	getPlaytestEventOnce,
 	getLatestPlaytestEventCreatedAt,
 	listMissionOrderNudgeShownIds,
 	listPlaytestEventsForPilot,

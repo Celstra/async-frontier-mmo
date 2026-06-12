@@ -5,7 +5,6 @@ import {
 	getOpenThumperRunForPilot,
 	getThumperEventWindowsForRun,
 	getThumperRunPartSnapshots,
-	hasPilotCompletedTutorialThumper,
 	partModifiersFromRunSnapshots
 } from '@async-frontier-mmo/db';
 import {
@@ -13,7 +12,7 @@ import {
 	buildGearYieldPenaltySummary,
 	computeThumperPartRunModifiers,
 	describeEventWindowStakes,
-	FIRST_SESSION_SCANNER_MINIMUM,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
 	formatEventWindowOutcomeLine,
 	generateSeededThumperEventWindows,
 	generateThumperEventWindows,
@@ -23,7 +22,8 @@ import {
 	getEventWindowResponseOptions,
 	isThumperRunReadyToResolve,
 	resolveThumperState,
-	TUTORIAL_RUN_SEED,
+	tutorialRunFromSeed,
+	tutorialRunSeed,
 	type EventWindowMeterSnapshot,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
@@ -168,7 +168,7 @@ export function mapEventWindowsForUi(
 	runSeed?: string,
 	isPushRun?: boolean,
 	targetResourceId?: NamedResourceId,
-	isTutorialRun?: boolean,
+	tutorialRun?: 1 | 2,
 	extractionTailMinutes?: number
 ): EventWindowForUi[] {
 	// Build lookup map of stored event windows
@@ -186,13 +186,13 @@ export function mapEventWindowsForUi(
 		  }
 	>;
 
-	if (isTutorialRun && targetResourceId) {
+	if (tutorialRun && targetResourceId) {
 		// Tutorial: regenerate from plan (no quiet windows)
 		const tutorial = generateThumperEventWindows({
 			targetResourceId,
-			runSeed: TUTORIAL_RUN_SEED,
+			runSeed: tutorialRunSeed(tutorialRun),
 			isPushRun: false,
-			isTutorialRun: true
+			tutorialRun
 		});
 		fullPlan = tutorial.windows.map((w) =>
 			w.quiet
@@ -334,6 +334,8 @@ export async function loadOpenRunState(
 		isTutorialRun?: boolean;
 	}
 ) {
+	const tutorialRun = tutorialRunFromSeed(run.runSeed);
+	const isTutorialRun = tutorialRun !== null;
 	const now = new Date();
 	const thumperDemo = resolveThumperState({
 		deployedAt: run.deployedAt,
@@ -361,7 +363,7 @@ export async function loadOpenRunState(
 			trueConcentrationPercent: run.trueConcentrationPercent ?? 67,
 			extractionTailMinutes: run.extractionTailMinutes,
 			isPushRun: run.isPushRun,
-			isTutorialRun: options.isTutorialRun,
+			isTutorialRun,
 			partModifiers,
 			surveyClarityScore: scanner?.propertyScores.survey_clarity ?? 0,
 			equippedParts: {
@@ -370,16 +372,16 @@ export async function loadOpenRunState(
 				hull: partSummary(equipped.hull)
 			},
 			runHullCondition: run.runHullCondition,
-			recoveryFloor: options.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined
+			recoveryFloor: tutorialRun === 1 ? TUTORIAL_RUN_1_YIELD_FLOOR : undefined
 		});
 
 		gearYieldPenalty = buildGearYieldPenaltySummary({
 			isPushRun: run.isPushRun,
 			trueConcentrationPercent: run.trueConcentrationPercent ?? 67,
 			extractionTailMinutes: run.extractionTailMinutes,
-			isTutorialRun: options.isTutorialRun,
+			isTutorialRun,
 			partModifiers,
-			recoveryFloor: options.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined
+			recoveryFloor: tutorialRun === 1 ? TUTORIAL_RUN_1_YIELD_FLOOR : undefined
 		});
 
 		// Calculate overall thumper condition from equipped parts
@@ -435,7 +437,7 @@ export async function loadOpenRunState(
 			run.runSeed,
 			run.isPushRun,
 			run.targetResourceId as NamedResourceId,
-			options?.isTutorialRun,
+			tutorialRun ?? undefined,
 			run.extractionTailMinutes
 		),
 		runHullCondition: run.runHullCondition,
@@ -462,17 +464,10 @@ export async function loadThumperRunScreen(
 	}
 
 	const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
-		db,
-		pilotId,
-		TUTORIAL_RUN_SEED
-	);
-	const isTutorialRun = run.runSeed === TUTORIAL_RUN_SEED && !hasCompletedTutorial;
 
 	return loadOpenRunState(db, run, fieldRepairKitCount, {
 		resolveDisplayName,
-		includeRunMeters: true,
-		isTutorialRun
+		includeRunMeters: true
 	});
 }
 

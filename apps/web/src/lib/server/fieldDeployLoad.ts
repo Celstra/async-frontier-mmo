@@ -5,15 +5,18 @@ import {
 import {
 	availableTails,
 	buildDeployPreview,
+	extractionTailOptionsForHull,
 	buildGearYieldPenaltySummary,
 	computeThumperPartRunModifiers,
-	FIRST_SESSION_SCANNER_MINIMUM,
-	PATCHED_HULL_INTEGRITY,
-	SCAVENGED_HULL_INTEGRITY,
-	type HullTier,
+	hullTierFromIntegrity,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
 	type ThumperPartSnapshot
 } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
+import {
+	firstAsyncUnlockForEquippedHull,
+	type FirstAsyncTailState
+} from './firstAsyncTailState.js';
 
 function partSummary(
 	part: {
@@ -50,22 +53,27 @@ function equippedPartSnapshots(
 	return snapshots;
 }
 
-function hullTierFromIntegrity(integrity: number): HullTier {
-	if (integrity <= SCAVENGED_HULL_INTEGRITY) {
-		return 'scavenged';
-	}
-	if (integrity <= PATCHED_HULL_INTEGRITY) {
-		return 'patched';
-	}
-	return 'basic';
+export function hullDeployContextFromEquipped(
+	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>,
+	firstAsync: FirstAsyncTailState
+) {
+	const hullIntegrity = equipped.hull?.integrity ?? 100;
+	const hullTier = hullTierFromIntegrity(hullIntegrity);
+	const unlockFirstAsyncTail = firstAsyncUnlockForEquippedHull(hullIntegrity, firstAsync);
+	const tailOptions = availableTails(hullTier, hullIntegrity, { unlockFirstAsyncTail });
+	return {
+		hullIntegrity,
+		hullTier,
+		allowedTailMinutes: tailOptions.map((tail) => tail.minutes),
+		tailMenuOptions: extractionTailOptionsForHull(hullTier, hullIntegrity, { unlockFirstAsyncTail })
+	};
 }
 
 export function allowedExtractionTailsForEquippedHull(
-	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>
+	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>,
+	firstAsync: FirstAsyncTailState
 ): number[] {
-	const hullIntegrity = equipped.hull?.integrity ?? 100;
-	const hullTier = hullTierFromIntegrity(hullIntegrity);
-	return availableTails(hullTier, hullIntegrity).map((tail) => tail.minutes);
+	return hullDeployContextFromEquipped(equipped, firstAsync).allowedTailMinutes;
 }
 
 export async function loadDeployPreviewForPilot(
@@ -89,7 +97,7 @@ export async function loadDeployPreviewForPilot(
 		hull: partSummary(equipped.hull)
 	};
 
-	const recoveryFloor = input.isTutorialRun ? FIRST_SESSION_SCANNER_MINIMUM : undefined;
+	const recoveryFloor = input.isTutorialRun ? TUTORIAL_RUN_1_YIELD_FLOOR : undefined;
 
 	return {
 		equippedParts,

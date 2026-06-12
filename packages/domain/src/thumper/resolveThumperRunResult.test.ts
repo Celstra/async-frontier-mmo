@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
+import { generateTutorialEventWindows } from './tutorialEventWindows.js';
 import {
 	FIRST_SESSION_PROJECTED_RECOVERY,
 	FIRST_SESSION_SCANNER_MINIMUM
-} from './resolveFirstSessionThumperRunResult.js';
+} from './tutorialThumperRuns.js';
 import {
 	resolveThumperRunResult,
 	type ThumperEventWindowSnapshot
 } from './resolveThumperRunResult.js';
 
-const firstSessionWindows = generateFirstSessionEventWindows({
-	targetResourceId: 'veyrith_copper'
+const firstSessionWindows = generateTutorialEventWindows({
+	targetResourceId: 'veyrith_copper',
+	tutorialRun: 2
 }).windows as ThumperEventWindowSnapshot[];
 
 const firstSessionConfig = {

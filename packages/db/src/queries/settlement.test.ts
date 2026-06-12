@@ -136,7 +136,8 @@ describeDb('settlement persistence', () => {
 		expect(result).toEqual({
 			status: 'delivered',
 			deliveredUnits: TUTORIAL_ORDER_SA_STACK,
-			orderFilled: true
+			orderFilled: true,
+			fabricatorMilestoneCompleted: false
 		});
 	});
 
@@ -163,7 +164,8 @@ describeDb('settlement persistence', () => {
 		expect(result).toEqual({
 			status: 'delivered',
 			deliveredUnits: TUTORIAL_ORDER_SA_STACK,
-			orderFilled: true
+			orderFilled: true,
+			fabricatorMilestoneCompleted: false
 		});
 
 		const [orderRow] = await db

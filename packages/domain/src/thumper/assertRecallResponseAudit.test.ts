@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
-import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
+import { generateTutorialEventWindows } from './tutorialEventWindows.js';
 
-const eventWindows = generateFirstSessionEventWindows({
-	targetResourceId: 'veyrith_copper'
+const eventWindows = generateTutorialEventWindows({
+	targetResourceId: 'veyrith_copper',
+	tutorialRun: 2
 }).windows;
 
 describe('assertRecallResponseAudit', () => {

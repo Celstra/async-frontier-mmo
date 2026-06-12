@@ -2,13 +2,13 @@ import {
 	DepositSpotExhaustedError,
 	DepositSpotStaleError,
 	deployThumperRunWithEventWindows,
+	getClaimedTutorialRunDeployTarget,
 	getBloomRecord,
 	getDepositSpotYieldState,
 	getOpenThumperRunForPilot,
 	getPilotDepositSample,
 	getEquippedThumperPartsForPilot,
 	getResourceInstanceById,
-	hasPilotCompletedTutorialThumper,
 	movePilotOnField,
 	recordThumperEventWindowResponseForPilot,
 	countFieldRepairKitsForPilot,
@@ -26,11 +26,17 @@ import {
 } from '@async-frontier-mmo/db';
 import {
 	generateThumperEventWindows,
-	isTutorialThumperDeploy,
 	TOPOLOGY_GRID_HEIGHT,
 	TOPOLOGY_GRID_WIDTH,
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
-	TUTORIAL_RUN_SEED,
+	TUTORIAL_EXTRACTION_TAIL_OPTION_5M,
+	FIRST_ASYNC_TAIL_MINUTES,
+	TUTORIAL_RUN_1_MINUTES,
+	TUTORIAL_RUN_1_SEED,
+	TUTORIAL_RUN_2_MINUTES,
+	tutorialDeployForStep,
+	tutorialRunFromSeed,
+	tutorialRunSeed,
 	type NamedResourceId,
 	surveyEnergyOutlook,
 	type ResourceFamily,
@@ -43,6 +49,11 @@ import {
 	allowedExtractionTailsForEquippedHull,
 	loadDeployPreviewForPilot
 } from '$lib/server/fieldDeployLoad';
+import {
+	firstAsyncUnlockForEquippedHull,
+	loadFirstAsyncTailState,
+	recordFirstAsyncDeployUsed
+} from '$lib/server/firstAsyncTailState';
 import { loadFieldScreen } from '$lib/server/fieldLoad';
 import { claimOpenRun } from '$lib/server/fieldWorkflow';
 import {
@@ -67,7 +78,11 @@ import {
 	trackFieldTileScan,
 	trackSliceEventWindowResolved
 } from '$lib/server/playtestTelemetry';
-import { advanceTutorialStepIf } from '$lib/server/tutorialOrchestration';
+import {
+	advanceTutorialStepIf,
+	maybeAdvanceHuntingToTurnIn,
+	readTutorialStep
+} from '$lib/server/tutorialOrchestration';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
 import { recommendedResourceSlugForBloom } from '$lib/field/constants';
 import type { Actions, PageServerLoad } from './$types';
@@ -108,7 +123,6 @@ export const actions: Actions = {
 			await advanceTutorialStepIf(db, pilotId, 'first_orders', 'hunting');
 		} else {
 			await trackSecondFamilyStarted(db, pilotId, family);
-			await advanceTutorialStepIf(db, pilotId, 'hunting', 'turn_in');
 		}
 
 		return fieldData(db, pilotId);
@@ -285,25 +299,52 @@ export const actions: Actions = {
 			return fail(400, { message: 'Resource not found', ...(await fieldData(db, pilotId)) });
 		}
 
-		const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
-			db,
-			pilotId,
-			TUTORIAL_RUN_SEED
-		);
-		const isTutorialRun = isTutorialThumperDeploy({
-			targetResourceId: resource.resourceSlug as NamedResourceId,
-			hasCompletedTutorial
-		});
+		const tutorialStep = await readTutorialStep(db, pilotId);
+		const tutorialRun = tutorialDeployForStep(tutorialStep);
+		if (tutorialStep && tutorialStep !== 'done' && tutorialRun === null) {
+			return fail(400, {
+				message: 'Foreman has another job for you before the next deploy',
+				...(await fieldData(db, pilotId))
+			});
+		}
+		const isTutorialRun = tutorialRun !== null;
+
+		if (tutorialRun === 2) {
+			const firstRunWaypoint = await getClaimedTutorialRunDeployTarget(db, {
+				pilotId,
+				runSeed: TUTORIAL_RUN_1_SEED
+			});
+			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
+				return fail(400, {
+					message: 'Complete your first tutorial deploy before redeploying',
+					...(await fieldData(db, pilotId))
+				});
+			}
+			if (
+				resourceInstanceId !== firstRunWaypoint.resourceInstanceId ||
+				spotId !== firstRunWaypoint.depositSpotId
+			) {
+				return fail(400, {
+					message: 'Second tutorial deploy must use the same waypoint as your first run',
+					...(await fieldData(db, pilotId))
+				});
+			}
+		}
+
 		const extractionTailMinutes = isTutorialRun
-			? TUTORIAL_EXTRACTION_TAIL_OPTION.minutes
+			? tutorialRun === 1
+				? TUTORIAL_RUN_1_MINUTES
+				: TUTORIAL_RUN_2_MINUTES
 			: Number.parseInt(String(tailMinutesRaw ?? '60'), 10);
 
 		if (!Number.isFinite(extractionTailMinutes) || extractionTailMinutes <= 0) {
 			return fail(400, { message: 'Pick a run duration', ...(await fieldData(db, pilotId)) });
 		}
 
+		const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
+
 		if (!isTutorialRun) {
-			const allowedTails = allowedExtractionTailsForEquippedHull(equipped);
+			const allowedTails = allowedExtractionTailsForEquippedHull(equipped, firstAsync);
 			if (!allowedTails.includes(extractionTailMinutes)) {
 				return fail(400, {
 					message: 'That run duration exceeds your hull ceiling',
@@ -335,17 +376,18 @@ export const actions: Actions = {
 			isTutorialRun
 		});
 
-		const runSeed = isTutorialRun ? TUTORIAL_RUN_SEED : crypto.randomUUID();
+		const runSeed = isTutorialRun ? tutorialRunSeed(tutorialRun) : crypto.randomUUID();
 		const plan = generateThumperEventWindows({
 			targetResourceId: resource.resourceSlug as NamedResourceId,
 			runSeed,
 			isPushRun: false,
-			isTutorialRun,
+			tutorialRun: tutorialRun ?? undefined,
 			extractionTailMinutes
 		});
 
+		let deployedRun: Awaited<ReturnType<typeof deployThumperRunWithEventWindows>>;
 		try {
-			await deployThumperRunWithEventWindows(db, {
+			deployedRun = await deployThumperRunWithEventWindows(db, {
 				pilotId,
 				targetResourceId: resource.resourceSlug,
 				runSeed: plan.runSeed,
@@ -380,9 +422,18 @@ export const actions: Actions = {
 			throw error;
 		}
 
+		if (
+			!isTutorialRun &&
+			firstAsync.waiverPending &&
+			extractionTailMinutes === FIRST_ASYNC_TAIL_MINUTES &&
+			firstAsyncUnlockForEquippedHull(equipped.hull?.integrity ?? 100, firstAsync)
+		) {
+			await recordFirstAsyncDeployUsed(db, pilotId, deployedRun.id);
+		}
+
 		await trackFieldDeploy(db, pilotId, {
 			targetResourceId: resource.resourceSlug,
-			isTutorialRun,
+			tutorialRun,
 			extractionTailMinutes
 		});
 
@@ -465,7 +516,7 @@ export const actions: Actions = {
 			const preRespondState = await loadOpenRunState(db, run, fieldRepairKitCount, {
 				resolveDisplayName: resolveTargetDisplayName,
 				includeRunMeters: true,
-				isTutorialRun: run.runSeed === TUTORIAL_RUN_SEED
+				isTutorialRun: tutorialRunFromSeed(run.runSeed) !== null
 			});
 			if (!preRespondState.runMeters) {
 				return fail(500, { message: 'Run meters unavailable', ...(await fieldData(db, pilotId)) });
@@ -511,6 +562,7 @@ export const actions: Actions = {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
 		const now = new Date();
+		const tutorialStepBeforeClaim = await readTutorialStep(db, pilotId);
 
 		let outcome;
 		try {
@@ -524,9 +576,14 @@ export const actions: Actions = {
 
 		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
 			if (outcome.status === 'claimed' && outcome.claimResult) {
-				await trackFieldFirstClaim(db, pilotId, {
-					recoveredQuantity: outcome.claimResult.recoveredQuantity
-				});
+				if (tutorialStepBeforeClaim === 'first_deploy') {
+					await trackFieldFirstClaim(db, pilotId, {
+						recoveredQuantity: outcome.claimResult.recoveredQuantity
+					});
+					await advanceTutorialStepIf(db, pilotId, 'first_deploy', 'recall_lesson');
+				} else if (tutorialStepBeforeClaim === 'second_deploy') {
+					await advanceTutorialStepIf(db, pilotId, 'second_deploy', 'full_claim');
+				}
 			}
 			return fieldData(db, pilotId);
 		}

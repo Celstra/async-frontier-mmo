@@ -1,10 +1,11 @@
 import {
 	parseEventWindowSeverity,
 	projectedRecoveryForStoredRun,
-	resolveFirstSessionThumperRunResult,
+	resolveTutorialThumperRunResult,
 	resolveThumperRunResult,
-	TUTORIAL_RUN_SEED,
-	type HullTier,
+	hullTierFromIntegrity,
+	tutorialRunFromSeed,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
 	type NamedResourceId,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
@@ -24,16 +25,6 @@ type StoredRunRow = {
 	durationSeconds?: number;
 	runHullIntegrity?: number;
 };
-
-function hullTierFromIntegrity(integrity: number): HullTier {
-	if (integrity <= 10) {
-		return 'scavenged';
-	}
-	if (integrity <= 35) {
-		return 'patched';
-	}
-	return 'basic';
-}
 
 export function mapStoredWindowsToResolutionSnapshots(
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
@@ -69,14 +60,17 @@ export async function resolveThumperRunForStoredWindows(
 	const eventWindows = mapStoredWindowsToResolutionSnapshots(windows);
 	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
 	const partModifiers = partModifiersFromRunSnapshots(partSnapshots);
-	const isTutorialRun = run.runSeed === TUTORIAL_RUN_SEED;
+	const tutorialRun = tutorialRunFromSeed(run.runSeed);
+	const isTutorialRun = tutorialRun !== null;
 	const projectedRecovery = projectedRecoveryForStoredRun({
 		isPushRun: run.isPushRun,
 		trueConcentrationPercent: run.trueConcentrationPercent,
 		extractionTailMinutes: run.extractionTailMinutes,
 		isTutorialRun,
 		partModifiers,
-		recoveryFloor: options?.recoveryFloor
+		recoveryFloor:
+			options?.recoveryFloor ??
+			(tutorialRun === 1 ? TUTORIAL_RUN_1_YIELD_FLOOR : undefined)
 	});
 
 	const runHullIntegrity = run.runHullIntegrity ?? 100;
@@ -85,15 +79,19 @@ export async function resolveThumperRunForStoredWindows(
 	const hullConfig = {
 		hullTier: hullTierFromIntegrity(runHullIntegrity),
 		hullIntegrityAtDeploy: runHullIntegrity,
-		plannedDurationSeconds
+		plannedDurationSeconds,
+		extractionTailMinutes: run.extractionTailMinutes
 	};
 
-	if (isTutorialRun) {
-		return resolveFirstSessionThumperRunResult({
+	if (tutorialRun !== null) {
+		return resolveTutorialThumperRunResult({
+			tutorialRun,
 			targetResourceId: run.targetResourceId as NamedResourceId,
 			appliedWear: 0,
 			partModifiers,
 			projectedRecovery,
+			hullIntegrityAtDeploy: runHullIntegrity,
+			plannedDurationSeconds: run.durationSeconds,
 			eventWindows,
 			responses
 		});

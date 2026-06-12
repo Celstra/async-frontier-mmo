@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { FIELD_STAT_ROWS, type FieldResourceStats } from '$lib/field/resourceStats';
+	import ResourceQualityGrid from '$lib/field/ResourceQualityGrid.svelte';
+	import type { FieldResourceStats } from '$lib/field/resourceStats';
 
 	interface Props {
 		resourceDisplayName: string;
@@ -45,14 +46,7 @@
 			<h3 class="sample-result__stats-title">
 				{statsRevealedThisSample ? 'Resource quality — first reveal' : 'Resource quality'}
 			</h3>
-			<dl class="stat-grid">
-				{#each FIELD_STAT_ROWS as row (row.key)}
-					<div class="stat-grid__row">
-						<dt>{row.label}</dt>
-						<dd>{stats[row.key]}</dd>
-					</div>
-				{/each}
-			</dl>
+			<ResourceQualityGrid {stats} />
 		</div>
 	{/if}
 </aside>
@@ -113,29 +107,4 @@
 		color: var(--phosphor);
 	}
 
-	.stat-grid {
-		margin: 0;
-		display: grid;
-		gap: 0.35rem;
-	}
-
-	.stat-grid__row {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.75rem;
-		align-items: baseline;
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-	}
-
-	.stat-grid dt {
-		margin: 0;
-		color: var(--text-muted);
-	}
-
-	.stat-grid dd {
-		margin: 0;
-		color: var(--text-bright);
-		font-variant-numeric: tabular-nums;
-	}
 </style>

@@ -1,5 +1,6 @@
 import {
 	countPlaytestEventsByName,
+	getPlaytestEventOnce,
 	recordPlaytestEventOnce,
 	type PlaytestEventPayload
 } from '@async-frontier-mmo/db';
@@ -69,10 +70,23 @@ export async function trackFieldStatReveal(
 export async function trackFieldDeploy(
 	db: Db,
 	pilotId: string,
-	input: { targetResourceId: string; extractionTailMinutes: number; isTutorialRun: boolean }
+	input: {
+		targetResourceId: string;
+		extractionTailMinutes: number;
+		tutorialRun: 1 | 2 | null;
+	}
 ): Promise<void> {
-	await once(db, pilotId, 'first_deploy', input);
-	if (!input.isTutorialRun) {
+	if (input.tutorialRun === 1) {
+		await once(db, pilotId, 'first_deploy', input);
+		return;
+	}
+
+	if (input.tutorialRun !== null) {
+		return;
+	}
+
+	const asyncChosen = await getPlaytestEventOnce(db, pilotId, 'async_duration_chosen');
+	if (asyncChosen) {
 		await once(db, pilotId, 'second_deploy_voluntary', input);
 	}
 }

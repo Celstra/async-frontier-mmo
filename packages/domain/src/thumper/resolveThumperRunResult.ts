@@ -29,6 +29,8 @@ export type ThumperRunConfig = {
 	hullTier?: HullTier;
 	hullIntegrityAtDeploy?: number;
 	plannedDurationSeconds?: number;
+	extractionTailMinutes?: number;
+	firstAsyncWaiverActive?: boolean;
 };
 
 export type ThumperEventWindowSnapshot = {
@@ -84,7 +86,9 @@ function applyHullFailsafeToConfig(runConfig: ThumperRunConfig): {
 		hullTier: runConfig.hullTier,
 		hullIntegrityAtDeploy: runConfig.hullIntegrityAtDeploy,
 		plannedDurationSeconds: runConfig.plannedDurationSeconds,
-		projectedRecovery: runConfig.projectedRecovery
+		projectedRecovery: runConfig.projectedRecovery,
+		extractionTailMinutes: runConfig.extractionTailMinutes,
+		firstAsyncWaiverActive: runConfig.firstAsyncWaiverActive
 	});
 
 	if (!failsafe.triggered) {

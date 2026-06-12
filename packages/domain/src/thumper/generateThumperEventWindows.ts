@@ -1,44 +1,55 @@
 import type { NamedResourceId } from '../resources/types.js';
-import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
 import {
 	generateSeededThumperEventWindows,
 	type SeededThumperRunPlan
 } from './generateSeededThumperEventWindows.js';
-import { FIRST_SESSION_PROJECTED_RECOVERY } from './resolveFirstSessionThumperRunResult.js';
+import { generateTutorialEventWindows } from './tutorialEventWindows.js';
+import {
+	tutorialRunSeed,
+	type TutorialThumperRun
+} from './tutorialThumperRuns.js';
 
-export const TUTORIAL_RUN_SEED = 'first-session-scripted';
+export {
+	TUTORIAL_RUN_1_SEED,
+	TUTORIAL_RUN_2_SEED,
+	TUTORIAL_RUN_SEED,
+	tutorialDeployForStep,
+	tutorialRunFromSeed,
+	tutorialRunSeed,
+	isTutorialRunSeed,
+	isScriptedTutorialDeployStep,
+	type TutorialThumperRun
+} from './tutorialThumperRuns.js';
 
 export type ThumperRunWindowPlan = SeededThumperRunPlan;
 
 /**
- * Route tutorial vs seeded generation. Tutorial runs ignore push and use Decision 011 script.
+ * Route tutorial vs seeded generation. Tutorial runs use slice §6 scripted windows.
  */
 export function generateThumperEventWindows(input: {
 	targetResourceId: NamedResourceId;
 	runSeed: string;
 	isPushRun: boolean;
-	isTutorialRun: boolean;
+	tutorialRun?: TutorialThumperRun;
 	extractionTailMinutes?: number;
 }): ThumperRunWindowPlan {
-	if (input.isTutorialRun) {
+	if (input.tutorialRun !== undefined) {
 		if (input.isPushRun) {
 			throw new Error('Tutorial runs do not support push mode');
 		}
 
-		const tutorial = generateFirstSessionEventWindows({
-			targetResourceId: input.targetResourceId
+		const tutorial = generateTutorialEventWindows({
+			targetResourceId: input.targetResourceId,
+			tutorialRun: input.tutorialRun
 		});
-
-		// Tutorial has no quiet windows (100% trigger rate)
-		const eventWindowCount = tutorial.windows.length;
 
 		return {
 			...tutorial,
-			runSeed: TUTORIAL_RUN_SEED,
+			runSeed: tutorialRunSeed(input.tutorialRun),
 			isPushRun: false,
 			windowCount: tutorial.windows.length,
-			eventWindowCount,
-			projectedRecovery: FIRST_SESSION_PROJECTED_RECOVERY
+			eventWindowCount: tutorial.windows.length,
+			projectedRecovery: 0
 		};
 	}
 

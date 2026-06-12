@@ -134,7 +134,7 @@ describeDb('transactional claim reward', () => {
 		const run = await deployThumperRunWithEventWindows(db, {
 			pilotId: testPilotId,
 			targetResourceId: 'veyrith_copper',
-			runSeed: 'first-session-scripted',
+			runSeed: 'tutorial-run-1',
 			isPushRun: false,
 			deployedAt,
 			durationSeconds: 60,

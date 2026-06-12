@@ -2,22 +2,28 @@ import {
 	applyRunWearToPartItems,
 	claimOpenThumperRunForPilot,
 	getThumperEventWindowsForRun,
+	getPilotTutorialStep,
 	getThumperRunPartSnapshots,
 	partModifiersFromRunSnapshots
 } from '@async-frontier-mmo/db';
 import {
-	FIRST_SESSION_SCANNER_MINIMUM,
+	hullTierFromIntegrity,
 	isThumperRunClaimable,
 	projectedRecoveryForStoredRun,
-	resolveFirstSessionThumperRunResult,
-	resolveThumperRunResult,
-	TUTORIAL_RUN_SEED,
+	resolveTutorialThumperRunResult,
+	tutorialRunFromSeed,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
 	type NamedResourceId,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
+import { resolveThumperRunResult } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
+import {
+	firstAsyncWaiverActiveForRun,
+	loadFirstAsyncTailState
+} from './firstAsyncTailState.js';
 
 type ClaimRunRow = {
 	id: string;
@@ -32,14 +38,19 @@ type ClaimRunRow = {
 
 async function buildTutorialClaimResult(
 	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
-	run: ClaimRunRow,
+	run: ClaimRunRow & { runSeed: string },
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 ) {
+	const tutorialRun = tutorialRunFromSeed(run.runSeed);
+	if (tutorialRun === null) {
+		throw new Error(`Unknown tutorial run seed: ${run.runSeed}`);
+	}
+
 	const responses = windows
 		.filter((window) => window.chosenResponse !== null)
 		.map((window) => ({
 			windowIndex: window.windowIndex,
-			complication: window.complication as 'signal_drift' | 'pump_strain',
+			complication: window.complication as ThumperComplicationId,
 			chosenResponse: window.chosenResponse as ThumperWindowChosenResponse
 		}));
 
@@ -51,17 +62,20 @@ async function buildTutorialClaimResult(
 		extractionTailMinutes: run.extractionTailMinutes,
 		isTutorialRun: true,
 		partModifiers,
-		recoveryFloor: FIRST_SESSION_SCANNER_MINIMUM
+		recoveryFloor: tutorialRun === 1 ? TUTORIAL_RUN_1_YIELD_FLOOR : undefined
 	});
 
-	return resolveFirstSessionThumperRunResult({
+	return resolveTutorialThumperRunResult({
+		tutorialRun,
 		targetResourceId: run.targetResourceId as NamedResourceId,
 		appliedWear: 0,
 		partModifiers,
 		projectedRecovery,
+		hullIntegrityAtDeploy: run.runHullIntegrity,
+		plannedDurationSeconds: run.durationSeconds,
 		eventWindows: windows.map((window) => ({
 			windowIndex: window.windowIndex,
-			complication: window.complication as 'signal_drift' | 'pump_strain',
+			complication: window.complication as ThumperComplicationId,
 			matchingAction: window.matchingAction as ThumperEventActionId
 		})),
 		responses
@@ -71,7 +85,8 @@ async function buildTutorialClaimResult(
 async function buildSeededClaimResult(
 	tx: Parameters<typeof getThumperRunPartSnapshots>[0],
 	run: ClaimRunRow & { runSeed: string },
-	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
+	firstAsync: Awaited<ReturnType<typeof loadFirstAsyncTailState>>
 ) {
 	const responses = windows
 		.filter((window) => window.chosenResponse !== null)
@@ -92,9 +107,12 @@ async function buildSeededClaimResult(
 
 	const runHullIntegrity = run.runHullIntegrity ?? 100;
 	const plannedDurationSeconds = run.durationSeconds ?? run.extractionTailMinutes * 60 + 60;
-	const hullTier =
-		runHullIntegrity <= 10 ? 'scavenged' : runHullIntegrity <= 35 ? 'patched' : 'basic';
-
+	const firstAsyncWaiverActive = firstAsyncWaiverActiveForRun({
+		hullIntegrity: runHullIntegrity,
+		extractionTailMinutes: run.extractionTailMinutes,
+		thumperRunId: run.id,
+		firstAsync
+	});
 	return resolveThumperRunResult({
 		runConfig: {
 			targetResourceId: run.targetResourceId as NamedResourceId,
@@ -102,9 +120,11 @@ async function buildSeededClaimResult(
 			runSeed: run.runSeed,
 			appliedWear: 0,
 			partModifiers,
-			hullTier,
+			hullTier: hullTierFromIntegrity(runHullIntegrity),
 			hullIntegrityAtDeploy: runHullIntegrity,
-			plannedDurationSeconds
+			plannedDurationSeconds,
+			extractionTailMinutes: run.extractionTailMinutes,
+			firstAsyncWaiverActive
 		},
 		eventWindows: windows.map((window) => ({
 			windowIndex: window.windowIndex,
@@ -120,16 +140,35 @@ export async function claimOpenRun(
 	pilotId: string,
 	now: Date
 ) {
+	const tutorialStep = await getPilotTutorialStep(db, pilotId);
+	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
+
 	return claimOpenThumperRunForPilot(db, {
 		pilotId,
 		now,
-		isClaimable: (run, windows) => isThumperRunClaimable({ run, windows, now }),
+		isClaimable: (run, windows) =>
+			isThumperRunClaimable({
+				run,
+				windows,
+				now,
+				firstAsyncWaiverActive: firstAsyncWaiverActiveForRun({
+					hullIntegrity: run.runHullIntegrity ?? 100,
+					extractionTailMinutes: run.extractionTailMinutes,
+					thumperRunId: run.id,
+					firstAsync
+				})
+			}),
 		isResolvableRun: () => true,
 		validateWindows: () => {},
 		buildResult: (tx, run, windows) =>
-			run.runSeed === TUTORIAL_RUN_SEED
-				? buildTutorialClaimResult(tx, run, windows)
-				: buildSeededClaimResult(tx, run, windows),
+			tutorialRunFromSeed(run.runSeed) !== null
+				? buildTutorialClaimResult(tx, run as ClaimRunRow & { runSeed: string }, windows)
+				: buildSeededClaimResult(
+						tx,
+						run as ClaimRunRow & { runSeed: string },
+						windows,
+						firstAsync
+					),
 		afterResultInserted: async (tx, { run, windows }) => {
 			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
 			const responses = windows

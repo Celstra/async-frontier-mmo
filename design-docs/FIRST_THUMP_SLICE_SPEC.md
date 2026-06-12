@@ -100,7 +100,7 @@ Run-duration ramp across day one: 2 (scripted abort) → 5 (scripted) → 15 →
 - **One thumper slot.** Fleet growth is a future settlement unlock, not in slice.
 - **Known-spot redeploy:** waypoints are redeployable without resurvey until `units_extracted = units_capacity` or the resource instance expires (Decision 020). Expiry kills the waypoint. The RIG/FIELD UI must show remaining units on known spots ("Sorrel ridge: ~210u left").
 - **Hull 0% = auto-recall fail-safe:** run ends early, partial yield kept, repair debt incurred. Never destruction.
-- **Hull governs run ceiling** (sim-derived, the tutorial beats fall out of the real formula): `max_run_minutes = TIER_BASE × (integrity/100)^1.2` — scavenged (base 75) at 5% ≈ 2 min; patched (base 30) at 30% ≈ 7 min; Basic crafted at 80% ≈ 3 h; Strong ≈ 7 h; Exceptional ≈ 11 h. Player picks any tail ≤ ceiling.
+- **Hull governs run ceiling** (sim-derived, the tutorial beats fall out of the real formula): `max_run_minutes = TIER_BASE × (integrity/100)^1.2` — scavenged (base 75) at 5% ≈ 2 min; patched (base 30) at 30% ≈ 7 min; Basic crafted at 80% ≈ 3 h; Strong ≈ 7 h; Exceptional ≈ 11 h. Player picks any tail ≤ ceiling. **One-time exception (Decision 022):** after `async_duration_chosen`, the first non-tutorial **15 min** deploy on a scavenged/patched hull unlocks that tail in the picker and waives hull-out fail-safe for that run only; later patched deploys obey the formula. 60 min / 4 h still require crafted tiers.
 - **Blooms unchanged:** seeded first bloom, individual lifespans, manual rotation.
 
 ## 8. Simulations (built and run 2026-06-12)

@@ -1,6 +1,7 @@
 import {
 	countPlaytestEventsByName,
 	getActiveSettlementMilestoneKey,
+	getEquippedThumperPartsForPilot,
 	getPilotTutorialStep,
 	getResourceInstanceById,
 	getSettlementMilestoneUnlockedAt,
@@ -24,6 +25,9 @@ import { activeBloomDisplayName } from '$lib/bloomDisplay';
 import { familyDisplayLabel } from '$lib/displayLabels';
 import { foremanLine } from '$lib/copy/foreman';
 import type { getGameDb } from './gameDb.js';
+import { hullDeployContextFromEquipped } from './fieldDeployLoad.js';
+import { loadFirstAsyncTailState } from './firstAsyncTailState.js';
+import type { HullExtractionTailOption } from '@async-frontier-mmo/domain';
 
 type ResourceInstanceRow = NonNullable<
 	Awaited<ReturnType<typeof getResourceInstanceById>>
@@ -75,6 +79,11 @@ export type SettlementScreenData = {
 	activeMissionLine: string | null;
 	showFabricatorTakeover: boolean;
 	showPrologueTakeover: boolean;
+	tutorialStep: string | null;
+	showRecallLessonPrompt: boolean;
+	showHullPatchAction: boolean;
+	showAsyncDurationPicker: boolean;
+	asyncTailOptions: HullExtractionTailOption[];
 };
 
 function milestoneLabelFor(key: SettlementMilestoneKey): string {
@@ -367,15 +376,23 @@ export async function loadSettlementScreen(
 	pilotId: string
 ): Promise<SettlementScreenData> {
 	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
-	const [orders, inventory, tutorialStep, fabricatorUnlockedAt, fabricatorSeenCount, nudgeShownOrderIds] =
-		await Promise.all([
-			listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
-			listPilotResourceStacksWithInstances(db, pilotId),
-			getPilotTutorialStep(db, pilotId),
-			getSettlementMilestoneUnlockedAt(db, { pilotId, milestoneKey: 'fabricator_online' }),
-			countPlaytestEventsByName(db, pilotId, 'fabricator_online_seen'),
-			listMissionOrderNudgeShownIds(db, pilotId)
-		]);
+	const [
+		orders,
+		inventory,
+		tutorialStep,
+		fabricatorUnlockedAt,
+		fabricatorSeenCount,
+		nudgeShownOrderIds,
+		equipped
+	] = await Promise.all([
+		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
+		listPilotResourceStacksWithInstances(db, pilotId),
+		getPilotTutorialStep(db, pilotId),
+		getSettlementMilestoneUnlockedAt(db, { pilotId, milestoneKey: 'fabricator_online' }),
+		countPlaytestEventsByName(db, pilotId, 'fabricator_online_seen'),
+		listMissionOrderNudgeShownIds(db, pilotId),
+		getEquippedThumperPartsForPilot(db, pilotId)
+	]);
 
 	const openOrders = orders.filter((order) => order.status === 'open');
 	const orderCards = await buildSettlementOrderCards(
@@ -398,6 +415,8 @@ export async function loadSettlementScreen(
 	const fabricatorUnlocked = fabricatorUnlockedAt !== null;
 	const filledOrders = orderCards.filter((order) => order.status === 'filled');
 	const milestoneLabel = milestoneLabelFor(milestoneKey);
+	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
+	const { tailMenuOptions: asyncTailOptions } = hullDeployContextFromEquipped(equipped, firstAsync);
 
 	return {
 		milestoneKey,
@@ -421,6 +440,11 @@ export async function loadSettlementScreen(
 		activeOrderId,
 		activeMissionLine,
 		showFabricatorTakeover: fabricatorUnlocked && fabricatorSeenCount === 0,
-		showPrologueTakeover: tutorialStep === 'prologue'
+		showPrologueTakeover: tutorialStep === 'prologue',
+		tutorialStep,
+		showRecallLessonPrompt: tutorialStep === 'recall_lesson',
+		showHullPatchAction: tutorialStep === 'hull_patch',
+		showAsyncDurationPicker: tutorialStep === 'async_reveal',
+		asyncTailOptions
 	};
 }

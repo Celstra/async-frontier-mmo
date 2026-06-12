@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateFirstSessionEventWindows } from './generateFirstSessionEventWindows.js';
+import { generateTutorialEventWindows } from './tutorialEventWindows.js';
 import { generateSeededThumperEventWindows } from './generateSeededThumperEventWindows.js';
 import { rollEventWindowSeverity } from './eventWindowSeverity.js';
 
@@ -27,7 +27,10 @@ describe('rollEventWindowSeverity', () => {
 	});
 
 	it('tutorial first-session windows are always minor', () => {
-		const plan = generateFirstSessionEventWindows({ targetResourceId: 'veyrith_copper' });
+		const plan = generateTutorialEventWindows({
+			targetResourceId: 'veyrith_copper',
+			tutorialRun: 2
+		});
 		// Tutorial has no quiet windows
 		const eventWindows = plan.windows.filter((w) => !w.quiet);
 		expect(eventWindows.every((window) => 'severity' in window && window.severity === 'minor')).toBe(true);

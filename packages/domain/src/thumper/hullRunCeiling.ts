@@ -1,4 +1,5 @@
 import {
+	FIRST_ASYNC_TAIL_MINUTES,
 	HULL_CEILING_EXPONENT,
 	HULL_TIER_BASE,
 	RUN_TAILS_MINUTES,
@@ -6,6 +7,7 @@ import {
 	TUTORIAL_RUN_2_MINUTES,
 	type HullTier
 } from '../tuning.js';
+import { unlocksFirstAsyncTail } from './hullTier.js';
 
 /** Max run length in minutes before hull integrity is spent. */
 export function maxRunMinutes(tier: HullTier, integrityPct: number): number {
@@ -39,7 +41,7 @@ function tailLabel(minutes: number): string {
 export function availableTails(
 	tier: HullTier,
 	integrityPct: number,
-	options?: { includeTutorialTails?: boolean }
+	options?: { includeTutorialTails?: boolean; unlockFirstAsyncTail?: boolean }
 ): AvailableTailOption[] {
 	const ceiling = maxRunMinutes(tier, integrityPct);
 	const candidates: number[] = [...RUN_TAILS_MINUTES];
@@ -50,7 +52,16 @@ export function availableTails(
 
 	const unique = [...new Set(candidates)].sort((a, b) => a - b);
 
-	return unique
-		.filter((minutes) => minutes <= ceiling + 0.001)
-		.map((minutes) => ({ minutes, label: tailLabel(minutes) }));
+	const allowed = unique.filter((minutes) => minutes <= ceiling + 0.001);
+
+	if (
+		options?.unlockFirstAsyncTail &&
+		unlocksFirstAsyncTail(tier) &&
+		!allowed.includes(FIRST_ASYNC_TAIL_MINUTES)
+	) {
+		allowed.push(FIRST_ASYNC_TAIL_MINUTES);
+		allowed.sort((a, b) => a - b);
+	}
+
+	return allowed.map((minutes) => ({ minutes, label: tailLabel(minutes) }));
 }

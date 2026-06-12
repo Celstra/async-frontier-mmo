@@ -64,6 +64,27 @@
 		<p class="flash flash--error" role="alert">{data.sampleFlash}</p>
 	{/if}
 
+	{#if data.claimView?.mode === 'claimable'}
+		<form method="POST" action="?/claim" use:enhance class="claim-panel">
+			<button type="submit" class="action-row action-row--primary">Claim yield</button>
+		</form>
+	{:else if data.claimView?.mode === 'result'}
+		<div class="claim-result panel-inset claim-panel">
+			{#if data.claimView.tutorialRecallBannerLine}
+				<p class="claim-result__banner claim-result__banner--verbatim">
+					{data.claimView.tutorialRecallBannerLine}
+				</p>
+			{:else}
+				<p class="claim-result__banner">RIG SECURED</p>
+				<p>{data.claimView.explanation.summary}</p>
+				<p>{data.claimView.claimResult.recoveredQuantity}u recovered</p>
+			{/if}
+			{#if data.claimView.tutorialComparisonLine}
+				<p class="claim-result__comparison">{data.claimView.tutorialComparisonLine}</p>
+			{/if}
+		</div>
+	{/if}
+
 	{#if data.showRigView && data.rigView}
 		<div class="rig-view panel">
 			<ThumperAsciiPre art={deployedThumperAscii} />
@@ -96,17 +117,6 @@
 				{/if}
 			{/each}
 
-			{#if data.claimView?.mode === 'claimable'}
-				<form method="POST" action="?/claim" use:enhance>
-					<button type="submit" class="action-row action-row--primary">Claim yield</button>
-				</form>
-			{:else if data.claimView?.mode === 'result'}
-				<div class="claim-result panel-inset">
-					<p class="claim-result__banner">RIG SECURED</p>
-					<p>{data.claimView.explanation.summary}</p>
-					<p>{data.claimView.claimResult.recoveredQuantity}u recovered</p>
-				</div>
-			{/if}
 		</div>
 	{:else}
 		<div class="screen__body">
@@ -463,10 +473,32 @@
 		font-size: var(--font-size-sm);
 	}
 
+	.claim-panel {
+		margin-bottom: 1rem;
+	}
+
 	.claim-result__banner {
 		margin: 0 0 0.5rem;
 		font-weight: 700;
 		color: var(--accent-warning);
 		letter-spacing: 0.06em;
+	}
+
+	.claim-result__banner--verbatim {
+		font-weight: 500;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-sm);
+		line-height: 1.45;
+		letter-spacing: normal;
+		color: var(--text-bright);
+	}
+
+	.claim-result__comparison {
+		margin: 0.75rem 0 0;
+		padding-top: 0.65rem;
+		border-top: 1px solid var(--border-subtle);
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		color: var(--phosphor);
 	}
 </style>

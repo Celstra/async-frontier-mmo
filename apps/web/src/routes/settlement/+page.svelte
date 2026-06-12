@@ -50,6 +50,48 @@
 			<p class="foreman__line">{data.foremanLine}</p>
 		</aside>
 
+		{#if data.showRecallLessonPrompt}
+			<form method="POST" action="?/dismissRecallLesson" class="tutorial-beat">
+				<button type="submit" class="action-row action-row--primary">
+					Acknowledge recall — patch hull next
+				</button>
+			</form>
+		{/if}
+
+		{#if data.showHullPatchAction}
+			<form method="POST" action="?/applyHullPatch" class="tutorial-beat">
+				<button type="submit" class="action-row action-row--primary">
+					Patch hull to 30% (free)
+				</button>
+			</form>
+		{/if}
+
+		{#if data.showAsyncDurationPicker}
+			<section class="panel tutorial-beat" aria-label="Async deployment reveal">
+				<p class="hint">Pick your first real run length — thumpers work while you’re away.</p>
+				<div class="action-rows">
+					{#each data.asyncTailOptions as option (option.id)}
+						<form method="POST" action="?/chooseAsyncDuration">
+							<input type="hidden" name="tailMinutes" value={option.minutes} />
+							<button
+								type="submit"
+								class="action-row"
+								disabled={!option.allowed}
+								title={option.allowed
+									? undefined
+									: 'Your patched hull cannot run that long — craft a better hull in WORKSHOP'}
+							>
+								{option.label}
+								{#if !option.allowed}
+									<span class="action-row__lock"> — needs crafted hull</span>
+								{/if}
+							</button>
+						</form>
+					{/each}
+				</div>
+			</section>
+		{/if}
+
 		{#if activeOrder}
 			<section class="current-mission panel" aria-label="Current mission">
 				<p class="current-mission__eyebrow">Current mission</p>

@@ -57,7 +57,30 @@ export async function getOpenThumperRunForPilot(db: DbExecutor, pilotId: string)
 	return row ?? null;
 }
 
-export async function hasPilotCompletedTutorialThumper(
+export async function getClaimedTutorialRunDeployTarget(
+	db: DbExecutor,
+	input: { pilotId: string; runSeed: string }
+) {
+	const [row] = await db
+		.select({
+			depositSpotId: thumperRuns.depositSpotId,
+			resourceInstanceId: thumperRuns.resourceInstanceId
+		})
+		.from(thumperRuns)
+		.where(
+			and(
+				eq(thumperRuns.pilotId, input.pilotId),
+				eq(thumperRuns.runSeed, input.runSeed),
+				isNotNull(thumperRuns.claimedAt)
+			)
+		)
+		.orderBy(desc(thumperRuns.deployedAt))
+		.limit(1);
+
+	return row ?? null;
+}
+
+export async function hasPilotClaimedTutorialRun(
 	db: DbExecutor,
 	pilotId: string,
 	tutorialRunSeed: string
@@ -75,6 +98,15 @@ export async function hasPilotCompletedTutorialThumper(
 		.limit(1);
 
 	return row !== undefined;
+}
+
+/** @deprecated Use {@link hasPilotClaimedTutorialRun} with the run seed. */
+export async function hasPilotCompletedTutorialThumper(
+	db: DbExecutor,
+	pilotId: string,
+	tutorialRunSeed: string
+) {
+	return hasPilotClaimedTutorialRun(db, pilotId, tutorialRunSeed);
 }
 
 export async function claimThumperRun(db: DbExecutor, id: string, claimedAt: Date) {

@@ -4,17 +4,19 @@ import {
 	buildDeployPreview,
 	computeDeployProjectedRecovery,
 	effectiveExtractionTailYieldMultiplier,
+	extractionTailOptionsForHull,
 	extractionTailYieldMultiplier,
 	parseExtractionTailMinutes,
+	preferredExtractionTailMinutes,
 	projectedRecoveryForStoredRun,
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
 	totalRunDurationSeconds
 } from './deployPreview.js';
 import { DEFAULT_PROJECTED_RECOVERY } from './generateSeededThumperEventWindows.js';
-import {
-	FIRST_SESSION_SCANNER_MINIMUM,
-	resolveFirstSessionThumperRunResult
-} from './resolveFirstSessionThumperRunResult.js';
+import { PATCHED_HULL_INTEGRITY, TUTORIAL_RUN_1_YIELD_FLOOR } from '../tuning.js';
+import { generateTutorialEventWindows } from './tutorialEventWindows.js';
+import { resolveTutorialThumperRunResult } from './resolveTutorialThumperRunResult.js';
+import type { ThumperEventWindowSnapshot } from './resolveThumperRunResult.js';
 
 describe('deployPreview', () => {
 	it('applies sublinear extraction tail yield', () => {
@@ -59,24 +61,27 @@ describe('deployPreview', () => {
 		expect(parseExtractionTailMinutes('2m', { isTutorialRun: true })).toBe(2);
 	});
 
-	it('tutorial stored run with 2m tail clears scanner conductive core on claim', () => {
+	it('tutorial run 1 claim keeps the scripted 25u floor after hull fail-safe', () => {
 		const projectedRecovery = projectedRecoveryForStoredRun({
 			isPushRun: false,
 			trueConcentrationPercent: 94,
 			extractionTailMinutes: TUTORIAL_EXTRACTION_TAIL_OPTION.minutes,
 			isTutorialRun: true
 		});
+		const windows = generateTutorialEventWindows({
+			targetResourceId: 'veyrith_copper',
+			tutorialRun: 1
+		}).windows as ThumperEventWindowSnapshot[];
 
-		const result = resolveFirstSessionThumperRunResult({
+		const result = resolveTutorialThumperRunResult({
+			tutorialRun: 1,
 			targetResourceId: 'veyrith_copper',
 			projectedRecovery,
-			responses: [
-				{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' },
-				{ windowIndex: 2, complication: 'pump_strain', chosenResponse: 'hold' }
-			]
+			eventWindows: windows,
+			responses: [{ windowIndex: 1, complication: 'signal_drift', chosenResponse: 'hold' }]
 		});
 
-		expect(result.recoveredQuantity).toBeGreaterThanOrEqual(FIRST_SESSION_SCANNER_MINIMUM);
+		expect(result.recoveredQuantity).toBeGreaterThanOrEqual(TUTORIAL_RUN_1_YIELD_FLOOR);
 	});
 
 	it('raises projected recovery for richer sampled spots and longer tails', () => {
@@ -112,5 +117,19 @@ describe('deployPreview', () => {
 		expect(preview.pumpFlow).toBeGreaterThan(0);
 		expect(preview.threatPressure).toBe(24);
 		expect(preview.hullCondition).toBe(85);
+	});
+
+	it('lets patched tutorial hull pick 15m via async unlock but not longer tails', () => {
+		const options = extractionTailOptionsForHull('patched', PATCHED_HULL_INTEGRITY, {
+			unlockFirstAsyncTail: true
+		});
+		expect(options.find((option) => option.minutes === 15)?.allowed).toBe(true);
+		expect(options.find((option) => option.minutes === 60)?.allowed).toBe(false);
+		expect(options.find((option) => option.minutes === 240)?.allowed).toBe(false);
+	});
+
+	it('prefers the settlement async reveal choice when hull allows it', () => {
+		expect(preferredExtractionTailMinutes([15], 15)).toBe(15);
+		expect(preferredExtractionTailMinutes([15], 60)).toBe(15);
 	});
 });

@@ -1,6 +1,7 @@
 import {
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
+	getPilotTutorialStep,
 	getThumperEventWindowsForRun,
 	getThumperRunPartSnapshots,
 	getThumperRunResultForRun,
@@ -9,16 +10,23 @@ import {
 import {
 	buildThumperClaimResultExplanation,
 	effectiveThumperRunDurationSeconds,
+	hullTierFromIntegrity,
 	isHullFailsafeActive,
+	resolveFirstAsyncWaiverActive,
 	isThumperRunClaimable,
 	isThumperRunReadyToResolve,
 	resolveThumperState,
-	type HullTier,
+	TUTORIAL_RUN_1_SEED,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
+	TUTORIAL_RUN_2_SEED,
+	TUTORIAL_RUN_2_YIELD,
+	tutorialHullFailsafeClaimBanner,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
+import { loadFirstAsyncTailState } from './firstAsyncTailState.js';
 import { resolveTargetDisplayName } from './targetResource.js';
 
 function ledgerEntryRelatesToRun(
@@ -39,26 +47,25 @@ function ledgerEntryRelatesToRun(
 	return false;
 }
 
-function hullTierFromIntegrity(integrity: number): HullTier {
-	if (integrity <= 10) {
-		return 'scavenged';
-	}
-	if (integrity <= 35) {
-		return 'patched';
-	}
-	return 'basic';
-}
-
 function pendingClaimMessage(input: {
-	run: { deployedAt: Date; durationSeconds: number; runHullIntegrity?: number };
+	run: {
+		id: string;
+		deployedAt: Date;
+		durationSeconds: number;
+		runHullIntegrity?: number;
+		extractionTailMinutes?: number;
+	};
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>;
 	now: Date;
+	firstAsyncWaiverActive: boolean;
 }): string {
 	const runHullIntegrity = input.run.runHullIntegrity ?? 100;
 	const hullConfig = {
 		hullTier: hullTierFromIntegrity(runHullIntegrity),
 		hullIntegrityAtDeploy: runHullIntegrity,
-		plannedDurationSeconds: input.run.durationSeconds
+		plannedDurationSeconds: input.run.durationSeconds,
+		extractionTailMinutes: input.run.extractionTailMinutes,
+		firstAsyncWaiverActive: input.firstAsyncWaiverActive
 	};
 
 	if (isHullFailsafeActive(hullConfig)) {
@@ -98,6 +105,17 @@ export async function loadClaimScreen(
 		return { mode: 'none' as const };
 	}
 
+	const tutorialStep = await getPilotTutorialStep(db, pilotId);
+	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
+	const firstAsyncWaiverActive = resolveFirstAsyncWaiverActive({
+		hullTier: hullTierFromIntegrity(displayRun.runHullIntegrity ?? 100),
+		hullIntegrityAtDeploy: displayRun.runHullIntegrity ?? 100,
+		extractionTailMinutes: displayRun.extractionTailMinutes,
+		firstAsyncUnlockPending: firstAsync.waiverPending,
+		waiverRunId: firstAsync.waiverRunId,
+		thumperRunId: displayRun.id
+	});
+
 	const targetDisplayName = await resolveTargetDisplayName(db, displayRun.targetResourceId);
 	const windows = await getThumperEventWindowsForRun(db, displayRun.id);
 	const thumperDemo = resolveThumperState({
@@ -106,7 +124,12 @@ export async function loadClaimScreen(
 		now
 	});
 	const runReadyToResolve = isThumperRunReadyToResolve(windows);
-	const claimableByDomain = isThumperRunClaimable({ run: displayRun, windows, now });
+	const claimableByDomain = isThumperRunClaimable({
+		run: displayRun,
+		windows,
+		now,
+		firstAsyncWaiverActive
+	});
 	const claimable = !displayRun.claimedAt && claimableByDomain;
 
 	const existingResult = displayRun.claimedAt
@@ -120,7 +143,7 @@ export async function loadClaimScreen(
 			thumperDemo,
 			secondsRemaining: thumperDemo.status === 'active' ? thumperDemo.secondsRemaining : undefined,
 			runReadyToResolve,
-			message: pendingClaimMessage({ run: displayRun, windows, now })
+			message: pendingClaimMessage({ run: displayRun, windows, now, firstAsyncWaiverActive })
 		};
 	}
 
@@ -182,6 +205,16 @@ export async function loadClaimScreen(
 			payload: entry.payload
 		}));
 
+	const tutorialComparisonLine =
+		tutorialStep === 'full_claim' && displayRun.runSeed === TUTORIAL_RUN_2_SEED
+			? `Hand samples today: ~25u. Aborted run: ${TUTORIAL_RUN_1_YIELD_FLOOR}u. This run: ${TUTORIAL_RUN_2_YIELD}u.`
+			: null;
+	const tutorialRecallBannerLine =
+		displayRun.runSeed === TUTORIAL_RUN_1_SEED &&
+		existingResult.resolutionType === 'recalled'
+			? tutorialHullFailsafeClaimBanner(existingResult.recoveredQuantity)
+			: null;
+
 	return {
 		mode: 'result' as const,
 		runId: displayRun.id,
@@ -191,6 +224,8 @@ export async function loadClaimScreen(
 		alreadyClaimed: true,
 		claimResult: existingResult,
 		explanation,
-		auditEntries
+		auditEntries,
+		tutorialComparisonLine,
+		tutorialRecallBannerLine
 	};
 }

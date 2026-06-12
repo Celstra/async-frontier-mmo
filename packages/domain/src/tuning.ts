@@ -21,6 +21,9 @@ export const HULL_TIER_BASE: Record<HullTier, number> = {
 /** Player-facing tail picker (20-min tier cut — sim non-choice). */
 export const RUN_TAILS_MINUTES = [15, 60, 240] as const;
 
+/** Slice §6 first real async tail — unlocked on scavenged/patched hull despite formula ceiling. */
+export const FIRST_ASYNC_TAIL_MINUTES = RUN_TAILS_MINUTES[0];
+
 export const TUTORIAL_RUN_1_MINUTES = 2;
 export const TUTORIAL_RUN_2_MINUTES = 5;
 export const TUTORIAL_RUN_1_YIELD_FLOOR = 25;
@@ -28,6 +31,10 @@ export const TUTORIAL_RUN_2_YIELD = 60;
 
 export const TUTORIAL_ORDER_SA_STACK = 20;
 export const TUTORIAL_ORDER_CM_STACK = 12;
+
+/** Post-tutorial foreman board — bigger stacks (slice spec §6 async reveal). */
+export const NEXT_NEED_ORDER_SA_STACK = 30;
+export const NEXT_NEED_ORDER_CM_STACK = 18;
 
 export const EVENT_WINDOW_SLOTS = { short: 2, push: 3 } as const;
 export const EVENT_WINDOW_FIRE_CHANCE = 0.55;

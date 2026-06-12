@@ -1,8 +1,12 @@
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
-	resolveFirstSessionThumperRunResult,
+	resolveTutorialThumperRunResult,
 	resolveThumperState,
-	type ThumperEventActionId
+	spotIdFor,
+	TUTORIAL_RUN_1_MINUTES,
+	tutorialRunFromSeed,
+	type ThumperEventActionId,
+	type ThumperComplicationId
 } from '@async-frontier-mmo/domain';
 import { DEMO_PILOT_ID } from 'shared';
 import {
@@ -16,8 +20,10 @@ import {
 	getOpenThumperRunForPilot,
 	getThumperRunPartSnapshots,
 	partModifiersFromRunSnapshots,
+	getBloomRecord,
 	getResourceInstanceByBloomSlug,
 	getResourceStackForPilotInstance,
+	seedDepositSpotRemainingUnits,
 	getThumperEventWindowsForRun,
 	getThumperRunResultForRun,
 	grantResourceToPilot,
@@ -25,6 +31,8 @@ import {
 	listEconomyLedgerEntriesForPilot,
 	recordThumperEventWindowResponse
 } from '../src/index.js';
+import { thumperEventWindows } from '../src/schema/thumperEventWindows.js';
+import { thumperRunPartSnapshots } from '../src/schema/thumperRunPartSnapshots.js';
 import { thumperRunResults } from '../src/schema/thumperRunResults.js';
 import { thumperRuns } from '../src/schema/thumperRuns.js';
 
@@ -41,11 +49,22 @@ function failSmoke(message: string): never {
 	process.exit(1);
 }
 
-async function clearOpenRuns() {
+async function clearPilotThumperRuns() {
+	const runs = await db
+		.select({ id: thumperRuns.id })
+		.from(thumperRuns)
+		.where(eq(thumperRuns.pilotId, DEMO_PILOT_ID));
+	const runIds = runs.map((run) => run.id);
+	if (runIds.length === 0) {
+		return;
+	}
+
+	await db.delete(thumperRunResults).where(inArray(thumperRunResults.thumperRunId, runIds));
+	await db.delete(thumperEventWindows).where(inArray(thumperEventWindows.thumperRunId, runIds));
 	await db
-		.update(thumperRuns)
-		.set({ claimedAt: new Date() })
-		.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNull(thumperRuns.claimedAt)));
+		.delete(thumperRunPartSnapshots)
+		.where(inArray(thumperRunPartSnapshots.thumperRunId, runIds));
+	await db.delete(thumperRuns).where(eq(thumperRuns.pilotId, DEMO_PILOT_ID));
 }
 
 function isRunClaimable(run: { deployedAt: Date; durationSeconds: number }, now: Date) {
@@ -84,16 +103,29 @@ async function claimTutorialRun(now: Date) {
 			}
 			return isRunClaimable(run, now);
 		},
-		isResolvableRun: (run) => run.runSeed === 'first-session-scripted',
-		validateWindows: () => {},
+		isResolvableRun: (run) => tutorialRunFromSeed(run.runSeed) !== null,
+		validateWindows: (_run, windows) => {
+			if (windows.length === 0) {
+				throw new Error('Thumper run has no event windows');
+			}
+		},
 		buildResult: async (tx, run, windows) => {
+			const tutorialRun = tutorialRunFromSeed(run.runSeed);
+			if (tutorialRun === null) {
+				throw new Error(`Unexpected tutorial run seed: ${run.runSeed}`);
+			}
+
 			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
-			return resolveFirstSessionThumperRunResult({
+			return resolveTutorialThumperRunResult({
+				tutorialRun,
 				targetResourceId: 'veyrith_copper',
+				projectedRecovery: 113,
 				partModifiers: partModifiersFromRunSnapshots(snapshots),
+				hullIntegrityAtDeploy: run.runHullIntegrity,
+				plannedDurationSeconds: run.durationSeconds,
 				eventWindows: windows.map((window) => ({
 					windowIndex: window.windowIndex,
-					complication: window.complication as 'signal_drift' | 'pump_strain',
+					complication: window.complication as ThumperComplicationId,
 					matchingAction: window.matchingAction as ThumperEventActionId
 				})),
 				responses: windows
@@ -158,39 +190,48 @@ if (grantAfterLedger < grantBeforeLedger + 2) {
 	failSmoke('every grant should append a resource_granted ledger row');
 }
 
-await clearOpenRuns();
+await clearPilotThumperRuns();
 
-const deployedAt = new Date(Date.now() - 120_000);
-const durationSeconds = 60;
+const tutorialRun1DurationSeconds = 60 + TUTORIAL_RUN_1_MINUTES * 60;
+const deployedAt = new Date(Date.now() - (tutorialRun1DurationSeconds + 30) * 1000);
 const targetResourceId = 'veyrith_copper';
+
+const depositSpotId = spotIdFor(veyrithInstance.id, 3, 4);
+
+const bloomOneRecord = await getBloomRecord(db, BLOOM_ONE_ID);
+if (!bloomOneRecord) {
+	failSmoke('bloom #1 record should exist for deposit spot seeding');
+}
+await seedDepositSpotRemainingUnits(db, {
+	spotId: depositSpotId,
+	resourceInstanceId: veyrithInstance.id,
+	generationSeed: bloomOneRecord.generationSeed,
+	remainingUnits: 500
+});
 
 const run = await deployThumperRunWithEventWindows(db, {
 	pilotId: DEMO_PILOT_ID,
 	targetResourceId,
-	runSeed: 'first-session-scripted',
+	runSeed: 'tutorial-run-1',
 	isPushRun: false,
 	deployedAt,
-	durationSeconds,
-	windows: [
-		{ windowIndex: 1, complication: 'signal_drift', matchingAction: 'signal_tune' },
-		{ windowIndex: 2, complication: 'pump_strain', matchingAction: 'clear_pump_problem' }
-	]
+	durationSeconds: tutorialRun1DurationSeconds,
+	resourceInstanceId: veyrithInstance.id,
+	depositSpotId,
+	trueConcentrationPercent: 67,
+	extractionTailMinutes: TUTORIAL_RUN_1_MINUTES,
+	windows: [{ windowIndex: 1, complication: 'signal_drift', matchingAction: 'signal_tune' }]
 });
 
 const windowsAfterDeploy = await getThumperEventWindowsForRun(db, run.id);
-if (windowsAfterDeploy.length !== 2) {
-	failSmoke('deploy transaction should create run and two event windows together');
+if (windowsAfterDeploy.length !== 1) {
+	failSmoke('tutorial run 1 deploy should create one scripted event window');
 }
 
 await recordThumperEventWindowResponse(db, {
 	thumperRunId: run.id,
 	windowIndex: 1,
 	chosenResponse: 'signal_tune'
-});
-await recordThumperEventWindowResponse(db, {
-	thumperRunId: run.id,
-	windowIndex: 2,
-	chosenResponse: 'clear_pump_problem'
 });
 
 const stackBeforeClaim = await getResourceStackForPilotInstance(
@@ -272,15 +313,27 @@ if (orphanResults.length > 0) {
 	failSmoke('result row must not exist on an unclaimed run after normal claim path');
 }
 
-await clearOpenRuns();
+const claimedRunsWithResults = await db
+	.select({ runId: thumperRuns.id, claimedAt: thumperRuns.claimedAt })
+	.from(thumperRunResults)
+	.innerJoin(thumperRuns, eq(thumperRunResults.thumperRunId, thumperRuns.id))
+	.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNotNull(thumperRuns.claimedAt)));
+
+if (claimedRunsWithResults.length < 1) {
+	failSmoke('expected at least one claimed run with stored result from first claim');
+}
+
+await clearPilotThumperRuns();
 
 const runWithoutWindows = await insertThumperRun(db, {
 	pilotId: DEMO_PILOT_ID,
 	targetResourceId,
-	runSeed: 'first-session-scripted',
+	runSeed: 'tutorial-run-1',
 	isPushRun: false,
 	deployedAt: new Date(Date.now() - 120_000),
-	durationSeconds: 60
+	durationSeconds: 60,
+	resourceInstanceId: veyrithInstance.id,
+	depositSpotId
 });
 
 const windowsMissing = await getThumperEventWindowsForRun(db, runWithoutWindows.id);
@@ -301,16 +354,6 @@ if (!openAfterInvalidClaim || openAfterInvalidClaim.id !== runWithoutWindows.id)
 const resultAfterInvalidClaim = await getThumperRunResultForRun(db, runWithoutWindows.id);
 if (resultAfterInvalidClaim) {
 	failSmoke('invalid claim must not insert thumper_run_result');
-}
-
-const claimedRunsWithResults = await db
-	.select({ runId: thumperRuns.id, claimedAt: thumperRuns.claimedAt })
-	.from(thumperRunResults)
-	.innerJoin(thumperRuns, eq(thumperRunResults.thumperRunId, thumperRuns.id))
-	.where(and(eq(thumperRuns.pilotId, DEMO_PILOT_ID), isNotNull(thumperRuns.claimedAt)));
-
-if (claimedRunsWithResults.length < 1) {
-	failSmoke('expected at least one claimed run with stored result from first claim');
 }
 
 console.log({

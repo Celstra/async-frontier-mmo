@@ -1,5 +1,6 @@
 import { concentrationPercentToExtractionMultiplier } from '../survey/prospectingSampling.js';
-import { RUN_TAILS_MINUTES, TUTORIAL_RUN_1_MINUTES, TUTORIAL_RUN_2_MINUTES } from '../tuning.js';
+import { RUN_TAILS_MINUTES, TUTORIAL_RUN_1_MINUTES, TUTORIAL_RUN_2_MINUTES, type HullTier } from '../tuning.js';
+import { availableTails } from './hullRunCeiling.js';
 import {
 	DEFAULT_PROJECTED_RECOVERY,
 	PUSH_RUN_PROJECTED_RECOVERY
@@ -30,6 +31,37 @@ export const TUTORIAL_EXTRACTION_TAIL_OPTION_5M = {
 } as const;
 
 export type ExtractionTailId = (typeof EXTRACTION_TAIL_OPTIONS)[number]['id'];
+
+export type HullExtractionTailOption = (typeof EXTRACTION_TAIL_OPTIONS)[number] & {
+	allowed: boolean;
+};
+
+/** Player-facing tail menu with hull-ceiling gating (async reveal, deploy picker). */
+export function extractionTailOptionsForHull(
+	tier: HullTier,
+	integrityPct: number,
+	options?: { includeTutorialTails?: boolean; unlockFirstAsyncTail?: boolean }
+): HullExtractionTailOption[] {
+	const allowedMinutes = new Set(
+		availableTails(tier, integrityPct, options).map((tail) => tail.minutes)
+	);
+
+	return EXTRACTION_TAIL_OPTIONS.map((option) => ({
+		...option,
+		allowed: allowedMinutes.has(option.minutes)
+	}));
+}
+
+export function preferredExtractionTailMinutes(
+	allowedTailMinutes: number[],
+	chosenTailMinutes: number | null | undefined
+): number {
+	if (chosenTailMinutes && allowedTailMinutes.includes(chosenTailMinutes)) {
+		return chosenTailMinutes;
+	}
+
+	return allowedTailMinutes[0] ?? RUN_TAILS_MINUTES[0];
+}
 
 export type DeployEquippedPartSummary = {
 	displayName: string;

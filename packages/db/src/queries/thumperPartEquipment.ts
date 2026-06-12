@@ -1,5 +1,6 @@
 import {
 	isThumperPartSchematic,
+	PATCHED_HULL_INTEGRITY,
 	SURVEY_SCANNER_MK_I,
 	thumperPartSlotForSchematic,
 	type ThumperPartSnapshot
@@ -270,4 +271,32 @@ export async function equipThumperPartForPilot(
 		}
 		throw error;
 	}
+}
+
+/** Tutorial hull_patch beat — foreman patches scavenged hull to 30% integrity (slice §6). */
+export async function patchEquippedHullForTutorial(
+	db: Db,
+	pilotId: string
+): Promise<{ status: 'patched' } | { status: 'no_hull' }> {
+	const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
+	if (!equipped.hull) {
+		return { status: 'no_hull' };
+	}
+
+	await db
+		.update(items)
+		.set({ integrity: PATCHED_HULL_INTEGRITY })
+		.where(eq(items.id, equipped.hull.id));
+
+	await appendEconomyLedgerEntry(db, {
+		eventType: 'item_repaired',
+		pilotId,
+		payload: {
+			source_type: 'tutorial_hull_patch',
+			item_id: equipped.hull.id,
+			integrity: PATCHED_HULL_INTEGRITY
+		}
+	});
+
+	return { status: 'patched' };
 }

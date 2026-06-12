@@ -90,6 +90,30 @@ export async function getLatestPlaytestEventCreatedAt(
 	return row?.createdAt ?? null;
 }
 
+export async function getPlaytestEventOnce(
+	db: DbExecutor,
+	pilotId: string,
+	eventName: PlaytestEventName
+): Promise<{ payload: PlaytestEventPayload; createdAt: Date } | null> {
+	const [row] = await db
+		.select({
+			payload: playtestEvents.payload,
+			createdAt: playtestEvents.createdAt
+		})
+		.from(playtestEvents)
+		.where(and(eq(playtestEvents.pilotId, pilotId), eq(playtestEvents.eventName, eventName)))
+		.limit(1);
+
+	if (!row) {
+		return null;
+	}
+
+	return {
+		payload: (row.payload ?? {}) as PlaytestEventPayload,
+		createdAt: row.createdAt
+	};
+}
+
 export async function countPlaytestEventsByName(
 	db: DbExecutor,
 	pilotId: string,

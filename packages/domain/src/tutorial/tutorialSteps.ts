@@ -33,14 +33,14 @@ export function tutorialNextActionScreen(step: string | null): TutorialScreenId 
 		case 'first_orders':
 		case 'turn_in':
 		case 'fabricator_online':
+		case 'recall_lesson':
 		case 'hull_patch':
+		case 'full_claim':
 		case 'async_reveal':
 			return 'settlement';
 		case 'hunting':
 		case 'first_deploy':
-		case 'recall_lesson':
 		case 'second_deploy':
-		case 'full_claim':
 			return 'field';
 		case 'assemble_rig':
 			return 'workshop';

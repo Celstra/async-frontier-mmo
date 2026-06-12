@@ -11,7 +11,12 @@ export async function listPilotResourceStacksWithInstances(db: DbExecutor, pilot
 			resourceInstanceId: resourceInstances.id,
 			resourceSlug: resourceInstances.resourceSlug,
 			displayName: resourceInstances.displayName,
-			family: resourceInstances.family
+			family: resourceInstances.family,
+			statOq: resourceInstances.statOq,
+			statConductivity: resourceInstances.statConductivity,
+			statHardness: resourceInstances.statHardness,
+			statHeatResistance: resourceInstances.statHeatResistance,
+			statMalleability: resourceInstances.statMalleability
 		})
 		.from(resourceStacks)
 		.innerJoin(

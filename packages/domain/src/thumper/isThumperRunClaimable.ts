@@ -1,19 +1,9 @@
-import type { HullTier } from '../tuning.js';
 import {
 	effectiveThumperRunDurationSeconds,
 	isHullFailsafeActive
 } from './hullFailsafeRecall.js';
+import { hullTierFromIntegrity } from './hullTier.js';
 import { resolveThumperState } from './resolveThumperState.js';
-
-function hullTierFromIntegrity(integrity: number): HullTier {
-	if (integrity <= 10) {
-		return 'scavenged';
-	}
-	if (integrity <= 35) {
-		return 'patched';
-	}
-	return 'basic';
-}
 
 export type ThumperClaimWindowSnapshot = {
 	chosenResponse: string | null;
@@ -34,9 +24,15 @@ export function isThumperRunReadyToResolve(windows: readonly ThumperClaimWindowS
 
 /** Server-side claim gate: windows ready to resolve, and timer elapsed or recall ended the run. */
 export function isThumperRunClaimable(input: {
-	run: { deployedAt: Date; durationSeconds: number; runHullIntegrity?: number };
+	run: {
+		deployedAt: Date;
+		durationSeconds: number;
+		runHullIntegrity?: number;
+		extractionTailMinutes?: number;
+	};
 	windows: readonly ThumperClaimWindowSnapshot[];
 	now: Date;
+	firstAsyncWaiverActive?: boolean;
 }): boolean {
 	const recalled = input.windows.some((window) => window.chosenResponse === 'recall_early');
 	if (recalled) {
@@ -48,7 +44,9 @@ export function isThumperRunClaimable(input: {
 	const hullConfig = {
 		hullTier,
 		hullIntegrityAtDeploy: runHullIntegrity,
-		plannedDurationSeconds: input.run.durationSeconds
+		plannedDurationSeconds: input.run.durationSeconds,
+		extractionTailMinutes: input.run.extractionTailMinutes,
+		firstAsyncWaiverActive: input.firstAsyncWaiverActive
 	};
 	const effectiveDurationSeconds = effectiveThumperRunDurationSeconds(hullConfig);
 	const hullOutReached =

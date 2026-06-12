@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PATCHED_HULL_INTEGRITY, FIRST_ASYNC_TAIL_MINUTES } from '../tuning.js';
 import { computeHullFailsafeProrata } from './hullFailsafeRecall.js';
 
 describe('hullFailsafeRecall', () => {
@@ -26,6 +27,19 @@ describe('hullFailsafeRecall', () => {
 			hullIntegrityAtDeploy: 30,
 			plannedDurationSeconds: 5 * 60,
 			projectedRecovery: 60
+		});
+
+		expect(result.triggered).toBe(false);
+	});
+
+	it('does not trigger when first-async waiver is active', () => {
+		const result = computeHullFailsafeProrata({
+			hullTier: 'patched',
+			hullIntegrityAtDeploy: PATCHED_HULL_INTEGRITY,
+			plannedDurationSeconds: 60 + FIRST_ASYNC_TAIL_MINUTES * 60,
+			projectedRecovery: 30,
+			extractionTailMinutes: FIRST_ASYNC_TAIL_MINUTES,
+			firstAsyncWaiverActive: true
 		});
 
 		expect(result.triggered).toBe(false);

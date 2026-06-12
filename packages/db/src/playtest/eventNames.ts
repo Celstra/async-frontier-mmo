@@ -50,7 +50,9 @@ export const PLAYTEST_COMPREHENSION_EVENTS = [
 	'spots_sampled_before_deploy',
 	'extraction_tail_chosen',
 	'first_stat_reveal_viewed',
-	'mission_order_nudge_shown'
+	'mission_order_nudge_shown',
+	/** One-time state — first post-async 15m deploy on scavenged/patched hull (not a funnel metric). */
+	'first_async_deploy_used'
 ] as const;
 
 export const PLAYTEST_EVENT_NAMES = [

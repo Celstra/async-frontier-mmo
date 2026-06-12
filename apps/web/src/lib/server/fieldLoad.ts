@@ -15,7 +15,9 @@ import {
 	getPilotDepositSample,
 	getPilotProspectingProgress,
 	getResourceInstanceById,
-	hasPilotCompletedTutorialThumper,
+	getPilotTutorialStep,
+	getPlaytestEventOnce,
+	hasPilotClaimedTutorialRun,
 	hasPilotFamilyScan,
 	listPilotWaypointSamples,
 	previewFamilyScanForPilot,
@@ -27,20 +29,22 @@ import { fieldStatsFromInstance, type FieldResourceStats } from '$lib/field/reso
 import {
 	availableTails,
 	buildFieldMapView,
+	preferredExtractionTailMinutes,
 	getTopology,
 	isThumperRunClaimable,
-	isTutorialThumperDeploy,
 	parseTopologySpotId,
-	PATCHED_HULL_INTEGRITY,
-	SCAVENGED_HULL_INTEGRITY,
+	hullTierFromIntegrity,
 	spotIdFor,
 	SURVEY_ENERGY_CAP,
 	surveyEnergyOutlook,
 	TOPOLOGY_GRID_HEIGHT,
 	TOPOLOGY_GRID_WIDTH,
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
-	TUTORIAL_RUN_SEED,
-	type HullTier,
+	TUTORIAL_EXTRACTION_TAIL_OPTION_5M,
+	TUTORIAL_RUN_1_SEED,
+	tutorialDeployForStep,
+	tutorialRunFromSeed,
+	isTutorialRunSeed,
 	type NamedResourceId,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
@@ -53,8 +57,14 @@ import { loadDeployPreviewForPilot } from '$lib/server/fieldDeployLoad.js';
 import { loadClaimScreen } from '$lib/server/fieldClaimState.js';
 import { loadOpenRunState } from '$lib/server/fieldRunState.js';
 import { trackFieldStatReveal } from '$lib/server/playtestTelemetry.js';
+import { maybeAdvanceHuntingToTurnIn } from '$lib/server/tutorialOrchestration.js';
 import { resolveTargetDisplayName } from '$lib/server/targetResource.js';
 import type { getGameDb } from './gameDb.js';
+import {
+	firstAsyncUnlockForEquippedHull,
+	firstAsyncWaiverActiveForRun,
+	loadFirstAsyncTailState
+} from './firstAsyncTailState.js';
 
 const WATCHED_RUN_MAX_SECONDS = 5 * 60;
 
@@ -69,16 +79,6 @@ export type FieldLastSampleResult = {
 	yieldBandLabel: string;
 	stats: FieldResourceStats | null;
 };
-
-function hullTierFromIntegrity(integrity: number): HullTier {
-	if (integrity <= SCAVENGED_HULL_INTEGRITY) {
-		return 'scavenged';
-	}
-	if (integrity <= PATCHED_HULL_INTEGRITY) {
-		return 'patched';
-	}
-	return 'basic';
-}
 
 function isRigDeployReady(
 	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>
@@ -152,6 +152,8 @@ export async function loadFieldScreen(
 	} else if (sampleOutcome?.status === 'ok' && pendingResourceId) {
 		const resource = await getResourceInstanceById(db, pendingResourceId);
 		if (resource) {
+			await maybeAdvanceHuntingToTurnIn(db, pilotId);
+
 			if (sampleOutcome.statsRevealedThisSample) {
 				await trackFieldStatReveal(db, pilotId, resource.resourceSlug);
 			}
@@ -177,11 +179,9 @@ export async function loadFieldScreen(
 		}
 	}
 	const activeBloomId = await getActiveBloomId(db);
-	const hasCompletedTutorial = await hasPilotCompletedTutorialThumper(
-		db,
-		pilotId,
-		TUTORIAL_RUN_SEED
-	);
+	const tutorialStep = await getPilotTutorialStep(db, pilotId);
+	const hasCompletedTutorial = await hasPilotClaimedTutorialRun(db, pilotId, TUTORIAL_RUN_1_SEED);
+	const tutorialDeployRun = tutorialDeployForStep(tutorialStep);
 	const prospectingProgress = await getPilotProspectingProgress(db, pilotId, now, activeBloomId);
 	const surveyEnergyOutlookData = surveyEnergyOutlook({
 		storedEnergy: prospectingProgress.surveyEnergy,
@@ -189,14 +189,16 @@ export async function loadFieldScreen(
 		nowMs: now.getTime()
 	});
 
+	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
 	const openRun = await getOpenThumperRunForPilot(db, pilotId);
 	let rigView: Awaited<ReturnType<typeof loadOpenRunState>> | null = null;
 	let claimView: Awaited<ReturnType<typeof loadClaimScreen>> | null = null;
 	let shouldPoll = false;
+	let hasUnresolvedEventWindows = false;
 
 	if (openRun) {
 		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-		const isTutorialRun = openRun.runSeed === TUTORIAL_RUN_SEED;
+		const isTutorialRun = isTutorialRunSeed(openRun.runSeed);
 		rigView = await loadOpenRunState(db, openRun, fieldRepairKitCount, {
 			resolveDisplayName: resolveTargetDisplayName,
 			includeRunMeters: true,
@@ -204,7 +206,18 @@ export async function loadFieldScreen(
 		});
 
 		const eventWindows = await getThumperEventWindowsForRun(db, openRun.id);
-		const runClaimable = isThumperRunClaimable({ run: openRun, windows: eventWindows, now });
+		hasUnresolvedEventWindows = eventWindows.some((window) => window.chosenResponse === null);
+		const runClaimable = isThumperRunClaimable({
+			run: openRun,
+			windows: eventWindows,
+			now,
+			firstAsyncWaiverActive: firstAsyncWaiverActiveForRun({
+				hullIntegrity: openRun.runHullIntegrity ?? 100,
+				extractionTailMinutes: openRun.extractionTailMinutes,
+				thumperRunId: openRun.id,
+				firstAsync
+			})
+		});
 
 		shouldPoll =
 			openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
@@ -339,27 +352,46 @@ export async function loadFieldScreen(
 				const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
 				const hullIntegrity = equipped.hull?.integrity ?? 100;
 				const hullTier = hullTierFromIntegrity(hullIntegrity);
-				const isTutorialRun = isTutorialThumperDeploy({
-					targetResourceId: resource.resourceSlug as NamedResourceId,
-					hasCompletedTutorial
-				});
-				const tailOptions = isTutorialRun
-					? [
-							{
-								id: TUTORIAL_EXTRACTION_TAIL_OPTION.id,
-								label: TUTORIAL_EXTRACTION_TAIL_OPTION.label,
-								minutes: TUTORIAL_EXTRACTION_TAIL_OPTION.minutes
-							}
-						]
-					: availableTails(hullTier, hullIntegrity).map((tail) => ({
-							id: `${tail.minutes}m`,
-							label: tail.label,
-							minutes: tail.minutes
-						}));
+				const isTutorialRun = tutorialDeployRun !== null;
+				const tailOptions =
+					tutorialDeployRun === 1
+						? [
+								{
+									id: TUTORIAL_EXTRACTION_TAIL_OPTION.id,
+									label: TUTORIAL_EXTRACTION_TAIL_OPTION.label,
+									minutes: TUTORIAL_EXTRACTION_TAIL_OPTION.minutes
+								}
+							]
+						: tutorialDeployRun === 2
+							? [
+									{
+										id: TUTORIAL_EXTRACTION_TAIL_OPTION_5M.id,
+										label: TUTORIAL_EXTRACTION_TAIL_OPTION_5M.label,
+										minutes: TUTORIAL_EXTRACTION_TAIL_OPTION_5M.minutes
+									}
+								]
+							: availableTails(hullTier, hullIntegrity, {
+									unlockFirstAsyncTail: firstAsyncUnlockForEquippedHull(
+										hullIntegrity,
+										firstAsync
+									)
+								}).map((tail) => ({
+									id: `${tail.minutes}m`,
+									label: tail.label,
+									minutes: tail.minutes
+								}));
 
+				const asyncDurationEvent = isTutorialRun
+					? null
+					: await getPlaytestEventOnce(db, pilotId, 'async_duration_chosen');
+				const chosenAsyncTailMinutes =
+					typeof asyncDurationEvent?.payload.extractionTailMinutes === 'number'
+						? asyncDurationEvent.payload.extractionTailMinutes
+						: null;
+				const allowedTailMinutes = tailOptions.map((tail) => tail.minutes);
 				const defaultTailMinutes = isTutorialRun
-					? TUTORIAL_EXTRACTION_TAIL_OPTION.minutes
-					: (tailOptions[0]?.minutes ?? 60);
+					? (tailOptions[0]?.minutes ?? 60)
+					: preferredExtractionTailMinutes(allowedTailMinutes, chosenAsyncTailMinutes);
 
 				const { preview: deployPreview } = await loadDeployPreviewForPilot(db, {
 					pilotId,
@@ -418,7 +450,9 @@ export async function loadFieldScreen(
 	const equippedScanner = await getEquippedScannerForPilot(db, pilotId);
 	const showRigView =
 		openRun !== null &&
-		(openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS || openRun.runSeed === TUTORIAL_RUN_SEED);
+		(openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
+			isTutorialRunSeed(openRun.runSeed) ||
+			hasUnresolvedEventWindows);
 
 	return {
 		regionId: 'red_mesa' as const,

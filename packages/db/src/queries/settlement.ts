@@ -40,6 +40,11 @@ export async function ensureSettlementBootstrapForPilot(db: DbExecutor, pilotId:
 			})
 			.onConflictDoNothing();
 
+		// next_need orders are posted at async reveal — milestone row only until then.
+		if (milestone.key === 'next_need') {
+			continue;
+		}
+
 		for (const order of milestone.orders) {
 			await db
 				.insert(settlementOrders)
@@ -112,17 +117,59 @@ export async function getActiveSettlementMilestoneKey(
 	db: DbExecutor,
 	pilotId: string
 ): Promise<SettlementMilestoneKey> {
-	for (const milestone of SETTLEMENT_MILESTONES) {
-		const unlockedAt = await getSettlementMilestoneUnlockedAt(db, {
-			pilotId,
-			milestoneKey: milestone.key
-		});
-		if (!unlockedAt) {
-			return milestone.key;
-		}
+	const fabricatorUnlocked = await getSettlementMilestoneUnlockedAt(db, {
+		pilotId,
+		milestoneKey: 'fabricator_online'
+	});
+	if (!fabricatorUnlocked) {
+		return 'fabricator_online';
 	}
 
-	return SETTLEMENT_MILESTONES[SETTLEMENT_MILESTONES.length - 1]!.key;
+	const nextNeedOrders = await listSettlementOrdersForMilestone(db, {
+		pilotId,
+		milestoneKey: 'next_need'
+	});
+	if (nextNeedOrders.length === 0) {
+		return 'fabricator_online';
+	}
+
+	const nextNeedUnlocked = await getSettlementMilestoneUnlockedAt(db, {
+		pilotId,
+		milestoneKey: 'next_need'
+	});
+	if (!nextNeedUnlocked) {
+		return 'next_need';
+	}
+
+	return 'next_need';
+}
+
+/** Slice §6 — foreman posts the bigger next_need orders at async reveal. */
+export async function ensureNextNeedOrdersPostedForPilot(db: DbExecutor, pilotId: string) {
+	const nextMilestone = SETTLEMENT_MILESTONES.find((milestone) => milestone.key === 'next_need');
+	if (!nextMilestone) {
+		return { posted: false as const };
+	}
+
+	for (const order of nextMilestone.orders) {
+		await db
+			.insert(settlementOrders)
+			.values({
+				pilotId,
+				milestoneKey: nextMilestone.key,
+				family: order.family,
+				stackSize: order.stackSize
+			})
+			.onConflictDoNothing({
+				target: [
+					settlementOrders.pilotId,
+					settlementOrders.milestoneKey,
+					settlementOrders.family
+				]
+			});
+	}
+
+	return { posted: true as const };
 }
 
 export async function getSettlementOrderById(
@@ -138,12 +185,32 @@ export async function getSettlementOrderById(
 	return row ? rowToOrder(row) : null;
 }
 
+/** True when every open fabricator_online order has a bound resource instance. */
+export async function fabricatorTutorialOrdersFullyBound(
+	db: DbExecutor,
+	pilotId: string
+): Promise<boolean> {
+	const orders = await listSettlementOrdersForMilestone(db, {
+		pilotId,
+		milestoneKey: 'fabricator_online'
+	});
+	const openOrders = orders.filter((order) => order.status === 'open');
+	if (openOrders.length === 0) {
+		return false;
+	}
+
+	return openOrders.every((order) => order.boundInstanceId !== null);
+}
+
 /** Bind the first open family-matching order when a resource is sampled (Decision 022). */
 export async function bindSettlementOrdersOnSample(
 	db: DbExecutor,
 	input: { pilotId: string; resourceInstanceId: string; family: ResourceFamily }
 ) {
-	const openOrders = await listOpenSettlementOrdersForPilot(db, input.pilotId);
+	const activeMilestone = await getActiveSettlementMilestoneKey(db, input.pilotId);
+	const openOrders = (await listOpenSettlementOrdersForPilot(db, input.pilotId)).filter(
+		(order) => order.milestoneKey === activeMilestone
+	);
 
 	for (const order of openOrders) {
 		if (order.family !== input.family || order.boundInstanceId !== null) {

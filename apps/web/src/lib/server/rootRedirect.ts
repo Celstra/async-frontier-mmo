@@ -12,12 +12,7 @@ export async function resolveRootRedirect(
 		return '/workshop';
 	}
 
-	if (
-		tutorialStep === 'first_deploy' ||
-		tutorialStep === 'recall_lesson' ||
-		tutorialStep === 'second_deploy' ||
-		tutorialStep === 'full_claim'
-	) {
+	if (tutorialStep === 'first_deploy' || tutorialStep === 'second_deploy') {
 		return '/field';
 	}
 

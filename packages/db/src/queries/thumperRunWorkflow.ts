@@ -1,4 +1,8 @@
-import { rollEventWindowSeverity, PROSPECTING_CYCLE_SCATTER_LINE, TUTORIAL_RUN_SEED } from '@async-frontier-mmo/domain';
+import {
+	isTutorialRunSeed,
+	rollEventWindowSeverity,
+	PROSPECTING_CYCLE_SCATTER_LINE
+} from '@async-frontier-mmo/domain';
 import { and, eq } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { getBloomRecord } from './bloomRotation.js';
@@ -141,7 +145,7 @@ export async function deployThumperRunWithEventWindows(
 						rollEventWindowSeverity({
 							runSeed: input.runSeed,
 							windowIndex: window.windowIndex,
-							forceMinor: input.runSeed === TUTORIAL_RUN_SEED
+							forceMinor: isTutorialRunSeed(input.runSeed)
 						})
 				}))
 			});
@@ -195,7 +199,13 @@ export async function claimOpenThumperRunForPilot(
 		pilotId: string;
 		now: Date;
 		isClaimable: (
-			run: { deployedAt: Date; durationSeconds: number },
+			run: {
+				id: string;
+				deployedAt: Date;
+				durationSeconds: number;
+				runHullIntegrity?: number;
+				extractionTailMinutes: number;
+			},
 			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
 		) => boolean;
 		isResolvableRun: (run: { runSeed: string }) => boolean;
