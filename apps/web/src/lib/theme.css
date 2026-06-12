@@ -1,0 +1,143 @@
+/* Terminal / field-console design system — slice Phase 0.
+   Later components use only these variables. */
+
+:root {
+	color-scheme: dark;
+
+	/* Surfaces */
+	--bg-base: #0a0c0a;
+	--bg-panel: #0f120f;
+	--bg-inset: #141a14;
+	--bg-hover: #1a221a;
+
+	/* Phosphor accent (primary UI) */
+	--phosphor: #3dff7a;
+	--phosphor-dim: #2a9e52;
+	--phosphor-glow: rgba(61, 255, 122, 0.15);
+
+	/* Text */
+	--text-primary: #c8e6c9;
+	--text-secondary: #7a9a7e;
+	--text-muted: #4a5f4d;
+	--text-bright: #e8ffe8;
+
+	/* Semantic accents */
+	--accent-warning: #ffb020;
+	--accent-warning-dim: #8a5a10;
+	--accent-danger: #ff4444;
+	--accent-danger-dim: #8a2020;
+
+	/* Borders — scanline-subtle */
+	--border-subtle: #1e2e1e;
+	--border-default: #2a3d2a;
+	--border-strong: #3dff7a33;
+
+	/* Typography */
+	--font-mono:
+		ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono',
+		monospace;
+	--font-size-xs: 0.75rem;
+	--font-size-sm: 0.85rem;
+	--font-size-base: 0.95rem;
+	--font-size-lg: 1.1rem;
+	--line-height: 1.5;
+
+	/* Layout */
+	--shell-max-width: 52rem;
+	--nav-height: 2.5rem;
+	--screen-padding: 1rem;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	font-family: var(--font-mono);
+	font-size: var(--font-size-base);
+	line-height: var(--line-height);
+	color: var(--text-primary);
+	background: var(--bg-base);
+	background-image: repeating-linear-gradient(
+		0deg,
+		transparent,
+		transparent 2px,
+		rgba(0, 0, 0, 0.12) 2px,
+		rgba(0, 0, 0, 0.12) 4px
+	);
+}
+
+a {
+	color: var(--phosphor);
+	text-decoration: none;
+}
+
+a:hover {
+	color: var(--text-bright);
+	text-decoration: underline;
+}
+
+button,
+input,
+textarea {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--text-primary);
+}
+
+input,
+textarea {
+	background: var(--bg-inset);
+	border: 1px solid var(--border-default);
+}
+
+button {
+	cursor: pointer;
+	background: var(--bg-panel);
+	border: 1px solid var(--border-default);
+	color: var(--phosphor);
+	padding: 0.35rem 0.65rem;
+}
+
+button:hover {
+	background: var(--bg-hover);
+	border-color: var(--phosphor-dim);
+}
+
+h1,
+h2,
+h3 {
+	color: var(--text-bright);
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+/* Shared screen frame — used by all four slice screens */
+.screen {
+	border: 1px solid var(--border-default);
+	background: var(--bg-panel);
+	box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.screen__header {
+	margin: 0;
+	padding: var(--screen-padding);
+	border-bottom: 1px solid var(--border-default);
+	font-size: var(--font-size-sm);
+	color: var(--phosphor);
+	letter-spacing: 0.12em;
+}
+
+.screen__body {
+	padding: var(--screen-padding);
+}
+
+.screen__placeholder {
+	margin: 0;
+	color: var(--text-secondary);
+	font-size: var(--font-size-sm);
+}
