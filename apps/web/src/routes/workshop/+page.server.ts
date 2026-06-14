@@ -24,7 +24,8 @@ import { resolvePilotId } from '$lib/server/pilot';
 import {
 	trackCraftCommitted,
 	trackRigAssembled,
-	trackWorkshopViewed
+	trackWorkshopViewed,
+	trackWorkshopStationViewed
 } from '$lib/server/playtestTelemetry';
 import {
 	advanceTutorialStepIf,
@@ -82,6 +83,10 @@ export const load: PageServerLoad = async (event) => {
 	}
 
 	await trackWorkshopViewed(db, pilotId, {
+		selectedSchematicId: screen.selectedSchematicId ?? 'none'
+	});
+	await trackWorkshopStationViewed(db, pilotId, {
+		station: screen.workshopStation,
 		selectedSchematicId: screen.selectedSchematicId ?? 'none'
 	});
 

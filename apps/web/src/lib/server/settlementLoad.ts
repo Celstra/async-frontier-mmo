@@ -15,11 +15,14 @@ import {
 import {
 	boundStackProgress,
 	FIRST_HULL_RESERVE,
+	FIRST_HULL_SA_RESERVE,
 	firstHullReserveMap,
 	missionTrackerState,
 	pickActiveSettlementOrder,
 	pickPinnedMissionOrder,
 	REINFORCED_HULL_PLATE,
+	handFillResourceSlugForFamily,
+	resourceDisplayLabel,
 	SETTLEMENT_MILESTONES,
 	type FamilyStackCandidate,
 	type MissionTrackerState,
@@ -198,26 +201,39 @@ function buildFirstHullReserveNotice(input: {
 		return null;
 	}
 
-	const [resourceInstanceId, reservedUnits] = [...reserveMap.entries()][0]!;
-	const stack = input.inventory.find((entry) => entry.resourceInstanceId === resourceInstanceId);
-	if (!stack) {
-		return null;
+	const rcReserved = [...reserveMap.entries()]
+		.filter(([instanceId]) => {
+			const stack = input.inventory.find((entry) => entry.resourceInstanceId === instanceId);
+			return stack?.family === FIRST_HULL_RESERVE.family;
+		})
+		.reduce((total, [, units]) => total + units, 0);
+	const saReserved = [...reserveMap.entries()]
+		.filter(([instanceId]) => {
+			const stack = input.inventory.find((entry) => entry.resourceInstanceId === instanceId);
+			return stack?.family === 'structural_alloy';
+		})
+		.reduce((total, [, units]) => total + units, 0);
+
+	const craftLabel = REINFORCED_HULL_PLATE.displayName;
+	const parts: string[] = [];
+	if (saReserved > 0) {
+		parts.push(`${saReserved}u Structural Alloy`);
+	}
+	if (rcReserved > 0) {
+		const rcStack = input.inventory.find((entry) => entry.family === FIRST_HULL_RESERVE.family);
+		parts.push(
+			`${rcReserved}u ${rcStack?.displayName ?? 'Reactive Crystal'} for Bonding Matrix`
+		);
 	}
 
-	const requiredUnits = FIRST_HULL_RESERVE.units;
-	const spareUnits = Math.max(0, stack.quantity - reservedUnits);
-	const craftLabel = REINFORCED_HULL_PLATE.displayName;
-	const resourceDisplayName = stack.displayName;
-	const familyLabel = familyDisplayLabel(FIRST_HULL_RESERVE.family);
-
 	return {
-		familyLabel,
-		resourceDisplayName,
-		reservedUnits,
-		requiredUnits,
-		spareUnits,
+		familyLabel: 'First hull',
+		resourceDisplayName: parts.join(' + '),
+		reservedUnits: saReserved + rcReserved,
+		requiredUnits: FIRST_HULL_SA_RESERVE + FIRST_HULL_RESERVE.units,
+		spareUnits: 0,
 		craftLabel,
-		line: `First hull reserve: ${reservedUnits}u ${resourceDisplayName} protected for ${craftLabel}. Foreman orders use spare Reactive Crystal only.`
+		line: `Hull plate first: keep ${parts.join(' and ')} for ${craftLabel}. Foreman orders use spare units only.`
 	};
 }
 
@@ -462,6 +478,53 @@ async function buildSettlementOrderCards(
 }
 
 /** Order progress line after a field sample — hunting-step feedback. */
+export type ActiveOrderTelemetrySnapshot = {
+	orderId: string;
+	family: string;
+	progressUnits: number;
+	stackSize: number;
+	deliveredUnits: number;
+	orderFilled: boolean;
+} | null;
+
+export async function loadActiveOrderTelemetrySnapshot(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string
+): Promise<ActiveOrderTelemetrySnapshot> {
+	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
+	const [orders, inventory, thumperPartItems] = await Promise.all([
+		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
+		listPilotResourceStacksWithInstances(db, pilotId),
+		listThumperPartItemsForPilot(db, pilotId)
+	]);
+
+	const active = pickActiveSettlementOrder(orders);
+	if (!active || active.status !== 'open') {
+		return null;
+	}
+
+	const boundInstance =
+		active.boundInstanceId !== null
+			? await getResourceInstanceById(db, active.boundInstanceId)
+			: null;
+	const availableInventory = applyFirstHullReserve(
+		milestoneKey,
+		inventory,
+		ownsReinforcedHullPlate(thumperPartItems)
+	);
+	const candidates = mergeFamilyCandidates(active.family, availableInventory, boundInstance);
+	const progressUnits = boundStackProgress(active, candidates);
+
+	return {
+		orderId: active.id,
+		family: active.family,
+		progressUnits,
+		stackSize: active.stackSize,
+		deliveredUnits: active.deliveredUnits,
+		orderFilled: progressUnits >= active.stackSize
+	};
+}
+
 export async function loadActiveOrderStatusLine(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string
@@ -608,17 +671,22 @@ export async function loadSettlementScreen(
 	const filledOrders = orderCards.filter((order) => order.status === 'filled');
 	const milestoneLabel = milestoneLabelFor(milestoneKey);
 	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
-	const { tailMenuOptions: asyncTailOptions } = hullDeployContextFromEquipped(equipped, firstAsync);
+	const ownsHullPlate = ownsReinforcedHullPlate(thumperPartItems);
+	const { tailMenuOptions: asyncTailOptions } = hullDeployContextFromEquipped(equipped, firstAsync, {
+		ownsReinforcedHullPlate: ownsHullPlate
+	});
 
 	const orderReadyToTurnIn = orderCards.some(
 		(order) => order.status === 'open' && order.progressUnits >= order.stackSize
 	);
-	const ownsHullPlate = ownsReinforcedHullPlate(thumperPartItems);
 	const firstHullReserveNotice = buildFirstHullReserveNotice({
 		milestoneKey,
 		inventory,
 		ownsHullPlate
 	});
+
+	const pinnedOrder = pickPinnedMissionOrder(orders, milestoneKey);
+	const pinnedSlug = pinnedOrder ? handFillResourceSlugForFamily(pinnedOrder.family) : null;
 
 	return {
 		milestoneKey,
@@ -630,7 +698,9 @@ export async function loadSettlementScreen(
 			fabricatorUnlocked,
 			orderReadyToTurnIn,
 			openOrderCount: openOrders.length,
-			filledOrderCount: filledOrders.length
+			filledOrderCount: filledOrders.length,
+			pinnedOrderFamily: pinnedOrder?.family ?? null,
+			pinnedResourceLabel: pinnedSlug ? resourceDisplayLabel(pinnedSlug) : null
 		}),
 		boardSummary: buildMilestoneBoardSummary({
 			milestoneKey,

@@ -5,16 +5,9 @@
 	import SampleResultPanel from '$lib/field/SampleResultPanel.svelte';
 	import SegmentedBar from '$lib/field/SegmentedBar.svelte';
 	import { FIELD_FAMILY_OPTIONS } from '$lib/field/constants';
-	import ActiveRunPanel from '$lib/rig/ActiveRunPanel.svelte';
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
-
-	const activeClaimView = $derived(
-		data.claimView?.mode === 'claimable' || data.claimView?.mode === 'result'
-			? data.claimView
-			: null
-	);
 
 	let sampleResultEl: HTMLElement | undefined = $state();
 	let localSamplePercent = $state(0);
@@ -75,16 +68,14 @@
 		<p class="flash flash--error" role="alert">{form.message}</p>
 	{/if}
 
-	{#if data.showRigView && data.rigView}
-		<ActiveRunPanel
-			run={data.rigView}
-			claimView={activeClaimView}
-			variant="field"
-			showAscii
-			acknowledgeButtonLabel="Send to storage — return to field"
-		/>
-	{:else}
-		<div class="screen__body">
+	{#if data.rigMonitorPrompt}
+		<p class="rig-monitor-prompt" role="status">
+			Rig deployed — monitor events on <a href="/rig">RIG</a>. You can still scout and sample
+			while the rig works.
+		</p>
+	{/if}
+
+	<div class="screen__body">
 			{#if data.fieldModeLine}
 				<p class="field-mode-line">{data.fieldModeLine}</p>
 			{/if}
@@ -242,13 +233,19 @@
 				</section>
 			{/if}
 
-			{#if data.deployContext}
+			{#if data.deployContext && !data.rigMonitorPrompt}
 				<section class="panel">
 					<h2 class="panel__title">Deploy thumper</h2>
 					<p class="hint">
 						{data.deployContext.displayName} @ {data.deployContext.trueConcentrationPercent}% · ~{data
 							.deployContext.spotRemainingUnits}u in deposit (thumper extraction)
 					</p>
+					{#if data.deployContext.tutorialDeployLockedBanner}
+						<p class="deploy-locked-banner">{data.deployContext.tutorialDeployLockedBanner}</p>
+					{/if}
+					{#if data.deployContext.tutorialDeployLockedReason}
+						<p class="deploy-locked-reason">{data.deployContext.tutorialDeployLockedReason}</p>
+					{/if}
 					{#if data.deployContext.thumpTargetNote}
 						<p class="deploy-thump-target">{data.deployContext.thumpTargetNote}</p>
 					{/if}
@@ -290,7 +287,6 @@
 				</section>
 			{/if}
 		</div>
-	{/if}
 </section>
 
 <style>
@@ -309,6 +305,19 @@
 		padding-bottom: 0.85rem;
 		background: var(--bg-base);
 		border-bottom: 1px solid var(--border-default);
+	}
+
+	.rig-monitor-prompt {
+		margin: 0 0 1rem;
+		padding: 0.85rem 1rem;
+		border: 1px solid var(--phosphor-dim);
+		border-radius: var(--radius-md);
+		background: var(--bg-inset);
+		font-size: var(--font-size-sm);
+	}
+
+	.rig-monitor-prompt a {
+		color: var(--phosphor);
 	}
 
 	.field-header__title {
@@ -435,6 +444,20 @@
 		margin: 0.35rem 0 0;
 		font-size: var(--font-size-xs);
 		color: var(--accent-warning);
+	}
+
+	.deploy-locked-banner {
+		margin: 0.5rem 0 0.25rem;
+		font-size: var(--font-size-sm);
+		color: var(--phosphor);
+		font-weight: 600;
+	}
+
+	.deploy-locked-reason {
+		margin: 0 0 0.75rem;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		line-height: 1.45;
 	}
 
 	.hint {

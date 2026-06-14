@@ -25,6 +25,7 @@ import { loadOpenRunState } from './fieldRunState.js';
 import type { getGameDb } from './gameDb.js';
 import { rigEquipmentLockedFromState } from './rigEquipmentLock.js';
 import { resolveTargetDisplayName } from './targetResource.js';
+import { trackActiveRunPanelRendered } from './playtestTelemetry.js';
 
 export type RigWearBar = {
 	label: string;
@@ -231,6 +232,14 @@ export async function loadRigScreen(
 	const repairDebtLine = hasRepairDebt
 		? `Repair debt: ${damagedEquipped.map((part) => part.slotLabel.toLowerCase()).join(', ')} worn after your last run — use a Field Repair kit below.`
 		: null;
+
+	if (activeRun !== null || claimView?.mode === 'claimable' || claimView?.mode === 'result') {
+		await trackActiveRunPanelRendered(db, pilotId, {
+			screen: 'rig',
+			openRunActive: openRun !== null,
+			claimMode: claimView?.mode ?? 'none'
+		});
+	}
 
 	return {
 		maxRunMinutes: runMinutes,

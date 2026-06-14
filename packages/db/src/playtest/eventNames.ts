@@ -46,6 +46,14 @@ export const PLAYTEST_COMPREHENSION_EVENTS = [
 	'repair_previewed',
 	'first_stat_reveal_viewed',
 	'mission_order_nudge_shown',
+	/** Repeatable diagnostic events for playtest reconstruction. */
+	'field_sample_completed',
+	'next_action_resolved',
+	'deploy_attempted',
+	'active_run_panel_rendered',
+	'rig_event_response_submitted',
+	'workshop_station_viewed',
+	'tutorial_recovery_state',
 	/** One-time state — first post-async 15m deploy on scavenged/patched hull (not a funnel metric). */
 	'first_async_deploy_used'
 ] as const;

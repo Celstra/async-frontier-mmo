@@ -5,7 +5,7 @@ describe('tutorialNextActionScreen', () => {
 	it('highlights settlement during prologue and order beats', () => {
 		expect(tutorialNextActionScreen('prologue')).toBe('settlement');
 		expect(tutorialNextActionScreen('hunting')).toBe('field');
-		expect(tutorialNextActionScreen('first_orders')).toBe('settlement');
+		expect(tutorialNextActionScreen('first_orders')).toBe('field');
 		expect(tutorialNextActionScreen('turn_in')).toBe('settlement');
 	});
 

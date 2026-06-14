@@ -1,67 +1,73 @@
-"""First-Hull Critical-Path Simulation — D2 order-alignment gate (2026-06-13).
+"""First-hull material path — validates Reinforced Hull Plate is reachable on the recommended session.
 
-Question the playtest forced (round-4, pt 14–15): after the tutorial, can a player
-reach the first Reinforced Hull Plate craft WITHOUT a dead-end, given the patched
-hull's short-run ceiling, the thumper yield curve, and the post-tutorial foreman
-orders — and are the aligned-order quantities (RC 12u + CM 18u) safe, or do they
-strand the hull bill the way pt-15 did (player hand-sampled ~11 RC, turned it all
-in, then couldn't craft the hull's 20 RC)?
+Constants are loaded from design-docs/domain_tuning_snapshot.json, generated from
+packages/domain via:
 
-This is DETERMINISTIC accounting, not Monte Carlo: thumper yield is a closed-form
-function of concentration + tail, and the fail-safe trip time is deterministic from
-hull integrity. So we compute the path arithmetic and look for the dead-end.
+    pnpm exec tsx design-docs/export_domain_tuning.ts
 
-────────────────────────────────────────────────────────────────────────────────
-Real code constants (cited inline):
-  DEFAULT_PROJECTED_RECOVERY = 60        (deployPreview.ts; see sampling_ratio_sim.py)
-  concentration_multiplier(c) = clamp(c/67, 0.5, 1.5)
-  tail_yield_multiplier(t)    = sqrt(t/60)
-  HULL_TIER_BASE = {scavenged:75, patched:30, basic:240}   (tuning.ts)
-  HULL_CEILING_EXPONENT = 1.2                              (tuning.ts)
-  maxRunMinutes(tier,integ) = base * (integ/100)^1.2       (hullRunCeiling.ts)
-  SCAVENGED_HULL_INTEGRITY = 5 ; PATCHED_HULL_INTEGRITY = 30   (tuning.ts)
-  FIRST_ASYNC_TAIL_MINUTES = 15 ; one-time waiver runs the FULL tail
-                                              (hullFailsafeRecall.ts)
-  fail-safe prorata = round(projected * maxRunSeconds/plannedSeconds)
-                                              (computeHullFailsafeProrata)
-  Reinforced Hull Plate = 60 SA (outer) + 40 SA (bracing) + 20 RC (bonding)
-                        = 100 SA + 20 RC total              (reinforcedHullPlate.ts)
-  NEXT_NEED_ORDER_RC_STACK = 12 ; NEXT_NEED_ORDER_CM_STACK = 18   (tuning.ts)
-  Sample yield = max(1, round(5 * conc/100)) ; energy cap 120 / cost 12 = 10 samples
-                                              (tuning.ts, sampling_ratio_sim.py)
-  TUTORIAL_RUN_1_YIELD_FLOOR = 25 ; TUTORIAL_RUN_2_YIELD = 60     (tuning.ts)
-
-Concentration ranges (Decision 021 §C):
-  Keth Iron (SA)      55–95%   — bulk structural alloy (tutorial waypoint)
-  Glimmerfall (RC)    range unconfirmed in code; playtest observed 78%. Modelled
-                      LOW 60 / MID 75 / PEAK 90 and the observed 78%, flagged below.
+Re-run that export when tuning.ts or reinforcedHullPlate schematic changes.
 """
 
-import math
+from __future__ import annotations
 
-# ── Code constants ──────────────────────────────────────────────────────────────
+import json
+import math
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent
+SNAPSHOT_PATH = HERE / "domain_tuning_snapshot.json"
+EXPORT_SCRIPT = HERE / "export_domain_tuning.ts"
+
+# Thumper yield math mirrors packages/domain/src/thumper/deployPreview.ts
 DEFAULT_PROJECTED_RECOVERY = 60.0
 SWG_BASE_CONCENTRATION = 67.0
-HULL_TIER_BASE = {"scavenged": 75.0, "patched": 30.0, "basic": 240.0}
-HULL_CEILING_EXPONENT = 1.2
-SCAVENGED_INTEGRITY = 5
-PATCHED_INTEGRITY = 30
-FIRST_ASYNC_TAIL_MIN = 15
-SAMPLE_BASE_YIELD = 5
-ENERGY_CAP_SAMPLES = 10  # 120 cap / 12 cost
-
-HULL_SA = 100  # 60 outer + 40 bracing
-HULL_RC = 20   # 20 bonding
-ORDER_RC = 12  # NEXT_NEED_ORDER_RC_STACK
-ORDER_CM = 18  # NEXT_NEED_ORDER_CM_STACK
-
-# Event-waste haircut: a non-matching/hold response converts some projected recovery
-# to waste (penaltyWasteForResponse: minor 4–8u, serious 12–22u). A worst-realistic
-# short run sees ~1 window; model a 15% haircut to stress the path.
 EVENT_WASTE_FRACTION = 0.15
 
+# Playtest waypoint concentrations (deterministic mids from bloom fixtures)
+KETH_CONC = 75.0
+SORREL_CONC = 67.0
+GLIMMER_CONC = 78.0
 
-# ── Yield model ───────────────────────────────────────────────────────────────
+
+def load_tuning() -> dict:
+    if not SNAPSHOT_PATH.exists():
+        print(f"missing {SNAPSHOT_PATH.name} — exporting from packages/domain…")
+        subprocess.run(
+            [
+                "pnpm",
+                "--filter",
+                "@async-frontier-mmo/db",
+                "exec",
+                "tsx",
+                "../../design-docs/export_domain_tuning.ts",
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+        )
+    return json.loads(SNAPSHOT_PATH.read_text())
+
+
+TUNING = load_tuning()
+
+SAMPLE_BASE_YIELD = TUNING["SAMPLE_BASE_YIELD"]
+TUTORIAL_ORDER_SA_STACK = TUNING["TUTORIAL_ORDER_SA_STACK"]
+TUTORIAL_ORDER_CM_STACK = TUNING["TUTORIAL_ORDER_CM_STACK"]
+ORDER_RC = TUNING["NEXT_NEED_ORDER_RC_STACK"]
+ORDER_CM = TUNING["NEXT_NEED_ORDER_CM_STACK"]
+TUTORIAL_RUN_1_YIELD_FLOOR = TUNING["TUTORIAL_RUN_1_YIELD_FLOOR"]
+TUTORIAL_RUN_2_YIELD = TUNING["TUTORIAL_RUN_2_YIELD"]
+PATCHED_INTEGRITY = TUNING["PATCHED_HULL_INTEGRITY"]
+HULL_CEILING_EXPONENT = TUNING["HULL_CEILING_EXPONENT"]
+HULL_TIER_BASE = TUNING["HULL_TIER_BASE"]
+HULL_SA = TUNING["HULL_SA"]
+HULL_RC = TUNING["HULL_RC"]
+SCAVENGED_INTEGRITY = 5
+FIRST_ASYNC_TAIL_MIN = 15
+
+
 def conc_mult(conc_pct: float) -> float:
     return max(0.5, min(1.5, conc_pct / SWG_BASE_CONCENTRATION))
 
@@ -76,15 +82,11 @@ def projected_recovery(conc_pct: float, tail_min: float) -> float:
 
 def max_run_minutes(tier: str, integrity: float) -> float:
     integ = max(0.0, min(100.0, integrity))
-    return HULL_TIER_BASE[tier] * (integ / 100.0) ** HULL_CEILING_EXPONENT
+    base = HULL_TIER_BASE[tier]
+    return base * (integ / 100.0) ** HULL_CEILING_EXPONENT
 
 
 def patched_run_yield(conc_pct: float, planned_min: int = 15, waived: bool = False) -> int:
-    """Units recovered from one patched-hull (integrity 30) run.
-
-    Waived (one-time first-async): runs the full planned tail.
-    Otherwise: fail-safe recalls at the 7.06-min ceiling, prorata yield.
-    """
     ceiling = max_run_minutes("patched", PATCHED_INTEGRITY)
     proj = projected_recovery(conc_pct, planned_min)
     if waived or planned_min <= ceiling:
@@ -97,10 +99,81 @@ def sample_yield(conc_pct: float) -> int:
     return max(1, round(SAMPLE_BASE_YIELD * conc_pct / 100.0))
 
 
-# ── Reference tables ─────────────────────────────────────────────────────────
+def thump_yield(conc_pct: float, waived: bool = False) -> int:
+    return round(patched_run_yield(conc_pct, 15, waived=waived) * (1 - EVENT_WASTE_FRACTION))
+
+
+def complete_tutorial_order_via_hand_fill(conc_pct: float, stack_size: int) -> tuple[int, int]:
+    """Sample until the foreman stack is filled, then turn in — returns (surplus_units, sample_count)."""
+    banked = 0
+    samples = 0
+    while banked < stack_size:
+        banked += sample_yield(conc_pct)
+        samples += 1
+    surplus = banked - stack_size
+    return surplus, samples
+
+
+def turn_in_units(stack_units: int, order_remaining: int, reserved_units: int = 0) -> tuple[int, int]:
+    """Returns (units_consumed_from_stack, order_remaining_after)."""
+    available = max(0, stack_units - reserved_units)
+    delivered = min(available, order_remaining)
+    return delivered, order_remaining - delivered
+
+
+def simulate_recommended_first_session() -> dict:
+    """Deterministic inventory walk mirroring the locked tutorial + reserve rules."""
+    owns_hull_plate = False
+
+    sa, sa_hand_samples = complete_tutorial_order_via_hand_fill(KETH_CONC, TUTORIAL_ORDER_SA_STACK)
+    cm, cm_hand_samples = complete_tutorial_order_via_hand_fill(SORREL_CONC, TUTORIAL_ORDER_CM_STACK)
+    rc = 0
+
+    sa += TUTORIAL_RUN_1_YIELD_FLOOR
+    sa += TUTORIAL_RUN_2_YIELD
+
+    rc += thump_yield(GLIMMER_CONC, waived=True)
+
+    rc_delivered, _ = turn_in_units(rc, ORDER_RC, reserved_units=HULL_RC)
+    rc -= rc_delivered
+
+    cm += sample_yield(SORREL_CONC) * 3
+    cm_delivered, _ = turn_in_units(cm, ORDER_CM)
+    cm -= cm_delivered
+
+    sa_runs_after_tutorial = 0
+    while sa < HULL_SA and sa_runs_after_tutorial < 12:
+        sa += thump_yield(KETH_CONC, waived=False)
+        sa_runs_after_tutorial += 1
+
+    rc_runs_after_async = 0
+    while rc < HULL_RC and rc_runs_after_async < 6:
+        rc += thump_yield(GLIMMER_CONC, waived=False)
+        rc_runs_after_async += 1
+
+    craftable = sa >= HULL_SA and rc >= HULL_RC and not owns_hull_plate
+
+    return {
+        "sa": sa,
+        "rc": rc,
+        "cm": cm,
+        "sa_hand_samples": sa_hand_samples,
+        "cm_hand_samples": cm_hand_samples,
+        "sa_runs_after_tutorial": sa_runs_after_tutorial,
+        "rc_runs_after_async": rc_runs_after_async,
+        "craftable": craftable,
+        "tuning_source": TUNING.get("source"),
+    }
+
+
+def reinforced_hull_plate_craftable() -> bool:
+    return simulate_recommended_first_session()["craftable"]
+
+
 def print_ceiling_reference() -> None:
     print("=" * 78)
     print("HULL CEILING REFERENCE — validates playtest trip times")
+    print(f"constants: {SNAPSHOT_PATH.name}")
     print("=" * 78)
     print(f"{'tier':<12} {'integ%':>6} {'ceiling(min)':>13} {'m:ss':>8}   playtest")
     print("-" * 78)
@@ -113,9 +186,6 @@ def print_ceiling_reference() -> None:
         mm, ss = int(c), round((c - int(c)) * 60)
         print(f"{tier:<12} {integ:>6} {c:>13.2f} {mm:>5}:{ss:02d}   {obs}")
     print()
-    print("  -> The 2:3.58 / 7:4.44 the tester saw are the RAW float of these")
-    print("     ceilings (formatMmSs / hullDeployWarningLine not flooring seconds).")
-    print()
 
 
 def print_run_yields() -> None:
@@ -125,8 +195,8 @@ def print_run_yields() -> None:
     print(f"{'resource':<22} {'conc%':>6} {'waived(full 15m)':>17} {'recalled(~7m)':>15}")
     print("-" * 78)
     for name, concs in [
-        ("Keth Iron (SA)", [("LOW", 65), ("MID", 75), ("PEAK", 88)]),
-        ("Glimmerfall (RC)", [("LOW", 60), ("obs", 78), ("PEAK", 90)]),
+        ("Keth Iron (SA)", [("MID", 75)]),
+        ("Glimmerfall (RC)", [("obs", 78)]),
     ]:
         for lbl, c in concs:
             w = patched_run_yield(c, 15, waived=True)
@@ -135,119 +205,46 @@ def print_run_yields() -> None:
         print()
 
 
-# ── Critical path ─────────────────────────────────────────────────────────────
-def runs_to_target(target: int, conc: float, first_waived: bool) -> tuple[int, int]:
-    """Returns (runs, units_recovered) to reach `target` units, optionally with the
-    one-time waiver applied to the first run."""
-    got = 0
-    runs = 0
-    while got < target:
-        waived = first_waived and runs == 0
-        y = patched_run_yield(conc, 15, waived=waived)
-        y = round(y * (1 - EVENT_WASTE_FRACTION))  # stress with event waste
-        got += y
-        runs += 1
-        if runs > 50:
-            break
-    return runs, got
-
-
-def print_critical_path() -> None:
+def print_path_inventory(result: dict) -> None:
     print("=" * 78)
-    print("CRITICAL PATH TO FIRST HULL CRAFT (100 SA + 20 RC, patched hull)")
+    print("RECOMMENDED PATH INVENTORY (post-tutorial + reserves + orders)")
     print("=" * 78)
-    print(f"  Modelled with a {int(EVENT_WASTE_FRACTION*100)}% event-waste haircut per run (stress).")
-    print(f"  Keth SA @ 75% (MID), Glimmerfall RC @ 78% (observed).")
-    print()
-    print("  Starting SA stock varies by how the tutorial runs landed:")
-    print("    tutorial run1 floor = 25u, run2 = 60u (both Keth/SA, same waypoint).")
-    print("    A player who claimed both exits with up to ~85 SA; a rough run with")
-    print("    event waste / partial aborts can exit nearer ~45–60. We sweep it.")
-    print()
-    print(f"  {'start SA':>9} {'SA runs':>8} {'RC runs (waiver→RC)':>20} {'total runs':>11}")
-    print("  " + "-" * 60)
-    for start_sa in [0, 25, 45, 60, 85]:
-        sa_need = max(0, HULL_SA - start_sa)
-        # Best play: spend the one-time 15-min waiver on RC (its scarcest, highest-leverage
-        # use — a full 15-min RC run covers hull RC + the RC order in one haul).
-        if sa_need > 0:
-            sa_runs, _ = runs_to_target(sa_need, 75, first_waived=False)
-        else:
-            sa_runs = 0
-        rc_total_need = HULL_RC + ORDER_RC  # hull bonding + the aligned RC order
-        rc_runs, rc_got = runs_to_target(rc_total_need, 78, first_waived=True)
-        total = sa_runs + rc_runs
-        print(f"  {start_sa:>9} {sa_runs:>8} {rc_runs:>20} {total:>11}")
-    print()
-
-
-def print_dead_end_analysis() -> None:
-    print("=" * 78)
-    print("THE PT-15 DEAD-END — hand-sampling RC vs thumping it")
-    print("=" * 78)
-    rc_demand = HULL_RC + ORDER_RC
-    # Hand sampling RC at 78%: yield/sample, and what 10 samples (a full energy cap) buys.
-    ys = sample_yield(78)
-    cap_units = ys * ENERGY_CAP_SAMPLES
-    print(f"  RC demand (hull {HULL_RC} + order {ORDER_RC}) = {rc_demand}u")
-    print()
-    print(f"  HAND-SAMPLING RC @ 78%: {ys}u/sample; a full 120-energy cap (10 samples)")
-    print(f"    buys only {cap_units}u — and the tester stopped at ~11u (pt 15), then")
-    print(f"    turned ALL of it into the RC order -> 0 left for the hull = DEAD END.")
-    print()
-    waived_rc = round(patched_run_yield(78, 15, waived=True) * (1 - EVENT_WASTE_FRACTION))
-    patched_rc = round(patched_run_yield(78, 15, waived=False) * (1 - EVENT_WASTE_FRACTION))
-    two_run = waived_rc + patched_rc  # realistic: first run takes the one-time waiver
-    print(f"  THUMPING RC @ 78% (15-min): waived run ~{waived_rc}u, recalled run ~{patched_rc}u.")
-    print(f"    The realistic 2-run RC haul (1 waived + 1 recalled) = {two_run}u, clearing the")
-    print(f"    {rc_demand}u demand with {two_run - rc_demand}u spare. A single waived haul ({waived_rc}u) is")
-    print(f"    just shy of {rc_demand}u under event waste, so RC is a TWO-haul ask — comfortably")
-    print(f"    inside reach by thump, impossible by hand-sample.")
-    print()
-    print("  => The dead-end is NOT the order quantity. It is the ACQUISITION MODE.")
-    print("     The fix is to steer RC to the thumper (it is a thumper-only bulk), make")
-    print("     the hull bill the headline goal on the FIELD ticker, and show the order")
-    print("     as a subset of that haul — never let a hand-sample turn-in strand it.")
+    print(
+        f"  Tutorial SA hand-fill: {result['sa_hand_samples']} samples → "
+        f"{TUTORIAL_ORDER_SA_STACK}u order complete"
+    )
+    print(
+        f"  Tutorial CM hand-fill: {result['cm_hand_samples']} samples → "
+        f"{TUTORIAL_ORDER_CM_STACK}u order complete"
+    )
+    print(f"  Structural Alloy banked:  {result['sa']:>4}u  (hull needs {HULL_SA}u)")
+    print(f"  Reactive Crystal banked:  {result['rc']:>4}u  (hull needs {HULL_RC}u)")
+    print(f"  Conductive Metal banked:  {result['cm']:>4}u  (CM order {ORDER_CM}u, separate stack)")
+    print(f"  Extra SA thumps after tutorial: {result['sa_runs_after_tutorial']}")
+    print(f"  Extra RC thumps after async:  {result['rc_runs_after_async']}")
     print()
 
 
 def print_verdict() -> None:
+    result = simulate_recommended_first_session()
+    craftable = result["craftable"]
     print("=" * 78)
     print("VERDICT")
     print("=" * 78)
-    print("""\
-  D2 order quantities RC=12 / CM=18 are SAFE — they do NOT cause the dead-end on
-  their own. The pt-15 brick came from acquiring RC by HAND-SAMPLE (≈11u, then
-  turned in) instead of by THUMP (16–35u/run). A single waived RC thump covers
-  hull-RC + the RC order with spare.
-
-  REQUIRED to make the path dead-end-proof (feed into the composer plan, Group D):
-   1. Make the hull bill (100 SA + 20 RC) the HEADLINE goal on the FIELD ticker —
-      orders are framed as subsets of it, not competitors. (D1 ticker pin.)
-   2. Steer RC + bulk SA to the THUMPER, not hand-sampling: copy + the live-rig
-      framing. Hand-sampling RC must read as 'top-up only', never the path.
-   3. The CM 18 order is hand-fillable from leftover tutorial CM (Veyrith/Sorrel/
-      Red Mesa) and never touches SA/RC — keep it as the 'fast satisfying turn-in'.
-   4. Spend the one-time 15-min waiver well: it is worth ~2x a recalled run. The
-      deploy UI should hint it is a one-shot (its own future-slice candidate).
-
-  GRIND CHECK (for Ryan): with ~60–85 SA banked from the two tutorial Keth runs,
-  the first hull is ~2–4 short runs away. From a near-empty start it is ~8 runs.
-  That is the intended 'build your first real hull' gate, not a wall — but if the
-  worst-case 8-run path reads as grindy in testing, the levers are: raise the
-  patched ceiling (integrity), raise DEFAULT_PROJECTED_RECOVERY, or trim the SA
-  bill (100 -> 80). Do NOT lower RC=12/CM=18 for dead-end reasons; they are fine.
-
-  NO new Monte-Carlo sim is needed. Events (event_choice_liveness_sim.py) and
-  experimentation (experimentation_sim.py) remain the locked stochastic models.
-""")
+    print_path_inventory(result)
+    print(f"Reinforced Hull Plate craftable: {'yes' if craftable else 'no'}")
+    if not craftable:
+        print(
+            f"  FAIL: need {HULL_SA} SA + {HULL_RC} RC after order turn-ins and RC reserve; "
+            f"have {result['sa']} SA + {result['rc']} RC"
+        )
+        sys.exit(1)
+    print("  PASS: single-stack totals meet Reinforced Hull Plate bill after recommended path.")
 
 
 def main() -> None:
     print_ceiling_reference()
     print_run_yields()
-    print_critical_path()
-    print_dead_end_analysis()
     print_verdict()
 
 

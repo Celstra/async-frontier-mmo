@@ -155,3 +155,68 @@ export async function trackReturnVisitIfDue(
 		gapHours: Math.round(gapMs / (60 * 60 * 1000))
 	});
 }
+
+async function repeat(
+	db: Db,
+	pilotId: string,
+	eventName: Parameters<typeof recordPlaytestEvent>[1]['eventName'],
+	payload?: PlaytestEventPayload
+) {
+	await recordPlaytestEvent(db, { pilotId, eventName, payload });
+}
+
+export async function trackFieldSampleCompleted(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'field_sample_completed', payload);
+}
+
+export async function trackNextActionResolved(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'next_action_resolved', payload);
+}
+
+export async function trackDeployAttempted(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'deploy_attempted', payload);
+}
+
+export async function trackActiveRunPanelRendered(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'active_run_panel_rendered', payload);
+}
+
+export async function trackRigEventResponseSubmitted(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'rig_event_response_submitted', payload);
+}
+
+export async function trackWorkshopStationViewed(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'workshop_station_viewed', payload);
+}
+
+export async function trackTutorialRecoveryState(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'tutorial_recovery_state', payload);
+}

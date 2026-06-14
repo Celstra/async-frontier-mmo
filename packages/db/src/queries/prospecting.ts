@@ -11,6 +11,8 @@ import {
 	SURVEY_ENERGY_CAP,
 	sampleDepositSpot,
 	scanFamilyProspect,
+	pickPinnedMissionOrder,
+	shouldBindSampleToOrders,
 	type DepositSpot,
 	type FamilyScanResourceView,
 	type PilotSurveyProgress,
@@ -23,11 +25,12 @@ import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
 import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
 import { pilotResourceStatReveals } from '../schema/pilotResourceStatReveals.js';
 import { pilotSurveyEnergy } from '../schema/pilotSurveyEnergy.js';
-import { bindSettlementOrdersOnSample } from './settlement.js';
+import { bindSettlementOrdersOnSample, getActiveSettlementMilestoneKey, listSettlementOrdersForMilestone } from './settlement.js';
 import {
 	ensurePilotSurveyEnergyRow,
 	persistSurveyEnergyAt
 } from './surveyEnergy.js';
+import { getPilotTutorialStep } from './tutorialState.js';
 import { items } from '../schema/items.js';
 import { resourceInstances } from '../schema/resourceInstances.js';
 import { appendEconomyLedgerEntry, appendItemConditionChangedLedger } from './economyLedger.js';
@@ -699,7 +702,22 @@ export async function sampleSpotForPilot(
 			createdAt: now
 		});
 
-		if (sampleResult.energyCost > 0) {
+		const tutorialStep = await getPilotTutorialStep(tx, input.pilotId);
+		const milestoneKey = await getActiveSettlementMilestoneKey(tx, input.pilotId);
+		const orders = await listSettlementOrdersForMilestone(tx, {
+			pilotId: input.pilotId,
+			milestoneKey
+		});
+		const pinnedOrder = pickPinnedMissionOrder(orders, milestoneKey);
+
+		if (
+			shouldBindSampleToOrders({
+				energyCost: sampleResult.energyCost,
+				tutorialStep,
+				pinnedOrderFamily: pinnedOrder?.family ?? null,
+				sampledResourceSlug: resource.resourceSlug
+			})
+		) {
 			await bindSettlementOrdersOnSample(tx, {
 				pilotId: input.pilotId,
 				resourceInstanceId: input.resourceInstanceId,

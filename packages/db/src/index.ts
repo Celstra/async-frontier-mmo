@@ -88,6 +88,7 @@ export {
 	getClaimedTutorialRunDeployTarget,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
+	fastForwardOpenThumperRunToClaimable,
 	hasPilotClaimedTutorialRun,
 	hasPilotCompletedTutorialThumper,
 	insertThumperRun
@@ -100,6 +101,7 @@ export {
 	loadDepositSpotYieldMap,
 	parseDepositSpotDrainAdjustment,
 	seedDepositSpotRemainingUnits,
+	resetKethIronDepositSpotsForSmoke,
 	yieldPresentationMap,
 	type DepositSpotYieldState,
 	type DrainDepositSpotOnClaimResult
@@ -152,6 +154,7 @@ export {
 	hasPilotResourceStatReveal,
 	listPilotRevealedResourceInstanceIds,
 	listPilotWaypointSamples,
+	getTutorialLockedDeployTarget,
 	movePilotOnField,
 	scanPilotFieldTile,
 	setPilotFieldFamily,

@@ -1,6 +1,8 @@
+import { effectiveThumperRunDurationSeconds, hullTierFromIntegrity } from '@async-frontier-mmo/domain';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
+import { getThumperEventWindowsForRun, recordThumperEventWindowResponse } from './thumperEventWindows.js';
 
 export async function insertThumperRun(
 	db: DbExecutor,
@@ -55,6 +57,44 @@ export async function getOpenThumperRunForPilot(db: DbExecutor, pilotId: string)
 		.limit(1);
 
 	return row ?? null;
+}
+
+/** Test/smoke helper — answer open windows and rewind deployedAt so claim is allowed. */
+export async function fastForwardOpenThumperRunToClaimable(db: DbExecutor, pilotId: string) {
+	const openRun = await getOpenThumperRunForPilot(db, pilotId);
+	if (!openRun) {
+		throw new Error(`No open thumper run for pilot ${pilotId}`);
+	}
+
+	const windows = await getThumperEventWindowsForRun(db, openRun.id);
+	for (const window of windows) {
+		if (window.chosenResponse === null) {
+			await recordThumperEventWindowResponse(db, {
+				thumperRunId: openRun.id,
+				windowIndex: window.windowIndex,
+				chosenResponse: window.matchingAction
+			});
+		}
+	}
+
+	const deployedAt = new Date(
+		Date.now() -
+			(Math.max(
+				openRun.durationSeconds,
+				effectiveThumperRunDurationSeconds({
+					hullTier: hullTierFromIntegrity(openRun.runHullIntegrity ?? 100),
+					hullIntegrityAtDeploy: openRun.runHullIntegrity ?? 100,
+					plannedDurationSeconds: openRun.durationSeconds,
+					extractionTailMinutes: openRun.extractionTailMinutes
+				})
+			) +
+				120) *
+				1000
+	);
+	await db
+		.update(thumperRuns)
+		.set({ deployedAt })
+		.where(eq(thumperRuns.id, openRun.id));
 }
 
 export async function getClaimedTutorialRunDeployTarget(

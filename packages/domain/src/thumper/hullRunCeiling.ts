@@ -41,7 +41,11 @@ function tailLabel(minutes: number): string {
 export function availableTails(
 	tier: HullTier,
 	integrityPct: number,
-	options?: { includeTutorialTails?: boolean; unlockFirstAsyncTail?: boolean }
+	options?: {
+		includeTutorialTails?: boolean;
+		unlockFirstAsyncTail?: boolean;
+		allowFirstHullEmergencyRun?: boolean;
+	}
 ): AvailableTailOption[] {
 	const ceiling = maxRunMinutes(tier, integrityPct);
 	const candidates: number[] = [...RUN_TAILS_MINUTES];
@@ -52,7 +56,7 @@ export function availableTails(
 
 	const unique = [...new Set(candidates)].sort((a, b) => a - b);
 
-	const allowed = unique.filter((minutes) => minutes <= ceiling + 0.001);
+	let allowed = unique.filter((minutes) => minutes <= ceiling + 0.001);
 
 	if (
 		options?.unlockFirstAsyncTail &&
@@ -60,6 +64,15 @@ export function availableTails(
 		!allowed.includes(FIRST_ASYNC_TAIL_MINUTES)
 	) {
 		allowed.push(FIRST_ASYNC_TAIL_MINUTES);
+		allowed.sort((a, b) => a - b);
+	}
+
+	if (
+		options?.allowFirstHullEmergencyRun &&
+		tier === 'patched' &&
+		!allowed.includes(TUTORIAL_RUN_2_MINUTES)
+	) {
+		allowed.push(TUTORIAL_RUN_2_MINUTES);
 		allowed.sort((a, b) => a - b);
 	}
 

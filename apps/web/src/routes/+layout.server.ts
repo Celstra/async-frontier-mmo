@@ -9,14 +9,13 @@ import type { LayoutServerLoad } from './$types';
 const RETURN_VISIT_GAP_MS = 4 * 60 * 60 * 1000;
 
 export const load: LayoutServerLoad = async (event) => {
+	event.depends('app:next-action');
 	const db = getGameDb();
 	const pilotId = resolvePilotId(event);
 	await requirePlayablePilot(db, pilotId);
 
-	const [nextActionScreen, latestEventAt] = await Promise.all([
-		loadNextActionScreen(db, pilotId),
-		getLatestPlaytestEventCreatedAt(db, pilotId)
-	]);
+	const latestEventAt = await getLatestPlaytestEventCreatedAt(db, pilotId);
+	const nextActionScreen = await loadNextActionScreen(db, pilotId);
 
 	if (
 		latestEventAt &&

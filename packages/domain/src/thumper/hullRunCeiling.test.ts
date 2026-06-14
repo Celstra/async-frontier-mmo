@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { maxRunMinutes } from './hullRunCeiling.js';
+import { availableTails, maxRunMinutes } from './hullRunCeiling.js';
+import { PATCHED_HULL_INTEGRITY } from '../tuning.js';
 
 describe('hullRunCeiling', () => {
 	it('approximates 2 minutes for scavenged hull at 5% integrity', () => {
@@ -18,5 +19,12 @@ describe('hullRunCeiling', () => {
 		const minutes = maxRunMinutes('basic', 80);
 		expect(minutes).toBeGreaterThanOrEqual(180);
 		expect(minutes).toBeLessThanOrEqual(188);
+	});
+
+	it('offers emergency 5m tail for patched hull before first hull plate', () => {
+		const tails = availableTails('patched', PATCHED_HULL_INTEGRITY, {
+			allowFirstHullEmergencyRun: true
+		});
+		expect(tails.some((tail) => tail.minutes === 5)).toBe(true);
 	});
 });

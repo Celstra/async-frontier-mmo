@@ -100,7 +100,7 @@ export async function loadClaimScreen(
 		return { mode: 'none' as const };
 	}
 
-	const displayRun = latestRun?.claimedAt ? latestRun : openRun ?? latestRun;
+	const displayRun = openRun ?? latestRun;
 	if (!displayRun) {
 		return { mode: 'none' as const };
 	}

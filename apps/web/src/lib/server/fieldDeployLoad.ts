@@ -55,25 +55,37 @@ function equippedPartSnapshots(
 
 export function hullDeployContextFromEquipped(
 	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>,
-	firstAsync: FirstAsyncTailState
+	firstAsync: FirstAsyncTailState,
+	options?: { ownsReinforcedHullPlate?: boolean }
 ) {
 	const hullIntegrity = equipped.hull?.integrity ?? 100;
 	const hullTier = hullTierFromIntegrity(hullIntegrity);
 	const unlockFirstAsyncTail = firstAsyncUnlockForEquippedHull(hullIntegrity, firstAsync);
-	const tailOptions = availableTails(hullTier, hullIntegrity, { unlockFirstAsyncTail });
+	const allowFirstHullEmergencyRun =
+		options?.ownsReinforcedHullPlate === false && hullTier === 'patched';
+	const tailOptions = availableTails(hullTier, hullIntegrity, {
+		unlockFirstAsyncTail,
+		allowFirstHullEmergencyRun
+	});
 	return {
 		hullIntegrity,
 		hullTier,
 		allowedTailMinutes: tailOptions.map((tail) => tail.minutes),
-		tailMenuOptions: extractionTailOptionsForHull(hullTier, hullIntegrity, { unlockFirstAsyncTail })
+		tailMenuOptions: extractionTailOptionsForHull(hullTier, hullIntegrity, {
+			unlockFirstAsyncTail,
+			allowFirstHullEmergencyRun
+		})
 	};
 }
 
 export function allowedExtractionTailsForEquippedHull(
 	equipped: Awaited<ReturnType<typeof getEquippedThumperPartsForPilot>>,
-	firstAsync: FirstAsyncTailState
+	firstAsync: FirstAsyncTailState,
+	ownsReinforcedHullPlate: boolean
 ): number[] {
-	return hullDeployContextFromEquipped(equipped, firstAsync).allowedTailMinutes;
+	return hullDeployContextFromEquipped(equipped, firstAsync, {
+		ownsReinforcedHullPlate
+	}).allowedTailMinutes;
 }
 
 export async function loadDeployPreviewForPilot(

@@ -51,7 +51,8 @@
 					{#if showFirstDeployReady}
 						<h2 class="workshop-main__title">Rig assembled</h2>
 						<p class="workshop-framing">
-							Chassis is ready. Foreman wants you on FIELD — deploy on the deposit you sampled.
+							Chassis is ready. Foreman wants you on FIELD — deploy on the locked Keth Iron
+							waypoint from your first structural order.
 						</p>
 					{:else}
 						<h2 class="workshop-main__title">Thumper chassis</h2>
@@ -66,11 +67,13 @@
 						thumperParts={data.thumperParts}
 						selections={data.chassisSelections}
 						rigAssembled={data.rigAssembled}
+						firstDeployPrompt={showFirstDeployReady}
 					/>
 				</div>
 			</div>
 		{:else}
-			<div class="workshop-layout">
+			<div class="workshop-layout workshop-layout--fabricator">
+				<pre class="fabricator-art fabricator-art--header" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
 				<SchematicList
 					schematics={data.schematics}
 					selectedSchematicId={data.selectedSchematicId}
@@ -83,24 +86,20 @@
 						{#if data.materialRollup}
 							<p class="workshop-material-rollup">{data.materialRollup}</p>
 						{/if}
-						<div class="fabricator-bench">
-							<WorkshopBench
-								schematic={data.schematicDefinition}
-								inventory={data.inventory}
-								allocationHints={data.allocationHints}
-								defaultSelections={data.slotSelections}
-								{craftOutcome}
-								schematicReadiness={data.schematicReadiness}
-							/>
-							<pre class="fabricator-art" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
-						</div>
+						<WorkshopBench
+							schematic={data.schematicDefinition}
+							inventory={data.inventory}
+							allocationHints={data.allocationHints}
+							defaultSelections={data.slotSelections}
+							{craftOutcome}
+							schematicReadiness={data.schematicReadiness}
+						/>
 					{:else}
 						<h2 class="workshop-main__title">Fabricator bench</h2>
 						<p class="workshop-framing">
 							Pick a schematic from the list. Locked recipes stay visible — nothing auto-selects
 							a schematic you cannot craft yet.
 						</p>
-						<pre class="fabricator-art fabricator-art--solo" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
 					{/if}
 				</div>
 			</div>
@@ -165,7 +164,7 @@
 		color: var(--accent-warning);
 	}
 
-	.fabricator-bench {
+	.workshop-layout--fabricator {
 		display: grid;
 		gap: 1rem;
 	}
@@ -173,25 +172,21 @@
 	.fabricator-art {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
+		font-size: clamp(0.55rem, 2vw, var(--font-size-xs));
 		line-height: 1.3;
 		color: var(--phosphor);
-		white-space: pre;
-		overflow-x: auto;
+		white-space: pre-wrap;
+		overflow-x: hidden;
+		max-width: 100%;
 	}
 
-	.fabricator-art--solo {
-		margin-top: 1rem;
+	.fabricator-art--header {
+		margin-bottom: 0.25rem;
 	}
 
 	@media (min-width: 900px) {
 		.workshop-layout {
 			grid-template-columns: minmax(14rem, 18rem) 1fr;
-			align-items: start;
-		}
-
-		.fabricator-bench {
-			grid-template-columns: 1fr minmax(12rem, 16rem);
 			align-items: start;
 		}
 	}

@@ -25,14 +25,15 @@ describe('deployPreview', () => {
 		expect(extractionTailYieldMultiplier(240)).toBeCloseTo(2, 2);
 	});
 
-	it('includes active phase plus tail in total duration', () => {
-		expect(totalRunDurationSeconds(60, 60)).toBe(3660);
+	it('player-facing duration equals tail minutes only', () => {
+		expect(totalRunDurationSeconds(60, 15)).toBe(900);
+		expect(totalRunDurationSeconds(60, 5)).toBe(300);
 	});
 
-	it('tutorial run totals 180 seconds (60s active + 2m tail)', () => {
+	it('tutorial run totals 120 seconds (2m tail)', () => {
 		expect(
 			totalRunDurationSeconds(ACTIVE_PHASE_SECONDS, TUTORIAL_EXTRACTION_TAIL_OPTION.minutes)
-		).toBe(180);
+		).toBe(120);
 	});
 
 	it('exempts tutorial tail from sublinear yield penalty', () => {

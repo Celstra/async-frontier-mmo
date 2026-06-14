@@ -3,10 +3,12 @@ import {
 	ensureNextNeedOrdersPostedForPilot,
 	getEquippedThumperPartsForPilot,
 	getPilotTutorialStep,
+	listThumperPartItemsForPilot,
 	patchEquippedHullForTutorial,
 	refillSurveyEnergyToCap,
 	setPilotTutorialStep
 } from '@async-frontier-mmo/db';
+import { REINFORCED_HULL_PLATE } from '@async-frontier-mmo/domain';
 import { fail } from '@sveltejs/kit';
 import { allowedExtractionTailsForEquippedHull } from '$lib/server/fieldDeployLoad';
 import { loadFirstAsyncTailState } from '$lib/server/firstAsyncTailState';
@@ -178,8 +180,16 @@ export const actions: Actions = {
 		const tailMinutesRaw = formData.get('tailMinutes');
 		const tailMinutes = Number.parseInt(String(tailMinutesRaw ?? ''), 10);
 		const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
+		const thumperParts = await listThumperPartItemsForPilot(db, pilotId);
+		const ownsReinforcedHullPlate = thumperParts.some(
+			(part) => part.schematicId === REINFORCED_HULL_PLATE.id
+		);
 		const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep: step });
-		const allowedTails = allowedExtractionTailsForEquippedHull(equipped, firstAsync);
+		const allowedTails = allowedExtractionTailsForEquippedHull(
+			equipped,
+			firstAsync,
+			ownsReinforcedHullPlate
+		);
 
 		if (!Number.isFinite(tailMinutes) || !allowedTails.includes(tailMinutes)) {
 			return fail(400, {

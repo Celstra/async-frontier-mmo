@@ -240,12 +240,14 @@ export {
 export { pickPinnedMissionOrder } from './settlement/pinnedMissionOrder.js';
 export {
 	FIRST_HULL_RESERVE,
+	FIRST_HULL_SA_RESERVE,
 	firstHullReserveMap,
 	firstHullReservedUnitsForStack,
 	firstHullTurnInQuantity,
 	type FirstHullReserve,
 	type FirstHullReserveStack
 } from './settlement/firstHullReserve.js';
+export { shouldBindSampleToOrders } from './settlement/shouldBindSampleToOrders.js';
 export { SETTLEMENT_MILESTONES, type SettlementMilestoneKey } from './settlement/milestones.js';
 export type { SettlementOrder, SettlementOrderStatus } from './settlement/types.js';
 export {
@@ -343,6 +345,16 @@ export {
 	type TutorialThumperRun,
 	type ThumperRunWindowPlan
 } from './thumper/generateThumperEventWindows.js';
+export {
+	TUTORIAL_DEPLOY_LOCKED_BANNER,
+	TUTORIAL_DEPLOY_LOCKED_REASON,
+	TUTORIAL_DEPLOY_RESOURCE_SLUG,
+	TUTORIAL_SECOND_DEPLOY_LOCKED_LINE,
+	isTutorialDeployLockedStep,
+	tutorialDeployWaivesSpotExhaustion,
+	validateTutorialDeployTarget,
+	type TutorialDeployTarget
+} from './thumper/tutorialDeploy.js';
 export {
 	FIELD_REPAIR_REQUIRES_KIT_REASON,
 	getEventWindowResponseOptions,
@@ -473,4 +485,11 @@ export {
 	resolveNextActionScreen,
 	settlementBriefingPendingForStep
 } from './tutorial/resolveNextActionScreen.js';
+export {
+	familyDisplayLabel,
+	foremanFirstOrderLine,
+	handFillResourceSlugForFamily,
+	resourceDisplayLabel,
+	tutorialFieldFamilyDefault
+} from './tutorial/defaultFieldFamily.js';
 export { tutorialHullFailsafeClaimBanner } from './tutorial/tutorialClaimCopy.js';

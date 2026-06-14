@@ -26,6 +26,33 @@ export const FIRST_HULL_RESERVE: FirstHullReserve = (() => {
 	};
 })();
 
+export const FIRST_HULL_SA_RESERVE = REINFORCED_HULL_PLATE.slots
+	.filter((slot) => slot.requiredFamily === 'structural_alloy')
+	.reduce((total, slot) => total + slot.inputQuantity, 0);
+
+function allocateFamilyReserve(
+	stacks: ReadonlyArray<FirstHullReserveStack>,
+	family: ResourceFamily,
+	unitsNeeded: number
+): Map<string, number> {
+	const reserve = new Map<string, number>();
+	let remaining = unitsNeeded;
+
+	for (const stack of [...stacks]
+		.filter((entry) => entry.family === family && entry.quantity > 0)
+		.sort((left, right) => right.quantity - left.quantity)) {
+		if (remaining <= 0) {
+			break;
+		}
+
+		const take = Math.min(stack.quantity, remaining);
+		reserve.set(stack.resourceInstanceId, take);
+		remaining -= take;
+	}
+
+	return reserve;
+}
+
 export function firstHullReservedUnitsForStack(input: {
 	milestoneKey: string;
 	family: ResourceFamily;
@@ -34,8 +61,13 @@ export function firstHullReservedUnitsForStack(input: {
 }): number {
 	if (input.ownsReinforcedHullPlate) return 0;
 	if (input.milestoneKey !== 'next_need') return 0;
-	if (input.family !== FIRST_HULL_RESERVE.family) return 0;
-	return Math.min(input.stackQuantity, FIRST_HULL_RESERVE.units);
+	if (input.family === FIRST_HULL_RESERVE.family) {
+		return Math.min(input.stackQuantity, FIRST_HULL_RESERVE.units);
+	}
+	if (input.family === 'structural_alloy') {
+		return Math.min(input.stackQuantity, FIRST_HULL_SA_RESERVE);
+	}
+	return 0;
 }
 
 export function firstHullReserveMap(input: {
@@ -47,16 +79,25 @@ export function firstHullReserveMap(input: {
 		return new Map();
 	}
 
-	const [reserveStack] = input.stacks
-		.filter((stack) => stack.family === FIRST_HULL_RESERVE.family && stack.quantity > 0)
-		.sort((left, right) => right.quantity - left.quantity);
-	if (!reserveStack) {
-		return new Map();
+	const merged = new Map<string, number>();
+
+	for (const [instanceId, units] of allocateFamilyReserve(
+		input.stacks,
+		FIRST_HULL_RESERVE.family,
+		FIRST_HULL_RESERVE.units
+	)) {
+		merged.set(instanceId, units);
 	}
 
-	return new Map([
-		[reserveStack.resourceInstanceId, Math.min(reserveStack.quantity, FIRST_HULL_RESERVE.units)]
-	]);
+	for (const [instanceId, units] of allocateFamilyReserve(
+		input.stacks,
+		'structural_alloy',
+		FIRST_HULL_SA_RESERVE
+	)) {
+		merged.set(instanceId, (merged.get(instanceId) ?? 0) + units);
+	}
+
+	return merged;
 }
 
 export function firstHullTurnInQuantity(input: {
@@ -66,9 +107,11 @@ export function firstHullTurnInQuantity(input: {
 	remainingOrderUnits: number;
 	reservedUnits: number;
 }): number {
-	const availableUnits =
-		input.milestoneKey === 'next_need' && input.family === FIRST_HULL_RESERVE.family
-			? Math.max(0, input.stackQuantity - input.reservedUnits)
-			: input.stackQuantity;
+	const protectedFamilies =
+		input.milestoneKey === 'next_need' &&
+		(input.family === FIRST_HULL_RESERVE.family || input.family === 'structural_alloy');
+	const availableUnits = protectedFamilies
+		? Math.max(0, input.stackQuantity - input.reservedUnits)
+		: input.stackQuantity;
 	return Math.min(availableUnits, input.remainingOrderUnits);
 }

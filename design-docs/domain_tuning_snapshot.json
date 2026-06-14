@@ -1,0 +1,39 @@
+{
+  "source": "packages/domain — re-export via design-docs/export_domain_tuning.ts",
+  "generatedBy": "export_domain_tuning.ts",
+  "SAMPLE_BASE_YIELD": 5,
+  "TUTORIAL_ORDER_SA_STACK": 15,
+  "TUTORIAL_ORDER_CM_STACK": 12,
+  "NEXT_NEED_ORDER_RC_STACK": 12,
+  "NEXT_NEED_ORDER_CM_STACK": 18,
+  "TUTORIAL_RUN_1_YIELD_FLOOR": 25,
+  "TUTORIAL_RUN_2_YIELD": 60,
+  "PATCHED_HULL_INTEGRITY": 30,
+  "HULL_CEILING_EXPONENT": 1.2,
+  "HULL_TIER_BASE": {
+    "scavenged": 75,
+    "patched": 30,
+    "basic": 240,
+    "strong": 480,
+    "exceptional": 700
+  },
+  "HULL_SA": 100,
+  "HULL_RC": 20,
+  "REINFORCED_HULL_PLATE_SLOTS": [
+    {
+      "id": "outer_plate",
+      "family": "structural_alloy",
+      "inputQuantity": 60
+    },
+    {
+      "id": "bracing_layer",
+      "family": "structural_alloy",
+      "inputQuantity": 40
+    },
+    {
+      "id": "bonding_matrix",
+      "family": "reactive_crystal",
+      "inputQuantity": 20
+    }
+  ]
+}

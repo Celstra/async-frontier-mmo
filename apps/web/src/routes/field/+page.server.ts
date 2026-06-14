@@ -2,14 +2,13 @@ import {
 	DepositSpotExhaustedError,
 	DepositSpotStaleError,
 	deployThumperRunWithEventWindows,
-	getAnyTutorialRunDeployTarget,
-	getClaimedTutorialRunDeployTarget,
-	listPilotWaypointSamples,
+	getTutorialLockedDeployTarget,
 	getBloomRecord,
 	getDepositSpotYieldState,
 	getOpenThumperRunForPilot,
 	getPilotDepositSample,
 	getEquippedThumperPartsForPilot,
+	listThumperPartItemsForPilot,
 	getResourceInstanceById,
 	movePilotOnField,
 	recordThumperEventWindowResponseForPilot,
@@ -40,14 +39,21 @@ import {
 	spotIdFor,
 	TUTORIAL_RUN_2_MINUTES,
 	tutorialDeployForStep,
+	tutorialDeployWaivesSpotExhaustion,
 	tutorialRunFromSeed,
 	tutorialRunSeed,
+	validateTutorialDeployTarget,
+	isTutorialDeployLockedStep,
+	REINFORCED_HULL_PLATE,
 	type NamedResourceId,
 	type ResourceFamily,
 	type ThumperComplicationId,
 	type ThumperEventActionId
 } from '@async-frontier-mmo/domain';
 import { fail, redirect } from '@sveltejs/kit';
+
+const RIG_MONITOR_MESSAGE = 'Rig deployed — monitor events on RIG.';
+
 import { FIELD_FAMILY_OPTIONS, parseFieldFamily } from '$lib/field/constants';
 import {
 	allowedExtractionTailsForEquippedHull,
@@ -80,7 +86,8 @@ import {
 	trackFieldSampleCommit,
 	trackFieldStatReveal,
 	trackFieldTileScan,
-	trackSliceEventWindowResolved
+	trackSliceEventWindowResolved,
+	trackDeployAttempted
 } from '$lib/server/playtestTelemetry';
 import {
 	advanceTutorialStepIf,
@@ -92,6 +99,16 @@ import type { Actions, PageServerLoad } from './$types';
 
 async function fieldData(db: ReturnType<typeof getGameDb>, pilotId: string) {
 	return loadFieldScreen(db, pilotId, new Date());
+}
+
+async function deployRejected(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string,
+	message: string,
+	telemetry: Record<string, unknown> = {}
+) {
+	await trackDeployAttempted(db, pilotId, { allowed: false, reason: message, ...telemetry });
+	return fail(400, { message, ...(await fieldData(db, pilotId)) });
 }
 
 export const load: PageServerLoad = async (event) => {
@@ -275,7 +292,9 @@ export const actions: Actions = {
 		const pilotId = resolvePilotId(event);
 		const open = await getOpenThumperRunForPilot(db, pilotId);
 		if (open) {
-			return fail(400, { message: 'You already have an open thumper run', ...(await fieldData(db, pilotId)) });
+			return deployRejected(db, pilotId, 'You already have an open thumper run', {
+				code: 'open_run'
+			});
 		}
 
 		const formData = await event.request.formData();
@@ -284,84 +303,66 @@ export const actions: Actions = {
 		const tailMinutesRaw = formData.get('tailMinutes');
 
 		if (typeof resourceInstanceId !== 'string' || typeof spotId !== 'string') {
-			return fail(400, { message: 'Invalid deploy target', ...(await fieldData(db, pilotId)) });
+			return deployRejected(db, pilotId, 'Invalid deploy target', { code: 'invalid_target' });
 		}
 
 		const sample = await getPilotDepositSample(db, { pilotId, resourceInstanceId, spotId });
 		if (!sample) {
-			return fail(400, {
-				message: 'Sample this deposit before deploying',
-				...(await fieldData(db, pilotId))
+			return deployRejected(db, pilotId, 'Sample this deposit before deploying', {
+				code: 'missing_sample'
 			});
 		}
 
 		const equipped = await getEquippedThumperPartsForPilot(db, pilotId);
 		if (!equipped.drill || !equipped.pump || !equipped.hull) {
-			return fail(400, {
-				message: 'Assemble your rig in WORKSHOP before deploying',
-				...(await fieldData(db, pilotId))
+			return deployRejected(db, pilotId, 'Assemble your rig in WORKSHOP before deploying', {
+				code: 'rig_incomplete'
 			});
 		}
 
+		const thumperParts = await listThumperPartItemsForPilot(db, pilotId);
+		const ownsReinforcedHullPlate = thumperParts.some(
+			(part) => part.schematicId === REINFORCED_HULL_PLATE.id
+		);
+
 		const resource = await getResourceInstanceById(db, resourceInstanceId);
 		if (!resource) {
-			return fail(400, { message: 'Resource not found', ...(await fieldData(db, pilotId)) });
+			return deployRejected(db, pilotId, 'Resource not found', { code: 'resource_not_found' });
 		}
 
 		const tutorialStep = await readTutorialStep(db, pilotId);
 		const tutorialRun = tutorialDeployForStep(tutorialStep);
 		if (tutorialStep && tutorialStep !== 'done' && tutorialRun === null) {
-			return fail(400, {
-				message: 'Foreman has another job for you before the next deploy',
-				...(await fieldData(db, pilotId))
+			return deployRejected(db, pilotId, 'Foreman has another job for you before the next deploy', {
+				code: 'tutorial_gate'
 			});
 		}
 		const isTutorialRun = tutorialRun !== null;
 
-		if (tutorialRun === 2) {
-			// (a) Prefer a claimed run-1 row; (b) fall back to any run-1 row (expired unclaimed);
-			// (c) fall back to the highest-concentration sampled spot this pilot has.
-			let firstRunWaypoint = await getClaimedTutorialRunDeployTarget(db, {
+		if (isTutorialDeployLockedStep(tutorialStep)) {
+			const activeBloomId = await getActiveBloomId(db);
+			const lockedTarget = await getTutorialLockedDeployTarget(db, {
 				pilotId,
-				runSeed: TUTORIAL_RUN_1_SEED
+				bloomId: activeBloomId
 			});
-
-			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
-				firstRunWaypoint = await getAnyTutorialRunDeployTarget(db, {
+			const deployValidation = validateTutorialDeployTarget({
+				tutorialStep,
+				resourceSlug: resource.resourceSlug,
+				resourceInstanceId,
+				spotId,
+				lockedTarget
+			});
+			if (!deployValidation.allowed) {
+				return deployRejected(
+					db,
 					pilotId,
-					runSeed: TUTORIAL_RUN_1_SEED
-				});
-			}
-
-			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
-				// (c) Any sampled spot — pick the highest concentration.
-				const activeBloomId = await getActiveBloomId(db);
-				const waypointSamples = await listPilotWaypointSamples(db, { pilotId, bloomId: activeBloomId });
-				const best = waypointSamples.sort(
-					(a, b) => (b.trueConcentrationPercent ?? 0) - (a.trueConcentrationPercent ?? 0)
-				)[0];
-				if (best) {
-					firstRunWaypoint = {
-						depositSpotId: best.spotId,
-						resourceInstanceId: best.resourceInstanceId
-					};
-				}
-			}
-
-			if (!firstRunWaypoint?.depositSpotId || !firstRunWaypoint.resourceInstanceId) {
-				return fail(400, {
-					message: 'Complete your first tutorial deploy before redeploying',
-					...(await fieldData(db, pilotId))
-				});
-			}
-			if (
-				resourceInstanceId !== firstRunWaypoint.resourceInstanceId ||
-				spotId !== firstRunWaypoint.depositSpotId
-			) {
-				return fail(400, {
-					message: 'Second tutorial deploy must use the same waypoint as your first run',
-					...(await fieldData(db, pilotId))
-				});
+					deployValidation.reason ?? 'Tutorial deploy locked to Keth Iron',
+					{
+						code: 'tutorial_deploy_locked',
+						resourceSlug: resource.resourceSlug,
+						spotId
+					}
+				);
 			}
 		}
 
@@ -372,17 +373,22 @@ export const actions: Actions = {
 			: Number.parseInt(String(tailMinutesRaw ?? '60'), 10);
 
 		if (!Number.isFinite(extractionTailMinutes) || extractionTailMinutes <= 0) {
-			return fail(400, { message: 'Pick a run duration', ...(await fieldData(db, pilotId)) });
+			return deployRejected(db, pilotId, 'Pick a run duration', { code: 'invalid_tail' });
 		}
 
 		const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
 
 		if (!isTutorialRun) {
-			const allowedTails = allowedExtractionTailsForEquippedHull(equipped, firstAsync);
+			const allowedTails = allowedExtractionTailsForEquippedHull(
+				equipped,
+				firstAsync,
+				ownsReinforcedHullPlate
+			);
 			if (!allowedTails.includes(extractionTailMinutes)) {
-				return fail(400, {
-					message: 'That run duration exceeds your hull ceiling',
-					...(await fieldData(db, pilotId))
+				return deployRejected(db, pilotId, 'That run duration exceeds your hull ceiling', {
+					code: 'hull_ceiling',
+					extractionTailMinutes,
+					allowedTails
 				});
 			}
 		}
@@ -395,10 +401,9 @@ export const actions: Actions = {
 			generationSeed: bloomGenerationSeed
 		});
 
-		if (spotYield.remainingUnits <= 0) {
-			return fail(400, {
-				message: 'This deposit is exhausted — find another waypoint',
-				...(await fieldData(db, pilotId))
+		if (spotYield.remainingUnits <= 0 && !tutorialDeployWaivesSpotExhaustion(tutorialRun)) {
+			return deployRejected(db, pilotId, 'This deposit is exhausted — find another waypoint', {
+				code: 'deposit_exhausted'
 			});
 		}
 
@@ -432,6 +437,7 @@ export const actions: Actions = {
 				trueConcentrationPercent: sample.trueConcentrationPercent,
 				extractionTailMinutes,
 				resourceInstanceId,
+				allowExhaustedSpot: tutorialDeployWaivesSpotExhaustion(tutorialRun),
 				windows: plan.windows
 					.filter((window) => !window.quiet)
 					.map((window) => ({
@@ -442,15 +448,13 @@ export const actions: Actions = {
 			});
 		} catch (error) {
 			if (error instanceof DepositSpotExhaustedError) {
-				return fail(400, {
-					message: 'This deposit is exhausted',
-					...(await fieldData(db, pilotId))
+				return deployRejected(db, pilotId, 'This deposit is exhausted', {
+					code: 'deposit_exhausted_race'
 				});
 			}
 			if (error instanceof DepositSpotStaleError) {
-				return fail(400, {
-					message: 'That deposit signal has faded',
-					...(await fieldData(db, pilotId))
+				return deployRejected(db, pilotId, 'That deposit signal has faded', {
+					code: 'deposit_stale'
 				});
 			}
 			throw error;
@@ -464,6 +468,14 @@ export const actions: Actions = {
 		) {
 			await recordFirstAsyncDeployUsed(db, pilotId, deployedRun.id);
 		}
+
+		await trackDeployAttempted(db, pilotId, {
+			allowed: true,
+			targetResourceId: resource.resourceSlug,
+			extractionTailMinutes,
+			isTutorialRun,
+			spotId
+		});
 
 		await trackFieldDeploy(db, pilotId, {
 			targetResourceId: resource.resourceSlug,
@@ -503,132 +515,17 @@ export const actions: Actions = {
 	respondEventWindow: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
-		const run = await getOpenThumperRunForPilot(db, pilotId);
-		if (!run) {
-			return fail(400, { message: 'No open thumper run', ...(await fieldData(db, pilotId)) });
-		}
-
-		const formData = await event.request.formData();
-		const windowIndex = parseWindowIndex(formData.get('windowIndex'));
-		const chosenResponse = parseChosenResponse(formData.get('chosenResponse'));
-
-		if (windowIndex === null || chosenResponse === null) {
-			return fail(400, { message: 'Invalid event window response', ...(await fieldData(db, pilotId)) });
-		}
-
-		const windows = await getThumperEventWindowsForRun(db, run.id);
-		const window = windows.find((row) => row.windowIndex === windowIndex);
-		if (!window) {
-			return fail(400, { message: 'Event window not found', ...(await fieldData(db, pilotId)) });
-		}
-
-		if (isRunEndedByRecall(windows)) {
-			return fail(400, { message: 'Run already ended with Recall Early', ...(await fieldData(db, pilotId)) });
-		}
-
-		const orderValidation = validateEventWindowRespondOrder({
-			windows,
-			windowIndex,
-			chosenResponse
+		return fail(400, {
+			message: RIG_MONITOR_MESSAGE,
+			...(await fieldData(db, pilotId))
 		});
-		if (!orderValidation.ok) {
-			return fail(400, { message: orderValidation.reason, ...(await fieldData(db, pilotId)) });
-		}
-
-		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-		const validation = validateEventWindowResponse({
-			complication: window.complication as ThumperComplicationId,
-			matchingAction: window.matchingAction as ThumperEventActionId,
-			chosenResponse,
-			fieldRepairKitCount
-		});
-		if (!validation.ok) {
-			return fail(400, { message: validation.reason, ...(await fieldData(db, pilotId)) });
-		}
-
-		if (window.chosenResponse === null) {
-			const preRespondState = await loadOpenRunState(db, run, fieldRepairKitCount, {
-				resolveDisplayName: resolveTargetDisplayName,
-				includeRunMeters: true,
-				isTutorialRun: tutorialRunFromSeed(run.runSeed) !== null
-			});
-			if (!preRespondState.runMeters) {
-				return fail(500, { message: 'Run meters unavailable', ...(await fieldData(db, pilotId)) });
-			}
-
-			const outcome = await recordThumperEventWindowResponseForPilot(db, {
-				pilotId,
-				thumperRunId: run.id,
-				windowIndex,
-				complication: window.complication,
-				matchingAction: window.matchingAction,
-				severity: window.severity ?? 'minor',
-				chosenResponse,
-				currentMeters: preRespondState.runMeters,
-				totalWindowCount: windows.length,
-				runHullCondition: run.runHullCondition,
-				runHullIntegrity: run.runHullIntegrity,
-				tutorialDeterministic: tutorialRunFromSeed(run.runSeed) !== null
-			});
-			if (outcome.status === 'no_repair_kit') {
-				return fail(400, {
-					message: 'Field Repair requires a crafted Field Repair Kit',
-					...(await fieldData(db, pilotId))
-				});
-			}
-			if (outcome.status === 'not_recorded') {
-				return fail(400, {
-					message: 'Could not record event window response',
-					...(await fieldData(db, pilotId))
-				});
-			}
-
-			await trackSliceEventWindowResolved(db, pilotId, {
-				windowIndex,
-				chosenResponse,
-				complication: window.complication
-			});
-		}
-
-		return fieldData(db, pilotId);
 	},
 
 	claim: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
-		const now = new Date();
-		const tutorialStepBeforeClaim = await readTutorialStep(db, pilotId);
-
-		let outcome;
-		try {
-			outcome = await claimOpenRun(db, pilotId, now);
-		} catch (error) {
-			return fail(500, {
-				message: error instanceof Error ? error.message : 'Claim failed unexpectedly',
-				...(await fieldData(db, pilotId))
-			});
-		}
-
-		if (outcome.status === 'claimed' || outcome.status === 'already_claimed') {
-			if (outcome.status === 'claimed' && outcome.claimResult) {
-				if (tutorialStepBeforeClaim === 'first_deploy') {
-					await trackFieldFirstClaim(db, pilotId, {
-						recoveredQuantity: outcome.claimResult.recoveredQuantity
-					});
-					await advanceTutorialStepIf(db, pilotId, 'first_deploy', 'recall_lesson');
-				} else if (tutorialStepBeforeClaim === 'second_deploy') {
-					await advanceTutorialStepIf(db, pilotId, 'second_deploy', 'full_claim');
-				}
-			}
-			return fieldData(db, pilotId);
-		}
-
-		if (outcome.status === 'not_claimable') {
-			return fail(400, { message: 'Thumper is not claimable yet', ...(await fieldData(db, pilotId)) });
-		}
-
 		return fail(400, {
-			message: outcome.status === 'not_resolvable' ? outcome.message : 'No thumper to claim',
+			message: RIG_MONITOR_MESSAGE,
 			...(await fieldData(db, pilotId))
 		});
 	},
@@ -636,22 +533,9 @@ export const actions: Actions = {
 	acknowledgeClaim: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
-		const formData = await event.request.formData();
-		const thumperRunId = formData.get('thumperRunId');
-
-		if (typeof thumperRunId !== 'string') {
-			return fail(400, { message: 'Missing thumper run', ...(await fieldData(db, pilotId)) });
-		}
-
-		const outcome = await acknowledgeThumperRunResult(db, {
-			pilotId,
-			thumperRunId
+		return fail(400, {
+			message: RIG_MONITOR_MESSAGE,
+			...(await fieldData(db, pilotId))
 		});
-
-		if (outcome.status === 'not_found') {
-			return fail(400, { message: 'Claim result not found', ...(await fieldData(db, pilotId)) });
-		}
-
-		return fieldData(db, pilotId);
 	}
 };

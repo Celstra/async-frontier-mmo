@@ -12,10 +12,12 @@
 	.thumper-ascii {
 		margin: 0 0 0.75rem;
 		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
+		font-size: clamp(0.55rem, 2vw, var(--font-size-xs));
 		line-height: 1.35;
 		color: var(--phosphor);
-		white-space: pre;
-		overflow-x: auto;
+		white-space: pre-wrap;
+		overflow-x: hidden;
+		max-width: 100%;
+		word-break: break-word;
 	}
 </style>

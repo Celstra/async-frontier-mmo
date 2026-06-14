@@ -32,6 +32,7 @@ import {
 	ensureSettlementBootstrapForPilot,
 	listOpenSettlementOrdersForPilot
 } from './settlement.js';
+import { setPilotTutorialStep, clearPilotTutorialState } from './tutorialState.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeDb = databaseUrl ? describe : describe.skip;
@@ -72,6 +73,7 @@ describeDb('prospecting persistence', () => {
 	afterAll(async () => {
 		await clearPilotProspectingState(db, testPilotId);
 		await clearPilotSettlementState(db, testPilotId);
+		await clearPilotTutorialState(db, testPilotId);
 		await db.delete(economyLedger).where(eq(economyLedger.pilotId, testPilotId));
 		await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, testPilotId));
 		await db.delete(pilots).where(eq(pilots.id, testPilotId));
@@ -366,10 +368,61 @@ describeDb('prospecting persistence', () => {
 		expect(progress.sampledSpotIds).toHaveLength(1);
 	});
 
-	it('free sample does not bind settlement orders; paid sample does', async () => {
+	it('tutorial free sample binds the pinned structural alloy order', async () => {
 		await clearPilotProspectingState(db, testPilotId);
 		await clearPilotSettlementState(db, testPilotId);
 		await ensureSettlementBootstrapForPilot(db, testPilotId);
+		await setPilotTutorialStep(db, { pilotId: testPilotId, step: 'first_orders' });
+
+		const saOrder = (await listOpenSettlementOrdersForPilot(db, testPilotId)).find(
+			(order) => order.family === 'structural_alloy'
+		);
+		expect(saOrder).toBeDefined();
+
+		const keth = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'keth_iron');
+		expect(keth).not.toBeNull();
+
+		const scan = await scanFamilyForPilot(db, {
+			pilotId: testPilotId,
+			family: 'structural_alloy',
+			bloomId: BLOOM_ONE_ID
+		});
+		expect(scan.status).toBe('ok');
+
+		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
+		expect(bloom).not.toBeNull();
+		const spots = generateDepositSpots({
+			resourceSlug: keth!.resourceSlug,
+			bloomGenerationSeed: bloom!.generationSeed,
+			concentrationMinPercent: keth!.concentrationMinPercent,
+			concentrationMaxPercent: keth!.concentrationMaxPercent,
+			prospectingCycle: keth!.prospectingCycle
+		});
+		expect(spots.length).toBeGreaterThan(0);
+
+		const freeSample = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: keth!.id,
+			spotId: spots[0]!.spotId
+		});
+		expect(freeSample.status).toBe('ok');
+		if (freeSample.status === 'ok') {
+			expect(freeSample.energyCost).toBe(0);
+		}
+
+		const [boundRow] = await db
+			.select()
+			.from(settlementOrders)
+			.where(eq(settlementOrders.id, saOrder!.id))
+			.limit(1);
+		expect(boundRow?.boundInstanceId).toBe(keth!.id);
+	});
+
+	it('post-tutorial free sample does not bind settlement orders; paid sample does', async () => {
+		await clearPilotProspectingState(db, testPilotId);
+		await clearPilotSettlementState(db, testPilotId);
+		await ensureSettlementBootstrapForPilot(db, testPilotId);
+		await setPilotTutorialStep(db, { pilotId: testPilotId, step: 'done' });
 		await scanConductiveMetalFamily();
 
 		const orders = await listOpenSettlementOrdersForPilot(db, testPilotId);

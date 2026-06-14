@@ -9,7 +9,7 @@ import {
 	TOPOLOGY_GRID_WIDTH,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
 import { pilotFieldState } from '../schema/pilotFieldState.js';
@@ -382,4 +382,41 @@ export async function listPilotWaypointSamples(
 				eq(resourceInstances.bloomId, input.bloomId)
 			)
 		);
+}
+
+/** Earliest Keth Iron waypoint sample — locked tutorial deploy target. */
+export async function getTutorialLockedDeployTarget(
+	db: DbExecutor,
+	input: { pilotId: string; bloomId: number }
+) {
+	const [row] = await db
+		.select({
+			spotId: pilotDepositSpotSamples.spotId,
+			resourceInstanceId: pilotDepositSpotSamples.resourceInstanceId,
+			resourceSlug: resourceInstances.resourceSlug
+		})
+		.from(pilotDepositSpotSamples)
+		.innerJoin(
+			resourceInstances,
+			eq(pilotDepositSpotSamples.resourceInstanceId, resourceInstances.id)
+		)
+		.where(
+			and(
+				eq(pilotDepositSpotSamples.pilotId, input.pilotId),
+				eq(resourceInstances.bloomId, input.bloomId),
+				eq(resourceInstances.resourceSlug, 'keth_iron')
+			)
+		)
+		.orderBy(asc(pilotDepositSpotSamples.sampledAt))
+		.limit(1);
+
+	if (!row) {
+		return null;
+	}
+
+	return {
+		depositSpotId: row.spotId,
+		resourceInstanceId: row.resourceInstanceId,
+		resourceSlug: row.resourceSlug
+	};
 }

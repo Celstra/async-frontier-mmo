@@ -4,8 +4,10 @@ export type NextActionScreenInput = {
 	tutorialStep: string | null;
 	/** Open order has enough sampled units to turn in at SETTLEMENT. */
 	orderReadyToTurnIn: boolean;
-	/** Claimable run or unacknowledged claim result waiting on FIELD. */
-	claimPendingOnField: boolean;
+	/** Open thumper run in progress. */
+	openRunActive: boolean;
+	/** Claimable run or unacknowledged claim result waiting on RIG. */
+	claimPendingOnRig: boolean;
 	/** Foreman briefing / patch / async picker needs SETTLEMENT. */
 	settlementBriefingPending: boolean;
 };
@@ -26,8 +28,8 @@ export function settlementBriefingPendingForStep(tutorialStep: string | null): b
 
 /** Tutorial nav highlight — step baseline with live-state overlays (round-4 Group 2). */
 export function resolveNextActionScreen(input: NextActionScreenInput): TutorialScreenId | null {
-	if (input.claimPendingOnField) {
-		return 'field';
+	if (input.openRunActive || input.claimPendingOnRig) {
+		return 'rig';
 	}
 
 	if (input.orderReadyToTurnIn || input.settlementBriefingPending) {

@@ -14,6 +14,8 @@
 		thumperParts: OwnedThumperPart[];
 		selections: Partial<Record<'hull' | 'drill' | 'pump', string>>;
 		rigAssembled?: boolean;
+		/** Tutorial first_deploy only — locked Keth waypoint deploy prompt. */
+		firstDeployPrompt?: boolean;
 	}
 
 	let {
@@ -22,7 +24,8 @@
 		readiness,
 		thumperParts,
 		selections,
-		rigAssembled = false
+		rigAssembled = false,
+		firstDeployPrompt = false
 	}: Props = $props();
 
 	let activeSlot = $state<'hull' | 'drill' | 'pump' | null>(null);
@@ -77,7 +80,11 @@
 
 	{#if rigAssembled}
 		<p class="chassis__success" role="status">
-			Rig assembled — head to FIELD and deploy on a sampled deposit.
+			{#if firstDeployPrompt}
+				Rig assembled — head to FIELD and deploy on the locked Keth Iron waypoint.
+			{:else}
+				Rig assembled — head to FIELD when you are ready to deploy.
+			{/if}
 		</p>
 	{:else if !readiness.assemblableNow}
 		<div class="chassis__blockers" role="alert">

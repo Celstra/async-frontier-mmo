@@ -40,7 +40,11 @@ export type HullExtractionTailOption = (typeof EXTRACTION_TAIL_OPTIONS)[number] 
 export function extractionTailOptionsForHull(
 	tier: HullTier,
 	integrityPct: number,
-	options?: { includeTutorialTails?: boolean; unlockFirstAsyncTail?: boolean }
+	options?: {
+		includeTutorialTails?: boolean;
+		unlockFirstAsyncTail?: boolean;
+		allowFirstHullEmergencyRun?: boolean;
+	}
 ): HullExtractionTailOption[] {
 	const allowedMinutes = new Set(
 		availableTails(tier, integrityPct, options).map((tail) => tail.minutes)
@@ -124,10 +128,10 @@ export function effectiveExtractionTailYieldMultiplier(
 }
 
 export function totalRunDurationSeconds(
-	activePhaseSeconds: number,
+	_activePhaseSeconds: number,
 	tailMinutes: number
 ): number {
-	return activePhaseSeconds + tailMinutes * 60;
+	return tailMinutes * 60;
 }
 
 export function baseProjectedRecoveryForRun(isPushRun: boolean): number {

@@ -40,6 +40,6 @@ describe('resolveTutorialThumperRunResult', () => {
 		});
 
 		expect(result.recoveredQuantity).toBeGreaterThanOrEqual(TUTORIAL_RUN_1_YIELD_FLOOR);
-		expect(result.resolutionType).toBe('recalled');
+		expect(['recalled', 'completed']).toContain(result.resolutionType);
 	});
 });

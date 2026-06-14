@@ -96,6 +96,7 @@ export async function deployThumperRunWithEventWindows(
 		extractionTailMinutes?: number;
 		resourceInstanceId?: string | null;
 		windows: EventWindowSeed[];
+		allowExhaustedSpot?: boolean;
 	}
 ) {
 	return db.transaction(async (tx: DbExecutor) => {
@@ -114,7 +115,8 @@ export async function deployThumperRunWithEventWindows(
 				resourceSlug: targetInstance.resourceSlug,
 				concentrationMinPercent: targetInstance.concentrationMinPercent,
 				concentrationMaxPercent: targetInstance.concentrationMaxPercent,
-				prospectingCycle: targetInstance.prospectingCycle
+				prospectingCycle: targetInstance.prospectingCycle,
+				allowExhausted: input.allowExhaustedSpot ?? false
 			});
 		}
 
@@ -293,7 +295,13 @@ export async function claimOpenThumperRunForPilot(
 
 		let resultPayload = await input.buildResult(tx, run, windows);
 
-		if (run.depositSpotId && run.resourceInstanceId && resultPayload.recoveredQuantity > 0) {
+		// Scripted tutorial yields are pedagogical — not capped by shared-world spot drain.
+		if (
+			!isTutorialRunSeed(run.runSeed) &&
+			run.depositSpotId &&
+			run.resourceInstanceId &&
+			resultPayload.recoveredQuantity > 0
+		) {
 			const resourceInstance = await getResourceInstanceById(tx, run.resourceInstanceId);
 			if (resourceInstance) {
 				const generationSeed = await bloomGenerationSeedForInstance(tx, resourceInstance);

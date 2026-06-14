@@ -1,8 +1,10 @@
 import {
 	depositSpotCapacityUnits,
+	generateDepositSpots,
 	presentDepositSpotYield,
 	resolveDepositSpot,
-	type DepositSpotYieldBand
+	type DepositSpotYieldBand,
+	type NamedResourceId
 } from '@async-frontier-mmo/domain';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
@@ -222,6 +224,7 @@ export async function assertDepositSpotDeployable(
 		concentrationMinPercent: number;
 		concentrationMaxPercent: number;
 		prospectingCycle: number;
+		allowExhausted?: boolean;
 	}
 ): Promise<DepositSpotYieldState> {
 	const currentSpot = resolveDepositSpot({
@@ -238,7 +241,7 @@ export async function assertDepositSpotDeployable(
 	}
 
 	const state = await ensureDepositSpotYieldRow(tx, input);
-	if (state.remainingUnits <= 0) {
+	if (state.remainingUnits <= 0 && !input.allowExhausted) {
 		throw new DepositSpotExhaustedError(input.spotId);
 	}
 	return state;
@@ -385,9 +388,43 @@ export async function seedDepositSpotRemainingUnits(
 		.where(eq(depositSpotYields.spotId, input.spotId))
 		.limit(1);
 
-	if (!row) {
-		throw new Error(`Failed to seed deposit spot ${input.spotId}`);
-	}
-
 	return toYieldState(row);
+}
+
+/** Browser path smoke — clear drained shared-world Keth rows and re-seed full capacity. */
+export async function resetKethIronDepositSpotsForSmoke(
+	db: DbExecutor,
+	input: {
+		resourceInstanceId: string;
+		generationSeed: string;
+		resourceSlug: NamedResourceId;
+		prospectingCycle: number;
+		concentrationMinPercent: number;
+		concentrationMaxPercent: number;
+	}
+): Promise<void> {
+	await db
+		.delete(depositSpotYields)
+		.where(eq(depositSpotYields.resourceInstanceId, input.resourceInstanceId));
+
+	const spots = generateDepositSpots({
+		resourceSlug: input.resourceSlug,
+		bloomGenerationSeed: input.generationSeed,
+		concentrationMinPercent: input.concentrationMinPercent,
+		concentrationMaxPercent: input.concentrationMaxPercent,
+		prospectingCycle: input.prospectingCycle
+	});
+
+	for (const spot of spots) {
+		const capacity = depositSpotCapacityUnits({
+			generationSeed: input.generationSeed,
+			spotId: spot.spotId
+		});
+		await seedDepositSpotRemainingUnits(db, {
+			spotId: spot.spotId,
+			resourceInstanceId: input.resourceInstanceId,
+			generationSeed: input.generationSeed,
+			remainingUnits: capacity
+		});
+	}
 }

@@ -31,6 +31,7 @@ export function tutorialNextActionScreen(step: string | null): TutorialScreenId 
 		case 'prologue':
 			return 'settlement';
 		case 'first_orders':
+			return 'field';
 		case 'turn_in':
 		case 'fabricator_online':
 		case 'recall_lesson':

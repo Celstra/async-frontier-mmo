@@ -28,7 +28,7 @@ import { claimOpenRun } from '$lib/server/fieldWorkflow';
 import { getGameDb } from '$lib/server/gameDb';
 import { requirePlayablePilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
-import { trackFieldFirstClaim, trackItemEquipped, trackSliceEventWindowResolved } from '$lib/server/playtestTelemetry';
+import { trackFieldFirstClaim, trackItemEquipped, trackRigEventResponseSubmitted, trackSliceEventWindowResolved } from '$lib/server/playtestTelemetry';
 import { loadRigScreen } from '$lib/server/rigLoad';
 import { isRigEquipmentLocked, RIG_EQUIPMENT_LOCKED_MESSAGE } from '$lib/server/rigEquipmentLock';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
@@ -154,6 +154,12 @@ export const actions: Actions = {
 				windowIndex,
 				chosenResponse,
 				complication: window.complication
+			});
+			await trackRigEventResponseSubmitted(db, pilotId, {
+				windowIndex,
+				chosenResponse,
+				complication: window.complication,
+				screen: 'rig'
 			});
 		}
 

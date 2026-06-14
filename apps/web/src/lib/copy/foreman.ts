@@ -6,13 +6,25 @@ export function foremanLine(input: {
 	orderReadyToTurnIn?: boolean;
 	openOrderCount?: number;
 	filledOrderCount?: number;
+	pinnedOrderFamily?: string | null;
+	pinnedResourceLabel?: string | null;
 }): string {
 	if (input.tutorialStep === 'prologue') {
 		return 'Read the briefing, then review the foreman orders on this board.';
 	}
 
-	if (input.tutorialStep === 'first_orders') {
-		return 'Pick a resource family from the foreman list and hunt it on FIELD — one stack per order, no mixing.';
+	if (input.tutorialStep === 'first_orders' || input.tutorialStep === 'hunting') {
+		if (input.pinnedOrderFamily && input.pinnedResourceLabel) {
+			const familyLabel =
+				input.pinnedOrderFamily === 'structural_alloy'
+					? 'Structural Alloy'
+					: input.pinnedOrderFamily === 'conductive_metal'
+						? 'Conductive Metal'
+						: input.pinnedOrderFamily === 'reactive_crystal'
+							? 'Reactive Crystal'
+							: input.pinnedOrderFamily;
+			return `First order: ${familyLabel}. FIELD is tuned for ${input.pinnedResourceLabel} — scan the recommended signal.`;
+		}
 	}
 
 	if (input.tutorialStep === 'assemble_rig') {
@@ -28,11 +40,11 @@ export function foremanLine(input: {
 	}
 
 	if (input.tutorialStep === 'hull_patch') {
-		return 'Patch restores condition and integrity to thirty percent — enough for your five-minute run. After that, craft a Reinforced Hull Plate in WORKSHOP before you chase hour-long tails.';
+		return 'Patch restores condition and integrity to thirty percent. Patched hull can limp through one short recovery run. Craft Reinforced Hull Plate to unlock real tails.';
 	}
 
 	if (input.tutorialStep === 'second_deploy') {
-		return 'Second run on the patched hull — claim should land around sixty units. Craft a Reinforced Hull Plate and equip it on RIG before picking long async tails.';
+		return 'Second tutorial deploy must use the locked Keth Iron waypoint — claim should land around sixty units structural.';
 	}
 
 	if (input.tutorialStep === 'full_claim') {
@@ -48,7 +60,7 @@ export function foremanLine(input: {
 	}
 
 	if (input.orderReadyToTurnIn) {
-		return 'Stack’s complete on the board — turn it in here before you head back to FIELD.';
+		return 'Stack’s complete on the board — turn in here before you head back to FIELD.';
 	}
 
 	if (

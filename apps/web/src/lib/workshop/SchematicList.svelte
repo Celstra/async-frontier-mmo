@@ -60,9 +60,9 @@
 
 	.schematic-row {
 		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: 0.75rem;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0.25rem;
 		padding: 0.6rem 0.75rem;
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-sm);

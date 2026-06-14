@@ -24,6 +24,7 @@ import {
 	hasPilotClaimedTutorialRun,
 	hasPilotFamilyScan,
 	listPilotWaypointSamples,
+	getTutorialLockedDeployTarget,
 	listSettlementOrdersForMilestone,
 	listThumperPartItemsForPilot,
 	previewFamilyScanForPilot,
@@ -57,6 +58,13 @@ import {
 	isTutorialRunSeed,
 	REINFORCED_HULL_PLATE,
 	pickPinnedMissionOrder,
+	tutorialFieldFamilyDefault,
+	isTutorialDeployLockedStep,
+	TUTORIAL_DEPLOY_LOCKED_BANNER,
+	TUTORIAL_DEPLOY_LOCKED_REASON,
+	TUTORIAL_SECOND_DEPLOY_LOCKED_LINE,
+	tutorialDeployWaivesSpotExhaustion,
+	validateTutorialDeployTarget,
 	type NamedResourceId,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
@@ -71,7 +79,12 @@ import {
 import { loadDeployPreviewForPilot } from '$lib/server/fieldDeployLoad.js';
 import { loadClaimScreen } from '$lib/server/fieldClaimState.js';
 import { loadOpenRunState } from '$lib/server/fieldRunState.js';
-import { trackFieldStatReveal } from '$lib/server/playtestTelemetry.js';
+import {
+	trackFieldStatReveal,
+	trackFieldSampleCompleted,
+	trackTutorialRecoveryState,
+	trackActiveRunPanelRendered
+} from '$lib/server/playtestTelemetry.js';
 import {
 	maybeAdvanceHuntingToTurnIn,
 	maybeAdvanceToFirstDeployAfterRigAssembly
@@ -79,6 +92,7 @@ import {
 import { resolveTargetDisplayName } from '$lib/server/targetResource.js';
 import {
 	loadActiveOrderStatusLine,
+	loadActiveOrderTelemetrySnapshot,
 	loadSettlementMissionTicker
 } from '$lib/server/settlementLoad.js';
 import type { getGameDb } from './gameDb.js';
@@ -124,7 +138,7 @@ function deployBlockedReason(input: {
 	if (input.hasOpenRun) {
 		return 'You already have an open thumper run';
 	}
-	if (input.spotRemainingUnits <= 0) {
+	if (input.spotRemainingUnits <= 0 && !tutorialDeployWaivesSpotExhaustion(input.tutorialDeployRun)) {
 		return 'This deposit is exhausted';
 	}
 
@@ -193,6 +207,7 @@ export async function loadFieldScreen(
 ) {
 	const sessionBefore = await ensurePilotFieldSession(db, pilotId, now);
 	const pendingResourceId = sessionBefore.pendingSample?.resourceInstanceId ?? null;
+	const orderBeforeSample = await loadActiveOrderTelemetrySnapshot(db, pilotId);
 	const sampleOutcome = await completePendingSampleIfDue(db, pilotId, now);
 	let session = await ensurePilotFieldSession(db, pilotId, now);
 	let lastSampleResult: FieldLastSampleResult | null = null;
@@ -216,6 +231,28 @@ export async function loadFieldScreen(
 			if (sampleOutcome.statsRevealedThisSample) {
 				await trackFieldStatReveal(db, pilotId, resource.resourceSlug);
 			}
+
+			const orderAfterSample = await loadActiveOrderTelemetrySnapshot(db, pilotId);
+
+			await trackFieldSampleCompleted(db, pilotId, {
+				resourceSlug: resource.resourceSlug,
+				resourceInstanceId: pendingResourceId,
+				statsRevealedThisSample: sampleOutcome.statsRevealedThisSample,
+				trickleQuantity: sampleOutcome.trickleQuantity,
+				trueConcentrationPercent: sampleOutcome.trueConcentrationPercent,
+				energyCost: sampleOutcome.energyCost,
+				surveyEnergyAfter: sampleOutcome.surveyEnergy,
+				surveyEnergyCap: SURVEY_ENERGY_CAP,
+				orderId: orderAfterSample?.orderId ?? orderBeforeSample?.orderId ?? null,
+				orderFamily: orderAfterSample?.family ?? orderBeforeSample?.family ?? null,
+				orderProgressBefore: orderBeforeSample?.progressUnits ?? null,
+				orderProgressAfter: orderAfterSample?.progressUnits ?? null,
+				orderStackSize: orderAfterSample?.stackSize ?? orderBeforeSample?.stackSize ?? null,
+				orderDeliveredUnitsBefore: orderBeforeSample?.deliveredUnits ?? null,
+				orderDeliveredUnitsAfter: orderAfterSample?.deliveredUnits ?? null,
+				orderFilledBefore: orderBeforeSample?.orderFilled ?? null,
+				orderFilledAfter: orderAfterSample?.orderFilled ?? null
+			});
 
 			const showStats =
 				sampleOutcome.statsRevealedThisSample ||
@@ -273,62 +310,21 @@ export async function loadFieldScreen(
 
 	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
 	const openRun = await getOpenThumperRunForPilot(db, pilotId);
-	let rigView: Awaited<ReturnType<typeof loadOpenRunState>> | null = null;
-	let claimView: Awaited<ReturnType<typeof loadClaimScreen>> | null = null;
-	let shouldPoll = false;
-	let hasUnresolvedEventWindows = false;
-
-	if (openRun) {
-		const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-		const isTutorialRun = isTutorialRunSeed(openRun.runSeed);
-		rigView = await loadOpenRunState(db, openRun, fieldRepairKitCount, {
-			resolveDisplayName: resolveTargetDisplayName,
-			includeRunMeters: true,
-			isTutorialRun,
-			firstAsync
-		});
-
-		const eventWindows = await getThumperEventWindowsForRun(db, openRun.id);
-		hasUnresolvedEventWindows = eventWindows.some((window) => window.chosenResponse === null);
-		const runClaimable = isThumperRunClaimable({
-			run: openRun,
-			windows: eventWindows,
-			now,
-			firstAsyncWaiverActive: firstAsyncWaiverActiveForRun({
-				hullIntegrity: openRun.runHullIntegrity ?? 100,
-				extractionTailMinutes: openRun.extractionTailMinutes,
-				thumperRunId: openRun.id,
-				firstAsync
-			})
-		});
-
-		shouldPoll =
-			openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
-			isTutorialRun ||
-			!runClaimable;
-	}
-
 	const claimScreen = await loadClaimScreen(db, pilotId, now);
-	claimView = claimScreen.mode === 'none' ? null : claimScreen;
+	const claimView = claimScreen.mode === 'none' ? null : claimScreen;
+	let shouldPoll = false;
 
-	if (
-		(claimView?.mode === 'claimable' || claimView?.mode === 'result') &&
-		rigView === null
-	) {
-		const displayRun = await getLatestThumperRunForPilot(db, pilotId);
-		if (displayRun) {
-			const fieldRepairKitCount = await countFieldRepairKitsForPilot(db, pilotId);
-			rigView = await loadOpenRunState(db, displayRun, fieldRepairKitCount, {
-				resolveDisplayName: resolveTargetDisplayName,
-				includeRunMeters: true,
-				isTutorialRun: isTutorialRunSeed(displayRun.runSeed),
-				firstAsync
-			});
-			shouldPoll = shouldPoll || claimView.mode === 'claimable';
-		}
-	}
-
-	const selectedFamily = (session.selectedFamily ?? 'conductive_metal') as ResourceFamily;
+	const settlementOrders = await listSettlementOrdersForMilestone(db, { pilotId, milestoneKey });
+	const pinnedOrder = pickPinnedMissionOrder(settlementOrders, milestoneKey);
+	const selectedFamily = tutorialFieldFamilyDefault({
+		tutorialStep,
+		pinnedOrder,
+		sessionFamily: session.selectedFamily,
+		fallback: 'conductive_metal'
+	});
+	const lockedTutorialTarget = isTutorialDeployLockedStep(tutorialStep)
+		? await getTutorialLockedDeployTarget(db, { pilotId, bloomId: activeBloomId })
+		: null;
 	const hasFamilyScan = await hasPilotFamilyScan(db, {
 		pilotId,
 		bloomId: activeBloomId,
@@ -467,6 +463,10 @@ export async function loadFieldScreen(
 				const hullIntegrity = equipped.hull?.integrity ?? 100;
 				const hullTier = hullTierFromIntegrity(hullIntegrity);
 				const isTutorialRun = tutorialDeployRun !== null;
+				const thumperParts = await listThumperPartItemsForPilot(db, pilotId);
+				const ownsHullPlate = thumperParts.some(
+					(part) => part.schematicId === REINFORCED_HULL_PLATE.id
+				);
 				const tailOptions =
 					tutorialDeployRun === 1
 						? [
@@ -488,12 +488,22 @@ export async function loadFieldScreen(
 									unlockFirstAsyncTail: firstAsyncUnlockForEquippedHull(
 										hullIntegrity,
 										firstAsync
-									)
+									),
+									allowFirstHullEmergencyRun:
+										ownsHullPlate === false && hullTier === 'patched'
 								}).map((tail) => ({
 									id: `${tail.minutes}m`,
 									label: tail.label,
 									minutes: tail.minutes
 								}));
+
+				if (ownsHullPlate === false && hullTier === 'patched') {
+					await trackTutorialRecoveryState(db, pilotId, {
+						hullTier,
+						hullIntegrity,
+						emergencyTailOffered: tailOptions.some((tail) => tail.minutes === 5)
+					});
+				}
 
 				const asyncDurationEvent = isTutorialRun
 					? null
@@ -542,6 +552,16 @@ export async function loadFieldScreen(
 					firstAsync
 				);
 
+				const tutorialTargetValid =
+					!isTutorialDeployLockedStep(tutorialStep) ||
+					validateTutorialDeployTarget({
+						tutorialStep,
+						resourceSlug: resource.resourceSlug,
+						resourceInstanceId,
+						spotId: hereSpotId,
+						lockedTarget: lockedTutorialTarget
+					}).allowed;
+
 				deployContext = {
 					spotId: hereSpotId,
 					resourceInstanceId,
@@ -560,7 +580,15 @@ export async function loadFieldScreen(
 						firstAsyncWaiverActive: deployFirstAsyncWaiver
 					}),
 					sameWaypointDeployHint:
-						tutorialStep === 'second_deploy' ? SAME_WAYPOINT_DEPLOY_HINT : null,
+						tutorialStep === 'second_deploy' ? TUTORIAL_SECOND_DEPLOY_LOCKED_LINE : null,
+					tutorialDeployLocked: isTutorialDeployLockedStep(tutorialStep),
+					tutorialDeployLockedBanner: isTutorialDeployLockedStep(tutorialStep)
+						? TUTORIAL_DEPLOY_LOCKED_BANNER
+						: null,
+					tutorialDeployLockedReason: isTutorialDeployLockedStep(tutorialStep)
+						? TUTORIAL_DEPLOY_LOCKED_REASON
+						: null,
+					lockedTutorialTarget,
 					thumpTargetNote:
 						resource.resourceSlug === THUMP_TARGET_RESOURCE_SLUG
 							? 'Thump target — deploy for bulk haul, not hand-sampling'
@@ -568,11 +596,15 @@ export async function loadFieldScreen(
 					rigReady,
 					canDeploy:
 						rigReady &&
-						spotYield.remainingUnits > 0 &&
+						(spotYield.remainingUnits > 0 ||
+							tutorialDeployWaivesSpotExhaustion(tutorialDeployRun)) &&
 						!openRun &&
 						tailOptions.length > 0 &&
-						tutorialDeployAllowed,
-					deployBlockedReason: blockedReason
+						tutorialDeployAllowed &&
+						tutorialTargetValid,
+					deployBlockedReason: tutorialTargetValid
+						? blockedReason
+						: 'Tutorial deploy must use the locked Keth Iron waypoint.'
 				};
 			}
 		}
@@ -599,8 +631,16 @@ export async function loadFieldScreen(
 	);
 
 	const equippedScanner = await getEquippedScannerForPilot(db, pilotId);
-	const showRigView =
+	const rigMonitorPrompt =
 		openRun !== null || claimView?.mode === 'claimable' || claimView?.mode === 'result';
+
+	if (rigMonitorPrompt) {
+		await trackActiveRunPanelRendered(db, pilotId, {
+			screen: 'field',
+			openRunActive: openRun !== null,
+			claimMode: claimView?.mode ?? 'none'
+		});
+	}
 
 	return {
 		regionId: 'red_mesa' as const,
@@ -630,15 +670,20 @@ export async function loadFieldScreen(
 		},
 		mapView,
 		hereSpotId,
-		waypoints: waypoints.filter((waypoint) => !waypoint.exhausted),
+		waypoints: waypoints.filter(
+			(waypoint) =>
+				!waypoint.exhausted ||
+				(tutorialStep === 'second_deploy' &&
+					lockedTutorialTarget !== null &&
+					waypoint.spotId === lockedTutorialTarget.depositSpotId &&
+					waypoint.resourceInstanceId === lockedTutorialTarget.resourceInstanceId)
+		),
 		deployContext,
 		pendingSampleProgress,
 		handSamplesLeft,
 		lastSampleResult,
 		sampleFlash,
-		showRigView,
-		rigView,
-		claimView,
+		rigMonitorPrompt,
 		shouldPoll,
 		fieldModeLine:
 			deployContext !== null || milestoneKey === 'next_need' ? FIELD_MODE_LINE : null,
