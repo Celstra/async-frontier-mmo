@@ -1,8 +1,8 @@
 import type { NamedResourceId } from '../resources/types.js';
 import type { HullTier } from '../tuning.js';
 import { assertRecallResponseAudit } from './assertRecallResponseAudit.js';
-import type { EventWindowSeverity } from './eventWindowSeverity.js';
-import { parseEventWindowSeverity } from './eventWindowSeverity.js';
+import type { EventWindowMeterSnapshot } from './eventWindowOutcome.js';
+import { parseEventWindowSeverity, type EventWindowSeverity } from './eventWindowSeverity.js';
 import { computeHullFailsafeProrata, type HullFailsafeRecallReason } from './hullFailsafeRecall.js';
 import type { ThumperPartRunModifiers } from './thumperPartTypes.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
@@ -31,6 +31,8 @@ export type ThumperRunConfig = {
 	plannedDurationSeconds?: number;
 	extractionTailMinutes?: number;
 	firstAsyncWaiverActive?: boolean;
+	/** Tutorial runs use fixed hold penalties for teaching beats. */
+	tutorialDeterministic?: boolean;
 };
 
 export type ThumperEventWindowSnapshot = {
@@ -40,6 +42,8 @@ export type ThumperEventWindowSnapshot = {
 	matchingAction: ThumperEventActionId;
 	/** Frozen at deploy — hold penalty scales with stored severity. */
 	severity?: EventWindowSeverity;
+	/** Stored at response time — meter-coupled hold penalty replay. */
+	beforeState?: EventWindowMeterSnapshot;
 };
 
 export type ThumperWindowChosenResponse = ThumperEventActionId | 'hold' | 'recall_early';
@@ -143,7 +147,9 @@ function resolveAnsweredWindows(input: {
 			response.complication,
 			matchingAction,
 			response.chosenResponse,
-			severity
+			window.beforeState
+				? { severity, onsetMeters: window.beforeState, tutorialDeterministic: runConfig.tutorialDeterministic }
+				: { severity, tutorialDeterministic: runConfig.tutorialDeterministic }
 		);
 
 		explanationParts.push(

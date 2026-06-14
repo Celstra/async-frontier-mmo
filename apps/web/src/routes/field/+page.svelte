@@ -1,21 +1,23 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import EnergyBar from '$lib/field/EnergyBar.svelte';
 	import FieldMap from '$lib/field/FieldMap.svelte';
 	import SampleResultPanel from '$lib/field/SampleResultPanel.svelte';
 	import SegmentedBar from '$lib/field/SegmentedBar.svelte';
 	import { FIELD_FAMILY_OPTIONS } from '$lib/field/constants';
-	import ThumperAsciiPre from '$lib/rig/ThumperAsciiPre.svelte';
-	import { buildThumperAscii } from '$lib/rig/thumperAscii';
+	import ActiveRunPanel from '$lib/rig/ActiveRunPanel.svelte';
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
 
+	const activeClaimView = $derived(
+		data.claimView?.mode === 'claimable' || data.claimView?.mode === 'result'
+			? data.claimView
+			: null
+	);
+
 	let sampleResultEl: HTMLElement | undefined = $state();
 	let localSamplePercent = $state(0);
-	let localSecondsRemaining = $state(0);
-	let localDrainPercent = $state(0);
 
 	const sampleHint = $derived(
 		(form as { sampleFlash?: string } | null)?.sampleFlash ?? data.sampleFlash
@@ -24,38 +26,6 @@
 	const mapFlashKey = $derived(
 		(form as { mapFlashKey?: number } | null)?.mapFlashKey ?? null
 	);
-
-	function formatMmSs(totalSeconds: number): string {
-		const minutes = Math.floor(totalSeconds / 60);
-		const seconds = totalSeconds % 60;
-		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-	}
-
-	const deployedThumperAscii = $derived.by(() => {
-		if (!data.rigView) return '';
-
-		const target = data.rigView.openRun.targetDisplayName.slice(0, 18);
-		const hullPct = data.rigView.runHullCondition;
-		const threat = data.rigView.runMeters?.threatPressure ?? 0;
-
-		return buildThumperAscii({
-			mode: 'deployed',
-			showProspectorScale: false,
-			header: target,
-			hull: { equipped: true, label: 'HULL' },
-			drill: { equipped: true, label: 'DRILL' },
-			pump: { equipped: true, label: 'PUMP' },
-			footer: `HULL ${hullPct}% · THREAT ${threat}%`
-		});
-	});
-
-	$effect(() => {
-		if (!data.shouldPoll) return;
-		const id = setInterval(() => {
-			void invalidateAll();
-		}, 3000);
-		return () => clearInterval(id);
-	});
 
 	$effect(() => {
 		if (!data.lastSampleResult || !sampleResultEl) return;
@@ -82,34 +52,6 @@
 		const id = setInterval(tick, 250);
 		return () => clearInterval(id);
 	});
-
-	$effect(() => {
-		const rig = data.rigView;
-		if (!rig?.thumperDemo || rig.runDurationSeconds <= 0) {
-			localSecondsRemaining = 0;
-			localDrainPercent = 0;
-			return;
-		}
-
-		const loadedAtMs = new Date(rig.loadedAt).getTime();
-		const initialRemaining = rig.thumperDemo.secondsRemaining;
-		const totalSeconds = rig.runDurationSeconds;
-
-		const tick = () => {
-			const elapsedSeconds = (Date.now() - loadedAtMs) / 1000;
-			localSecondsRemaining = Math.max(0, Math.ceil(initialRemaining - elapsedSeconds));
-			const elapsedTotal = totalSeconds - localSecondsRemaining;
-			localDrainPercent = Math.min(100, (elapsedTotal / totalSeconds) * 100);
-		};
-
-		tick();
-		const id = setInterval(tick, 1000);
-		return () => clearInterval(id);
-	});
-
-	const resolvedEventWindows = $derived(
-		data.rigView?.eventWindows.filter((window) => !window.quiet && window.responded) ?? []
-	);
 </script>
 
 <section class="screen" aria-label="Field console">
@@ -134,113 +76,18 @@
 	{/if}
 
 	{#if data.showRigView && data.rigView}
-		<div class="rig-view panel">
-			{#if data.claimView?.mode === 'claimable'}
-				<div class="claim-panel claim-panel--top">
-					<form method="POST" action="?/claim" use:enhance>
-						<button type="submit" class="action-row action-row--primary">Claim yield</button>
-					</form>
-				</div>
-			{:else if data.claimView?.mode === 'result'}
-				<div class="claim-result panel-inset claim-panel claim-panel--top">
-					{#if data.claimView.tutorialRecallBannerLine}
-						<p class="claim-result__banner claim-result__banner--verbatim">
-							{data.claimView.tutorialRecallBannerLine}
-						</p>
-					{:else}
-						<p class="claim-result__banner">RIG SECURED</p>
-						<p>{data.claimView.explanation.summary}</p>
-						<p>{data.claimView.claimResult.recoveredQuantity}u recovered</p>
-					{/if}
-					{#if data.claimView.tutorialComparisonLine}
-						<p class="claim-result__comparison">{data.claimView.tutorialComparisonLine}</p>
-					{/if}
-					<form method="POST" action="?/acknowledgeClaim" use:enhance class="claim-ack">
-						<input type="hidden" name="thumperRunId" value={data.claimView.runId} />
-						<button type="submit" class="action-row action-row--primary">
-							Send to storage — return to field
-						</button>
-					</form>
-				</div>
-			{/if}
-
-			<ThumperAsciiPre art={deployedThumperAscii} />
-
-			<div class="rig-timer">
-				<SegmentedBar
-					progressPercent={localDrainPercent}
-					direction="drain"
-					blinkActive={localSecondsRemaining > 0}
-				/>
-				<p class="rig-timer__clock">
-					{localSecondsRemaining > 0 ? formatMmSs(localSecondsRemaining) : '0:00'} remaining
-				</p>
-			</div>
-
-			{#if data.rigView.runMeters}
-				<ul class="meter-list">
-					<li>Recovery ~{data.rigView.runMeters.projectedRecovery}u</li>
-					<li>Signal lock {data.rigView.runMeters.signalLock}%</li>
-					<li>Pump flow {data.rigView.runMeters.pumpFlow}%</li>
-				</ul>
-			{/if}
-
-			{#each data.rigView.eventWindows as window (window.windowIndex)}
-				{#if !window.quiet && !window.responded}
-					<div class="event-window panel-inset">
-						<p class="event-window__title">
-							{window.complication?.replaceAll('_', ' ')}
-							{#if window.severity}
-								<span class="event-window__severity">{window.severity}</span>
-							{/if}
-						</p>
-						{#if window.matchingActionLabel}
-							<p class="event-window__match">Best match: {window.matchingActionLabel}</p>
-						{/if}
-						<div class="action-rows">
-							{#each window.responseOptions as option (option.id)}
-								<form method="POST" action="?/respondEventWindow" use:enhance>
-									<input type="hidden" name="windowIndex" value={window.windowIndex} />
-									<input type="hidden" name="chosenResponse" value={option.id} />
-									<button type="submit" disabled={!option.enabled} class="action-row event-option">
-										<span class="event-option__label">{option.label}</span>
-										{#if option.effectLine}
-											<span class="event-option__effect">{option.effectLine}</span>
-										{/if}
-										{#if !option.enabled && option.disabledReason}
-											<span class="event-option__disabled">{option.disabledReason}</span>
-										{/if}
-									</button>
-								</form>
-							{/each}
-						</div>
-					</div>
-				{/if}
-			{/each}
-
-			{#if resolvedEventWindows.length > 0}
-				<div class="event-log panel-inset">
-					<p class="event-log__title">Run log</p>
-					{#each resolvedEventWindows as window (window.windowIndex)}
-						<div class="event-log__entry">
-							<p class="event-log__headline">
-								{window.complication?.replaceAll('_', ' ')}
-								{#if window.chosenResponse}
-									· {window.responseOptions.find((option) => option.id === window.chosenResponse)
-										?.label ?? window.chosenResponse}
-								{/if}
-							</p>
-							{#if window.outcomeLine}
-								<p class="event-log__outcome">{window.outcomeLine}</p>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			{/if}
-
-		</div>
+		<ActiveRunPanel
+			run={data.rigView}
+			claimView={activeClaimView}
+			variant="field"
+			showAscii
+			acknowledgeButtonLabel="Send to storage — return to field"
+		/>
 	{:else}
 		<div class="screen__body">
+			{#if data.fieldModeLine}
+				<p class="field-mode-line">{data.fieldModeLine}</p>
+			{/if}
 			<section class="panel">
 				<h2 class="panel__title">Resource family</h2>
 				<div class="action-rows">
@@ -280,15 +127,12 @@
 										resource.resourceInstanceId}
 								>
 									{resource.displayName}
-									{#if resource.recommended}
-										<span class="tag">recommended</span>
+									{#if resource.recommendLabel}
+										<span class="tag">{resource.recommendLabel}</span>
 									{/if}
 								</button>
 								{#if !resource.statsVisible}
 									<p class="hint hint--free-sample">first sample free — reveals stats</p>
-								{/if}
-								{#if resource.teachingNote}
-									<p class="hint">{resource.teachingNote}</p>
 								{/if}
 							</form>
 						{/each}
@@ -405,6 +249,12 @@
 						{data.deployContext.displayName} @ {data.deployContext.trueConcentrationPercent}% · ~{data
 							.deployContext.spotRemainingUnits}u in deposit (thumper extraction)
 					</p>
+					{#if data.deployContext.thumpTargetNote}
+						<p class="deploy-thump-target">{data.deployContext.thumpTargetNote}</p>
+					{/if}
+					{#if data.deployContext.sameWaypointDeployHint}
+						<p class="deploy-waypoint-hint">{data.deployContext.sameWaypointDeployHint}</p>
+					{/if}
 					{#if data.deployContext.hullDeployWarning}
 						<p class="deploy-hull-warning">{data.deployContext.hullDeployWarning}</p>
 					{/if}
@@ -424,7 +274,8 @@
 										value={tail.minutes}
 										class="action-row"
 									>
-										{tail.label} — ~{data.deployContext.deployPreview.projectedRecovery}u
+										{tail.label} — ~{data.deployContext.scriptedRecoveryUnits ??
+											data.deployContext.deployPreview.projectedRecovery}u
 									</button>
 								{/each}
 							</div>
@@ -580,92 +431,10 @@
 		color: var(--phosphor-dim);
 	}
 
-	.rig-timer {
-		margin: 0.75rem 0 1rem;
-	}
-
-	.rig-timer__clock {
-		margin: 0.35rem 0 0;
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-		color: var(--phosphor);
-		text-align: center;
-	}
-
-	.event-window__title {
-		margin: 0 0 0.35rem;
-		font-size: var(--font-size-sm);
-		color: var(--text-bright);
-		text-transform: capitalize;
-	}
-
-	.event-window__severity {
-		margin-left: 0.5rem;
-		font-size: var(--font-size-xs);
-		color: var(--accent-warning);
-		text-transform: uppercase;
-	}
-
-	.event-window__match {
-		margin: 0 0 0.5rem;
-		font-size: var(--font-size-xs);
-		color: var(--text-muted);
-	}
-
-	.event-option {
-		display: grid;
-		gap: 0.2rem;
-	}
-
-	.event-option__label {
-		color: var(--text-bright);
-	}
-
-	.event-option__effect {
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-	}
-
-	.event-option__disabled {
-		font-size: var(--font-size-xs);
-		color: var(--accent-warning);
-	}
-
-	.event-log__title {
-		margin: 0 0 0.5rem;
-		font-size: var(--font-size-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-muted);
-	}
-
-	.event-log__entry + .event-log__entry {
-		margin-top: 0.5rem;
-		padding-top: 0.5rem;
-		border-top: 1px solid var(--border-subtle);
-	}
-
-	.event-log__headline {
-		margin: 0;
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		text-transform: capitalize;
-	}
-
-	.event-log__outcome {
-		margin: 0.2rem 0 0;
-		font-size: var(--font-size-xs);
-		color: var(--phosphor-dim);
-	}
-
 	.deploy-hull-warning {
 		margin: 0.35rem 0 0;
 		font-size: var(--font-size-xs);
 		color: var(--accent-warning);
-	}
-
-	.claim-ack {
-		margin-top: 0.75rem;
 	}
 
 	.hint {
@@ -691,6 +460,26 @@
 		color: var(--accent-warning);
 	}
 
+	.field-mode-line {
+		margin: 0 0 1rem;
+		padding: 0.65rem 0.75rem;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		border-left: 2px solid var(--phosphor-dim);
+		line-height: 1.45;
+	}
+
+	.deploy-thump-target,
+	.deploy-waypoint-hint {
+		margin: 0.35rem 0 0;
+		font-size: var(--font-size-xs);
+		color: var(--phosphor-dim);
+	}
+
+	.deploy-waypoint-hint {
+		color: var(--accent-warning);
+	}
+
 	.tag {
 		margin-left: 0.5rem;
 		color: var(--accent-warning);
@@ -706,45 +495,5 @@
 	.flash--error {
 		background: var(--accent-danger-dim);
 		color: #ffd0d0;
-	}
-
-	.meter-list {
-		margin: 0 0 1rem;
-		padding-left: 1.1rem;
-		color: var(--text-secondary);
-		font-size: var(--font-size-sm);
-	}
-
-	.claim-panel {
-		margin-bottom: 1rem;
-	}
-
-	.claim-panel--top {
-		margin-bottom: 1.25rem;
-	}
-
-	.claim-result__banner {
-		margin: 0 0 0.5rem;
-		font-weight: 700;
-		color: var(--accent-warning);
-		letter-spacing: 0.06em;
-	}
-
-	.claim-result__banner--verbatim {
-		font-weight: 500;
-		font-family: var(--font-mono);
-		font-size: var(--font-size-sm);
-		line-height: 1.45;
-		letter-spacing: normal;
-		color: var(--text-bright);
-	}
-
-	.claim-result__comparison {
-		margin: 0.75rem 0 0;
-		padding-top: 0.65rem;
-		border-top: 1px solid var(--border-subtle);
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-		color: var(--phosphor);
 	}
 </style>

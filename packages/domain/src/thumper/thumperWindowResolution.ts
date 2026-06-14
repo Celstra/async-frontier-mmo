@@ -1,9 +1,10 @@
 import { complicationDisplayName } from './eventActionLabels.js';
+import type { EventWindowMeterSnapshot } from './eventWindowOutcome.js';
 import {
-	holdPenaltyForSeverity,
 	parseEventWindowSeverity,
 	type EventWindowSeverity
 } from './eventWindowSeverity.js';
+import { holdPenaltyForResponse, holdPenaltyRangeLabel } from './holdPenalty.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
 import type { ThumperWindowChosenResponse } from './resolveThumperRunResult.js';
 
@@ -14,18 +15,46 @@ export const COMPLICATION_PENALTY_WASTE: Record<ThumperComplicationId, number> =
 	pump_strain: 15
 };
 
+export type PenaltyWasteContext = {
+	severity?: EventWindowSeverity;
+	onsetMeters?: EventWindowMeterSnapshot;
+	tutorialDeterministic?: boolean;
+};
+
+function resolvePenaltyContext(
+	severityOrContext: EventWindowSeverity | PenaltyWasteContext
+): PenaltyWasteContext {
+	if (typeof severityOrContext === 'string') {
+		return { severity: severityOrContext };
+	}
+	return severityOrContext;
+}
+
 export function penaltyWasteForResponse(
 	complication: ThumperComplicationId,
 	matchingAction: ThumperEventActionId,
 	chosenResponse: Exclude<ThumperWindowChosenResponse, 'recall_early'>,
-	severity: EventWindowSeverity = 'minor'
+	severityOrContext: EventWindowSeverity | PenaltyWasteContext = 'minor'
 ): number {
+	const context = resolvePenaltyContext(severityOrContext);
+	const severity = context.severity ?? 'minor';
+
 	if (chosenResponse === matchingAction) {
 		return 0;
 	}
 
 	if (chosenResponse === 'hold') {
-		return holdPenaltyForSeverity(severity);
+		if (context.onsetMeters) {
+			return holdPenaltyForResponse({
+				severity,
+				complication,
+				meters: context.onsetMeters,
+				tutorialDeterministic: context.tutorialDeterministic
+			});
+		}
+		const range = holdPenaltyRangeLabel(severity);
+		const [lo, hi] = range.split('–').map((value) => Number.parseInt(value, 10));
+		return Math.round((lo + hi) / 2);
 	}
 
 	return COMPLICATION_PENALTY_WASTE[complication];

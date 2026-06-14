@@ -3,14 +3,15 @@
 Question: Continuous-trickle-with-cap vs daily-reset across three visit archetypes.
 Ryan's hypothesis: trickle+cap rewards 2–4 spaced visits/day without hard-gating a binger.
 
-Constants re-used from packages/domain/src/survey/prospectingSampling.ts:
-  SURVEY_ENERGY_CAP = 100   (raw energy units)
+Constants re-used from packages/domain/src/survey/prospectingSampling.ts
+and packages/domain/src/tuning.ts:
+  SURVEY_ENERGY_CAP = 120   (raw energy units; ENERGY_CAP_SAMPLES=10 × SAMPLE_ENERGY_COST=12)
   SAMPLE_ENERGY_COST = 12   (per sample)
-  SURVEY_ENERGY_REGEN_PER_MINUTE = 2
+  ENERGY_REGEN_SAMPLES_PER_HOUR = 0.5  → regen raw = 0.5 × 12 = 6 raw/hr = 0.1 raw/min
 
 Work in cost-normalised units: 1 unit = 1 sample = SAMPLE_ENERGY_COST raw energy.
-  raw cap 100 → 8.33 normalised units
-  raw regen 2/min → 0.167 units/min → 10 units/hour
+  raw cap 120 → 10 normalised units (samples)
+  raw regen 6/hr = 0.1/min → 0.5 samples/hr
 
 Sweep:
   cap C   (samples) : 5, 6, 8, 10, 12, 15, 20
@@ -34,9 +35,9 @@ Metrics per (regime, archetype, C, r):
 # ---------------------------------------------------------------------------
 # Constants (mirroring the TypeScript source)
 # ---------------------------------------------------------------------------
-RAW_CAP_DEFAULT   = 100
+RAW_CAP_DEFAULT   = 120
 SAMPLE_COST_RAW   = 12
-REGEN_RAW_PER_MIN = 2.0
+REGEN_RAW_PER_MIN = 0.1
 WAKING_HOURS      = 16   # simulation window per day
 
 # Normalised: 1 unit = 1 sample
@@ -350,13 +351,13 @@ def main():
     print_regime_comparison(results, rec_cap, rec_rate)
     print_marginal_visits(results, rec_cap, rec_rate)
 
-    # Also show the current default for reference
-    norm_current_cap = RAW_DEFAULT_NORM_CAP   # ~8.33 → round to nearest
-    norm_current_rate = RAW_DEFAULT_NORM_RATE  # ~10.0 samples/hr
-    print(f"\n--- Current default constants (for reference) ---")
-    print(f"    Raw cap 100 → ~{RAW_DEFAULT_NORM_CAP:.1f} normalised samples")
-    print(f"    Raw regen 2/min → {RAW_DEFAULT_NORM_RATE:.1f} samples/hr")
-    print_regime_comparison(results, 10, 2.0)   # closest to defaults in sweep
+    # Also show the live locked constants for reference
+    print(f"\n--- Live locked constants (Decision 022, for reference) ---")
+    print(f"    Raw cap 120 → {RAW_CAP_DEFAULT // SAMPLE_COST_RAW} samples  "
+          f"(ENERGY_CAP_SAMPLES=10, SAMPLE_ENERGY_COST=12)")
+    print(f"    Regen 0.5 samples/hr  (ENERGY_REGEN_SAMPLES_PER_HOUR=0.5, "
+          f"= 6 raw/hr = 0.1 raw/min)")
+    print_regime_comparison(results, 10, 0.5)
 
     # Verdict
     print("\n" + "="*70)
@@ -413,12 +414,17 @@ def main():
     else:
         print(f"\nVERDICT: Hypothesis partially supported — tune cap or rate further.")
 
-    print(f"\nNOTE: The existing TypeScript constants (cap=100 raw ≈ 8 samples, "
-          f"regen=2/min ≈ 10 samples/hr) sit\n"
-          f"      closest to C=8, r=10 in the sweep — well above the recommended rate.\n"
-          f"      RECOMMENDATION: lower regen to r={rec_rate:.1f} samples/hr "
-          f"({rec_rate * SAMPLE_COST_RAW / 60:.3f} raw energy/min)\n"
-          f"      and adjust cap to {rec_cap * SAMPLE_COST_RAW} raw energy units.")
+    print(f"\nNOTE: The locked TypeScript constants are C=10 (120 raw), r=0.5 samples/hr "
+          f"(Decision 022).\n"
+          f"      This is deliberately below this sim's unconstrained-comfort recommendation "
+          f"of C=20, r=1.0,\n"
+          f"      enforcing the anti-substitution guard: trickle cannot substitute for "
+          f"thumping at scale.\n"
+          f"      The steady-state 'start at cap' assumption is enforced at the tutorial "
+          f"boundary by a\n"
+          f"      one-time graduation refill to cap (refillSurveyEnergyToCap in\n"
+          f"      packages/db/src/queries/surveyEnergy.ts) triggered on the "
+          f"async_reveal→done tutorial transition.")
 
 if __name__ == "__main__":
     main()

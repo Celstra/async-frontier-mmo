@@ -94,8 +94,10 @@ export type ResolvedPropertyLine = PropertyPreviewLine & {
 export type CraftResolution = {
 	mode: CraftMode;
 	lines: ResolvedPropertyLine[];
-	/** Item-level flaw flag — Careful Experiment rolls once per craft (Decision 010). */
+	/** Item-level flaw flag from experimentation crits. */
 	hasMinorFlaw: boolean;
-	/** Present for careful_experiment — one outcome applied to every property line. */
+	/** @deprecated Legacy careful experiment — use experimentPulseResults. */
 	experimentOutcome?: CarefulExperimentOutcome;
+	experimentPulseResults?: import('./experimentation.js').ExperimentPulseResult[];
+	experimentScrapUnits?: number;
 };

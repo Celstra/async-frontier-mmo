@@ -1,11 +1,8 @@
-import {
-	getLatestPlaytestEventCreatedAt,
-	getPilotTutorialStep
-} from '@async-frontier-mmo/db';
-import { tutorialNextActionScreen } from '@async-frontier-mmo/domain';
+import { getLatestPlaytestEventCreatedAt } from '@async-frontier-mmo/db';
 import { getGameDb } from '$lib/server/gameDb';
 import { requirePlayablePilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
+import { loadNextActionScreen } from '$lib/server/nextActionLoad';
 import { trackReturnVisitIfDue } from '$lib/server/playtestTelemetry';
 import type { LayoutServerLoad } from './$types';
 
@@ -16,8 +13,8 @@ export const load: LayoutServerLoad = async (event) => {
 	const pilotId = resolvePilotId(event);
 	await requirePlayablePilot(db, pilotId);
 
-	const [tutorialStep, latestEventAt] = await Promise.all([
-		getPilotTutorialStep(db, pilotId),
+	const [nextActionScreen, latestEventAt] = await Promise.all([
+		loadNextActionScreen(db, pilotId),
 		getLatestPlaytestEventCreatedAt(db, pilotId)
 	]);
 
@@ -29,6 +26,6 @@ export const load: LayoutServerLoad = async (event) => {
 	}
 
 	return {
-		nextActionScreen: tutorialNextActionScreen(tutorialStep)
+		nextActionScreen
 	};
 };

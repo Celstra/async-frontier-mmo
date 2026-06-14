@@ -5,7 +5,6 @@ import {
 	resolveEventWindowOutcome
 } from './eventWindowOutcome.js';
 import {
-	holdPenaltyForSeverity,
 	MATCHING_ACTION_WEAR_CONDITION
 } from './eventWindowSeverity.js';
 import { computeRunPartWearDeltas } from './thumperPartModifiers.js';
@@ -50,9 +49,8 @@ describe('describeEventWindowStakes', () => {
 				totalWindowCount: 2
 			});
 			const hold = stakes.find((row) => row.id === 'hold')!;
-			const expected = holdPenaltyForSeverity(severity);
-			expect(hold.effectLine).toContain(String(expected));
-			expect(hold.effectLine).toContain('gear is untouched');
+			expect(hold.effectLine).toContain(severity === 'minor' ? '4–8' : '12–22');
+			expect(hold.effectLine).toContain('gear untouched');
 		}
 	});
 });
@@ -78,7 +76,7 @@ describe('resolveEventWindowOutcome', () => {
 				complication,
 				matchingAction,
 				'hold',
-				severity
+				{ severity, onsetMeters: outcome.beforeState }
 			);
 			expect(outcome.recoveryPenalty).toBe(holdWaste);
 			expect(outcome.beforeState.projectedRecovery - outcome.afterState.projectedRecovery).toBe(
@@ -92,7 +90,7 @@ describe('resolveEventWindowOutcome', () => {
 					targetResourceId: 'veyrith_copper',
 					projectedRecovery
 				},
-				eventWindows: [{ windowIndex: 1, complication, matchingAction, severity }],
+				eventWindows: [{ windowIndex: 1, complication, matchingAction, severity, beforeState: outcome.beforeState }],
 				responses: [{ windowIndex: 1, complication, chosenResponse: 'hold' }]
 			});
 
@@ -151,6 +149,6 @@ describe('resolveEventWindowOutcome', () => {
 			afterState: outcome.afterState
 		});
 
-		expect(line).toBe('Held — projected recovery 113 → 108 units — gear untouched');
+		expect(line).toBe('Held — projected recovery 113 → 107 units — gear untouched');
 	});
 });

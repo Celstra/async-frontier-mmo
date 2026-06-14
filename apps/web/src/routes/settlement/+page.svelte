@@ -40,6 +40,10 @@
 			<p class="mission-tracker" aria-live="polite">{data.activeMissionLine}</p>
 		{/if}
 
+		{#if data.firstHullReserveNotice}
+			<p class="reserve-notice" aria-live="polite">{data.firstHullReserveNotice.line}</p>
+		{/if}
+
 		<aside class="foreman panel">
 			<p class="foreman__label">FOREMAN</p>
 			<p class="foreman__line">{data.foremanLine}</p>
@@ -193,6 +197,15 @@
 		color: var(--phosphor);
 		border-left: 2px solid var(--phosphor-dim);
 		letter-spacing: 0.04em;
+	}
+
+	.reserve-notice {
+		margin: 0 0 1rem;
+		padding: 0.55rem 0.7rem;
+		font-size: var(--font-size-xs);
+		color: var(--accent-warning);
+		border-left: 2px solid var(--accent-warning);
+		line-height: 1.45;
 	}
 
 	.settlement-header {

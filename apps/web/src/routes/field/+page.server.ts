@@ -88,7 +88,6 @@ import {
 	readTutorialStep
 } from '$lib/server/tutorialOrchestration';
 import { resolveTargetDisplayName } from '$lib/server/targetResource';
-import { recommendedResourceSlugForBloom } from '$lib/field/constants';
 import type { Actions, PageServerLoad } from './$types';
 
 async function fieldData(db: ReturnType<typeof getGameDb>, pilotId: string) {
@@ -568,7 +567,8 @@ export const actions: Actions = {
 				currentMeters: preRespondState.runMeters,
 				totalWindowCount: windows.length,
 				runHullCondition: run.runHullCondition,
-				runHullIntegrity: run.runHullIntegrity
+				runHullIntegrity: run.runHullIntegrity,
+				tutorialDeterministic: tutorialRunFromSeed(run.runSeed) !== null
 			});
 			if (outcome.status === 'no_repair_kit') {
 				return fail(400, {

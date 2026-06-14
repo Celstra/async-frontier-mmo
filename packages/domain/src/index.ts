@@ -3,6 +3,7 @@ import type { ResourceStatCode } from 'shared';
 /** Map of stat code → value (1–1000). Partial for open-ended inputs; bloom resources use CompleteResourceStatMap. */
 export type ResourceStatMap = Partial<Record<ResourceStatCode, number>>;
 
+export { formatMmSs } from './format/formatMmSs.js';
 export { buildCraftResultExplanation } from './crafting/buildCraftResultExplanation.js';
 export {
 	buildResourceAllocationHints,
@@ -59,6 +60,16 @@ export {
 	validateTuningAllocation,
 	type ResolveCraftInput
 } from './crafting/schematicEngine.js';
+export {
+	largestScrapSocket,
+	largestSocketScrapUnits,
+	resolveExperimentationPulses,
+	schematicMaterialRollup,
+	type ExperimentPulse,
+	type ExperimentPulseOutcome,
+	type ExperimentPulseResult,
+	type ExperimentPushSize
+} from './crafting/experimentation.js';
 export { getPropertyOutputBand } from './crafting/propertyBand.js';
 export {
 	applyNormalRepair,
@@ -226,6 +237,15 @@ export {
 	type FamilyStackCandidate,
 	type MissionTrackerState
 } from './settlement/orderBinding.js';
+export { pickPinnedMissionOrder } from './settlement/pinnedMissionOrder.js';
+export {
+	FIRST_HULL_RESERVE,
+	firstHullReserveMap,
+	firstHullReservedUnitsForStack,
+	firstHullTurnInQuantity,
+	type FirstHullReserve,
+	type FirstHullReserveStack
+} from './settlement/firstHullReserve.js';
 export { SETTLEMENT_MILESTONES, type SettlementMilestoneKey } from './settlement/milestones.js';
 export type { SettlementOrder, SettlementOrderStatus } from './settlement/types.js';
 export {
@@ -236,6 +256,8 @@ export {
 	FIRST_ASYNC_TAIL_MINUTES,
 	HULL_CEILING_EXPONENT,
 	HULL_TIER_BASE,
+	NEXT_NEED_ORDER_CM_STACK,
+	NEXT_NEED_ORDER_RC_STACK,
 	PATCHED_HULL_CONDITION,
 	PATCHED_HULL_INTEGRITY,
 	RUN_TAILS_MINUTES,
@@ -361,7 +383,9 @@ export {
 export { availableTails, maxRunMinutes, type AvailableTailOption } from './thumper/hullRunCeiling.js';
 export {
 	hullDeployWarningLine,
+	hullFailsafeTripLine,
 	hullIntegrityAdvisoryLine,
+	hullRunHeaderLine,
 	hullTierFromIntegrity,
 	unlocksFirstAsyncTail
 } from './thumper/hullTier.js';
@@ -445,4 +469,8 @@ export {
 	type TutorialScreenId,
 	type TutorialStep
 } from './tutorial/tutorialSteps.js';
+export {
+	resolveNextActionScreen,
+	settlementBriefingPendingForStep
+} from './tutorial/resolveNextActionScreen.js';
 export { tutorialHullFailsafeClaimBanner } from './tutorial/tutorialClaimCopy.js';

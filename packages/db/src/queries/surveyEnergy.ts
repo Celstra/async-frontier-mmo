@@ -123,3 +123,22 @@ export async function accrueAndPersistSurveyEnergy(
 		updatedAt: new Date(accrued.updatedAtMs)
 	};
 }
+
+export async function refillSurveyEnergyToCap(
+	db: DbExecutor,
+	pilotId: string,
+	now: Date
+): Promise<{ rawEnergy: number; updatedAt: Date }> {
+	await ensurePilotSurveyEnergyRow(db, pilotId, now);
+
+	const [updated] = await db
+		.update(pilotSurveyEnergy)
+		.set({
+			rawEnergy: SURVEY_ENERGY_CAP,
+			updatedAt: now
+		})
+		.where(eq(pilotSurveyEnergy.pilotId, pilotId))
+		.returning();
+
+	return { rawEnergy: updated.rawEnergy, updatedAt: updated.updatedAt };
+}

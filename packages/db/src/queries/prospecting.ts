@@ -699,11 +699,13 @@ export async function sampleSpotForPilot(
 			createdAt: now
 		});
 
-		await bindSettlementOrdersOnSample(tx, {
-			pilotId: input.pilotId,
-			resourceInstanceId: input.resourceInstanceId,
-			family
-		});
+		if (sampleResult.energyCost > 0) {
+			await bindSettlementOrdersOnSample(tx, {
+				pilotId: input.pilotId,
+				resourceInstanceId: input.resourceInstanceId,
+				family
+			});
+		}
 
 		await applyEquippedScannerWear(tx, {
 			pilotId: input.pilotId,

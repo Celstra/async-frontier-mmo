@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import ActiveRunPanel from '$lib/rig/ActiveRunPanel.svelte';
 	import EquipSlotPanel from '$lib/rig/EquipSlotPanel.svelte';
 	import ResourceStacksPanel from '$lib/rig/ResourceStacksPanel.svelte';
 	import RigChassisPanel from '$lib/rig/RigChassisPanel.svelte';
@@ -6,6 +8,15 @@
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
+	const equipmentLocked = $derived(data.equipmentLocked);
+	const showActiveRunPanel = $derived(
+		data.activeRun !== null || data.claimView?.mode === 'claimable' || data.claimView?.mode === 'result'
+	);
+	const activeClaimView = $derived(
+		data.claimView?.mode === 'claimable' || data.claimView?.mode === 'result'
+			? data.claimView
+			: null
+	);
 </script>
 
 <section class="screen" aria-label="Rig console">
@@ -14,6 +25,14 @@
 	<div class="screen__body">
 		{#if form?.message}
 			<p class="flash flash--error" role="alert">{form.message}</p>
+		{/if}
+
+		{#if showActiveRunPanel && data.activeRun}
+			<ActiveRunPanel run={data.activeRun} claimView={activeClaimView} variant="rig" />
+		{/if}
+
+		{#if equipmentLocked}
+			<p class="equipment-lock-hint">Equipment locked while thumper deployed.</p>
 		{/if}
 
 		<RigChassisPanel
@@ -31,23 +50,27 @@
 					slot="drill"
 					candidates={data.partCandidates.drill}
 					repairKitCount={data.repairKitCount}
+					locked={equipmentLocked}
 				/>
 				<EquipSlotPanel
 					slotLabel="Pump"
 					slot="pump"
 					candidates={data.partCandidates.pump}
 					repairKitCount={data.repairKitCount}
+					locked={equipmentLocked}
 				/>
 				<EquipSlotPanel
 					slotLabel="Hull"
 					slot="hull"
 					candidates={data.partCandidates.hull}
 					repairKitCount={data.repairKitCount}
+					locked={equipmentLocked}
 				/>
 				<ScannerPanel
 					equippedScanner={data.equippedScanner}
 					candidates={data.scannerCandidates}
 					repairKitCount={data.repairKitCount}
+					locked={equipmentLocked}
 				/>
 			</div>
 
@@ -59,6 +82,14 @@
 <style>
 	.rig-header {
 		letter-spacing: 0.08em;
+	}
+
+	.equipment-lock-hint {
+		margin: 0 0 1rem;
+		padding: 0.65rem 0.75rem;
+		font-size: var(--font-size-xs);
+		color: var(--accent-warning);
+		border-left: 2px solid var(--accent-warning);
 	}
 
 	.rig-layout {

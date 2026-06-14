@@ -1,18 +1,25 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { TUTORIAL_ORDER_CM_STACK, TUTORIAL_ORDER_SA_STACK } from '@async-frontier-mmo/domain';
+import {
+	FIRST_HULL_RESERVE,
+	NEXT_NEED_ORDER_RC_STACK,
+	TUTORIAL_ORDER_CM_STACK,
+	TUTORIAL_ORDER_SA_STACK
+} from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
 import { pilots } from '../schema/pilots.js';
 import { settlementMilestones } from '../schema/settlementMilestones.js';
 import { settlementOrders } from '../schema/settlementOrders.js';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
-import { grantResourceToPilot } from './resourceGrants.js';
+import { getResourceStackForPilotInstance, grantResourceToPilot } from './resourceGrants.js';
 import { ensureBloomOneResourceInstances, getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import {
 	bindSettlementOrdersOnSample,
 	clearPilotSettlementState,
 	deliverResourceStackToSettlementOrder,
+	ensureNextNeedOrdersPostedForPilot,
 	ensureSettlementBootstrapForPilot,
+	listSettlementOrdersForMilestone,
 	listOpenSettlementOrdersForPilot
 } from './settlement.js';
 
@@ -25,6 +32,7 @@ describeDb('settlement persistence', () => {
 
 	let bendrelInstanceId = '';
 	let kethInstanceId = '';
+	let paleEmberInstanceId = '';
 	let veyrithInstanceId = '';
 	let structuralOrderId = '';
 
@@ -34,12 +42,15 @@ describeDb('settlement persistence', () => {
 
 		const bendrel = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'bendrel_ridge_alloy');
 		const keth = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'keth_iron');
+		const paleEmber = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'pale_ember_crystal');
 		const veyrith = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'veyrith_copper');
 		expect(bendrel).not.toBeNull();
 		expect(keth).not.toBeNull();
+		expect(paleEmber).not.toBeNull();
 		expect(veyrith).not.toBeNull();
 		bendrelInstanceId = bendrel!.id;
 		kethInstanceId = keth!.id;
+		paleEmberInstanceId = paleEmber!.id;
 		veyrithInstanceId = veyrith!.id;
 	});
 
@@ -242,7 +253,56 @@ describeDb('settlement persistence', () => {
 		expect(orderRow?.status).toBe('filled');
 		expect(orderRow?.deliveredUnits).toBe(TUTORIAL_ORDER_SA_STACK);
 
-		const openOrders = await listOpenSettlementOrdersForPilot(db, testPilotId);
-		expect(openOrders.some((order) => order.family === 'conductive_metal')).toBe(true);
+	const openOrders = await listOpenSettlementOrdersForPilot(db, testPilotId);
+	expect(openOrders.some((order) => order.family === 'conductive_metal')).toBe(true);
+});
+
+it('reserves the first hull reactive crystal stack from next_need turn-in', async () => {
+	await ensureNextNeedOrdersPostedForPilot(db, testPilotId);
+	const nextNeedOrders = await listSettlementOrdersForMilestone(db, {
+		pilotId: testPilotId,
+		milestoneKey: 'next_need'
 	});
+	const rcOrder = nextNeedOrders.find((order) => order.family === 'reactive_crystal');
+	expect(rcOrder).toBeDefined();
+
+	await grantResourceToPilot(db, {
+		pilotId: testPilotId,
+		resourceInstanceId: paleEmberInstanceId,
+		quantity: FIRST_HULL_RESERVE.units,
+		source: { type: 'test_grant', id: 'first-hull-reserve' }
+	});
+
+	const blocked = await deliverResourceStackToSettlementOrder(db, {
+		pilotId: testPilotId,
+		orderId: rcOrder!.id,
+		resourceInstanceId: paleEmberInstanceId
+	});
+	expect(blocked.status).toBe('reserved_for_hull');
+	expect(
+		(await getResourceStackForPilotInstance(db, testPilotId, paleEmberInstanceId))?.quantity
+	).toBe(FIRST_HULL_RESERVE.units);
+
+	await grantResourceToPilot(db, {
+		pilotId: testPilotId,
+		resourceInstanceId: paleEmberInstanceId,
+		quantity: NEXT_NEED_ORDER_RC_STACK,
+		source: { type: 'test_grant', id: 'first-hull-spare' }
+	});
+
+	const delivered = await deliverResourceStackToSettlementOrder(db, {
+		pilotId: testPilotId,
+		orderId: rcOrder!.id,
+		resourceInstanceId: paleEmberInstanceId
+	});
+	expect(delivered).toEqual({
+		status: 'delivered',
+		deliveredUnits: NEXT_NEED_ORDER_RC_STACK,
+		orderFilled: true,
+		fabricatorMilestoneCompleted: false
+	});
+	expect(
+		(await getResourceStackForPilotInstance(db, testPilotId, paleEmberInstanceId))?.quantity
+	).toBe(FIRST_HULL_RESERVE.units);
+});
 });

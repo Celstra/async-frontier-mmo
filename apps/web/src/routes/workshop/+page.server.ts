@@ -33,6 +33,7 @@ import {
 import {
 	loadWorkshopScreen,
 	parseCraftMode,
+	parseExperimentPulses,
 	parseSlotInstanceId,
 	parseTuningFromForm
 } from '$lib/server/workshopLoad';
@@ -81,7 +82,7 @@ export const load: PageServerLoad = async (event) => {
 	}
 
 	await trackWorkshopViewed(db, pilotId, {
-		selectedSchematicId: screen.selectedSchematicId
+		selectedSchematicId: screen.selectedSchematicId ?? 'none'
 	});
 
 	return screen;
@@ -127,13 +128,24 @@ export const actions: Actions = {
 			return fail(400, { message: 'Every schematic slot must be filled' });
 		}
 
+		const experimentPulses =
+			craftMode === 'careful_experiment'
+				? parseExperimentPulses(schematic, formData)
+				: undefined;
+		if (craftMode === 'careful_experiment' && experimentPulses === null) {
+			return fail(400, {
+				message: 'Choose a property line and push size for both experiment pulses'
+			});
+		}
+
 		const craftInput = {
 			pilotId,
 			idempotencyKey,
 			slotInputs: slotInputs as Array<{ slotId: string; resourceInstanceId: string }>,
 			tuning,
 			craftMode,
-			experimentSeed: idempotencyKey
+			experimentSeed: idempotencyKey,
+			...(experimentPulses ? { experimentPulses } : {})
 		};
 
 		const outcome =

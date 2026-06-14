@@ -1,4 +1,4 @@
-import { createSeededRng } from '../rng.js';
+import { resolveExperimentationPulses, type ExperimentPulse } from './experimentation.js';
 import { getPropertyOutputBand } from './propertyBand.js';
 import type {
 	CraftMode,
@@ -190,24 +190,6 @@ export function previewCraftProperties(
 	};
 }
 
-function rollCarefulExperimentOutcome(random: () => number): 'boost' | 'unchanged' | 'minor_flaw' {
-	const roll = random();
-	if (roll < CAREFUL_EXPERIMENT_BOOST_CHANCE) {
-		return 'boost';
-	}
-	if (roll < CAREFUL_EXPERIMENT_BOOST_CHANCE + CAREFUL_EXPERIMENT_UNCHANGED_CHANCE) {
-		return 'unchanged';
-	}
-	return 'minor_flaw';
-}
-
-/** Decision 009/010: +3% to tuned score, capped at resourceCeiling and 100. */
-function resolveCarefulExperimentScore(tunedScore: number, resourceCeiling: number): number {
-	return capPropertyScore(
-		Math.min(tunedScore * (1 + CAREFUL_EXPERIMENT_BOOST), resourceCeiling)
-	);
-}
-
 export type ResolveCraftInput = {
 	schematic: SchematicDefinition;
 	slotFills: SchematicSlotFill[];
@@ -215,6 +197,8 @@ export type ResolveCraftInput = {
 	mode: CraftMode;
 	/** Required for careful_experiment — same seed → same outcome (audit/replay). */
 	experimentSeed?: string;
+	/** Two pulses for careful_experiment (Decision 023 bet-sizing). */
+	experimentPulses?: ExperimentPulse[];
 };
 
 /**
@@ -237,27 +221,32 @@ export function resolveCraft(input: ResolveCraftInput): CraftResolution {
 		};
 	}
 
-	const random = createSeededRng(input.experimentSeed ?? 'careful-experiment-default');
-	const experimentOutcome = rollCarefulExperimentOutcome(random);
-	const hasMinorFlaw = experimentOutcome === 'minor_flaw';
+	const defaultPulses: ExperimentPulse[] = input.schematic.properties.slice(0, 2).map(
+		(property, index) => ({
+			propertyId: property.id,
+			push: index === 0 ? 'careful' : 'standard'
+		})
+	);
+	const pulses =
+		input.experimentPulses && input.experimentPulses.length === 2
+			? input.experimentPulses
+			: defaultPulses;
 
-	const lines: ResolvedPropertyLine[] = preview.lines.map((line) => {
-		const finalScore =
-			experimentOutcome === 'boost'
-				? resolveCarefulExperimentScore(line.tunedScore, line.resourceCeiling)
-				: line.tunedScore;
-
-		return {
-			...line,
-			finalScore,
-			finalBand: getPropertyOutputBand(finalScore)
-		};
+	const experimented = resolveExperimentationPulses({
+		preview,
+		schematic: input.schematic,
+		slotFills: input.slotFills,
+		pulses,
+		experimentSeed: input.experimentSeed ?? 'experiment-default'
 	});
 
 	return {
 		mode: input.mode,
-		lines,
-		hasMinorFlaw,
-		experimentOutcome
+		lines: experimented.lines,
+		hasMinorFlaw: experimented.pulseResults.some(
+			(result) => result.outcome === 'crit_band_loss' || result.outcome === 'crit_scrap'
+		),
+		experimentPulseResults: experimented.pulseResults,
+		experimentScrapUnits: experimented.totalScrapUnits
 	};
 }

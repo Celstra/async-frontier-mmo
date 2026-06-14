@@ -6,6 +6,7 @@ import {
 } from '../tuning.js';
 import { resolveFirstAsyncWaiverActive } from './hullFailsafeRecall.js';
 import { hullTierFromIntegrity, unlocksFirstAsyncTail } from './hullTier.js';
+import { hullDeployWarningLine } from './hullTier.js';
 import { availableTails } from './hullRunCeiling.js';
 
 describe('hullTierFromIntegrity', () => {
@@ -66,5 +67,16 @@ describe('first async tail unlock', () => {
 				firstAsyncUnlockPending: true
 			})
 		).toBe(false);
+	});
+});
+
+describe('hullDeployWarningLine', () => {
+	it('floors fractional seconds in the secures-at clock', () => {
+		const line = hullDeployWarningLine(SCAVENGED_HULL_INTEGRITY, {
+			plannedDurationSeconds: 300,
+			extractionTailMinutes: 5
+		});
+		expect(line).toContain('Secures at ~2:03');
+		expect(line).not.toMatch(/:\d+\.\d+/);
 	});
 });

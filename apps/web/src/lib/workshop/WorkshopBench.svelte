@@ -13,7 +13,9 @@
 		TUNING_POINTS_TOTAL,
 		canFillSlotWithStack,
 		type CraftMode,
-		type PropertyOutputBand
+		type PropertyOutputBand,
+		type ExperimentPulse,
+		type ExperimentPushSize
 	} from '@async-frontier-mmo/domain';
 	import SchematicDiagram from './SchematicDiagram.svelte';
 	import SlotSelector from './SlotSelector.svelte';
@@ -112,6 +114,42 @@
 	// Track resource changes for delta animation
 	let previousSlotFills = $state<SchematicSlotFill[] | null>(null);
 
+	const EXPERIMENT_PUSH_OPTIONS: ReadonlyArray<{
+		id: ExperimentPushSize;
+		label: string;
+		detail: string;
+	}> = [
+		{ id: 'careful', label: 'Careful', detail: '+1 band · 90% success' },
+		{ id: 'standard', label: 'Standard', detail: '+2 bands · 65% success' },
+		{ id: 'overdrive', label: 'Overdrive', detail: '+3 bands · 40% success · scrap on crit' }
+	];
+
+	function defaultExperimentPulses(definition: SchematicDefinition): ExperimentPulse[] {
+		const first = definition.properties[0];
+		const second = definition.properties[1] ?? first;
+		if (!first) {
+			return [];
+		}
+		return [
+			{ propertyId: first.id, push: 'careful' },
+			{ propertyId: second.id, push: 'standard' }
+		];
+	}
+
+	let experimentPulses = $state<ExperimentPulse[]>([]);
+
+	function setPulseProperty(index: number, propertyId: string) {
+		experimentPulses = experimentPulses.map((pulse, pulseIndex) =>
+			pulseIndex === index ? { ...pulse, propertyId } : pulse
+		);
+	}
+
+	function setPulsePush(index: number, push: ExperimentPushSize) {
+		experimentPulses = experimentPulses.map((pulse, pulseIndex) =>
+			pulseIndex === index ? { ...pulse, push } : pulse
+		);
+	}
+
 	// Reset state when schematic changes (fixes state_referenced_locally warnings)
 	$effect(() => {
 		const schematicId = schematic.id;
@@ -120,6 +158,7 @@
 		slotSelections = selections;
 		tuning = {};
 		showResult = false;
+		experimentPulses = defaultExperimentPulses(schematic);
 		// idempotencyKey and craftMode persist per-page-load intentionally
 	});
 
@@ -433,13 +472,54 @@
 						class:selected={craftMode === 'careful_experiment'}
 						onclick={() => handleModeChange('careful_experiment')}
 					>
-						<span class="mode-title">Careful Experiment</span>
-						<span class="mode-stakes">75% chance: +3% on every line. 5% risk: minor flaw.</span>
-						<span class="mode-ceiling">Never exceeds resource ceiling</span>
+						<span class="mode-title">Experiment (2 pulses)</span>
+						<span class="mode-stakes"
+							>Per pulse: Careful +1 / Standard +2 / Overdrive +3 bands. Crits cost durability or
+							scrap.</span
+						>
+						<span class="mode-ceiling">Resource quality caps each line</span>
 					</button>
 				</div>
 				<input type="hidden" name="craftMode" value={craftMode} />
 			</section>
+
+			{#if craftMode === 'careful_experiment'}
+				<section class="experiment-pulses">
+					<h3>Experiment pulses</h3>
+					{#each experimentPulses as pulse, index (index)}
+						<div class="pulse-row">
+							<p class="pulse-row__title">Pulse {index + 1}</p>
+							<label class="pulse-row__field">
+								<span>Property line</span>
+								<select
+									value={pulse.propertyId}
+									onchange={(event) =>
+										setPulseProperty(index, event.currentTarget.value)}
+								>
+									{#each schematic.properties as property (property.id)}
+										<option value={property.id}>{property.displayName}</option>
+									{/each}
+								</select>
+							</label>
+							<div class="push-options" role="group" aria-label="Push size for pulse {index + 1}">
+								{#each EXPERIMENT_PUSH_OPTIONS as option (option.id)}
+									<button
+										type="button"
+										class="push-btn"
+										class:selected={pulse.push === option.id}
+										onclick={() => setPulsePush(index, option.id)}
+									>
+										<span class="push-btn__label">{option.label}</span>
+										<span class="push-btn__detail">{option.detail}</span>
+									</button>
+								{/each}
+							</div>
+							<input type="hidden" name="pulse_{index}_property" value={pulse.propertyId} />
+							<input type="hidden" name="pulse_{index}_push" value={pulse.push} />
+						</div>
+					{/each}
+				</section>
+			{/if}
 
 			<button
 				type="submit"
@@ -578,6 +658,88 @@
 		font-size: 0.75rem;
 		color: var(--text-muted);
 		font-style: italic;
+	}
+
+	.experiment-pulses {
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.experiment-pulses h3 {
+		margin: 0 0 0.75rem;
+		font-size: 1rem;
+	}
+
+	.pulse-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+		margin-bottom: 1rem;
+		padding: 0.875rem;
+		border: 1px solid var(--border-subtle);
+		border-radius: 6px;
+		background: var(--bg-inset);
+	}
+
+	.pulse-row__title {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--phosphor);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.pulse-row__field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		font-size: 0.85rem;
+		color: var(--text-secondary);
+	}
+
+	.pulse-row__field select {
+		padding: 0.5rem;
+		border: 1px solid var(--border-subtle);
+		border-radius: 4px;
+		background: var(--bg-panel);
+		color: var(--text-primary);
+		font-family: inherit;
+	}
+
+	.push-options {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.push-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		padding: 0.75rem;
+		border: 2px solid var(--border-subtle);
+		border-radius: 6px;
+		background: var(--bg-panel);
+		color: var(--text-primary);
+		cursor: pointer;
+		text-align: left;
+		font-family: inherit;
+	}
+
+	.push-btn.selected {
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
+	}
+
+	.push-btn__label {
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
+	.push-btn__detail {
+		font-size: 0.8rem;
+		color: var(--text-secondary);
 	}
 
 	.craft-submit-btn {

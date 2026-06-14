@@ -4,6 +4,7 @@ import {
 	buildActiveRunMeters,
 	parseEventWindowSeverity,
 	resolveEventWindowOutcome,
+	tutorialRunSeed,
 	type EventWindowMeterSnapshot
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -141,7 +142,8 @@ describeDb('thumper event window before/after state', () => {
 			currentMeters,
 			totalWindowCount: windows.length,
 			runHullCondition: run.runHullCondition,
-			runHullIntegrity: run.runHullIntegrity
+			runHullIntegrity: run.runHullIntegrity,
+			tutorialDeterministic: false
 		});
 
 		expect(outcome.status).toBe('recorded');
@@ -151,5 +153,91 @@ describeDb('thumper event window before/after state', () => {
 
 		expect(window.beforeState).toEqual(expected.beforeState);
 		expect(window.afterState).toEqual(expected.afterState);
+	});
+
+});
+
+describeDb('thumper event window tutorial-deterministic hold penalty', () => {
+	const db = createDb(databaseUrl!);
+	const tutorialPilotId = `event-window-tutorial-${Date.now()}`;
+
+	beforeAll(async () => {
+		await db.insert(pilots).values({ id: tutorialPilotId }).onConflictDoNothing();
+		await ensureStarterThumperPartsForPilot(db, tutorialPilotId, { autoEquip: true });
+	});
+
+	afterAll(async () => {
+		const pilotRuns = await db
+			.select({ id: thumperRuns.id })
+			.from(thumperRuns)
+			.where(eq(thumperRuns.pilotId, tutorialPilotId));
+		const runIds = pilotRuns.map((run) => run.id);
+
+		await db.delete(repairActions).where(eq(repairActions.pilotId, tutorialPilotId));
+
+		if (runIds.length > 0) {
+			await db
+				.delete(thumperEventWindows)
+				.where(inArray(thumperEventWindows.thumperRunId, runIds));
+			await db.delete(thumperRuns).where(eq(thumperRuns.pilotId, tutorialPilotId));
+		}
+
+		await db
+			.update(pilots)
+			.set({
+				equippedScannerItemId: null,
+				equippedDrillItemId: null,
+				equippedPumpItemId: null,
+				equippedHullItemId: null
+			})
+			.where(eq(pilots.id, tutorialPilotId));
+		await db.delete(items).where(eq(items.pilotId, tutorialPilotId));
+		await db.delete(economyLedger).where(eq(economyLedger.pilotId, tutorialPilotId));
+		await db.delete(pilots).where(eq(pilots.id, tutorialPilotId));
+	});
+
+	it('tutorialDeterministic: true stores fixed hold penalty instead of meter-coupled value', async () => {
+		// TUTORIAL_HOLD_PENALTY_BY_SEVERITY.minor = 5 (fixed tutorial penalty).
+		const TUTORIAL_MINOR_PENALTY = 5;
+		const deployedAt = new Date(Date.now() - 120_000);
+		const run = await deployThumperRunWithEventWindows(db, {
+			pilotId: tutorialPilotId,
+			targetResourceId: 'veyrith_copper',
+			runSeed: tutorialRunSeed(1),
+			isPushRun: false,
+			deployedAt,
+			durationSeconds: 60,
+			windows: [
+				{ windowIndex: 1, complication: 'signal_drift', matchingAction: 'signal_tune' }
+			]
+		});
+
+		const currentMeters = await deployMetersForRun(db, tutorialPilotId, run.id);
+		const windows = await getThumperEventWindowsForRun(db, run.id);
+
+		const outcome = await recordThumperEventWindowResponseForPilot(db, {
+			pilotId: tutorialPilotId,
+			thumperRunId: run.id,
+			windowIndex: 1,
+			complication: 'signal_drift',
+			matchingAction: 'signal_tune',
+			severity: windows[0]!.severity ?? 'minor',
+			chosenResponse: 'hold',
+			currentMeters,
+			totalWindowCount: windows.length,
+			runHullCondition: run.runHullCondition,
+			runHullIntegrity: run.runHullIntegrity,
+			tutorialDeterministic: true
+		});
+
+		expect(outcome.status).toBe('recorded');
+
+		const stored = await getThumperEventWindowsForRun(db, run.id);
+		const storedWindow = stored.find((row) => row.windowIndex === 1)!;
+
+		// The before/after projectedRecovery delta must equal the fixed tutorial penalty.
+		const beforeRecovery = (storedWindow.beforeState as EventWindowMeterSnapshot).projectedRecovery;
+		const afterRecovery = (storedWindow.afterState as EventWindowMeterSnapshot).projectedRecovery;
+		expect(beforeRecovery - afterRecovery).toBe(TUTORIAL_MINOR_PENALTY);
 	});
 });

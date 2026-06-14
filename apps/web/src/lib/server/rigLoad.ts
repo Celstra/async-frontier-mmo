@@ -2,6 +2,9 @@ import {
 	countFieldRepairKitsForPilot,
 	getEquippedScannerForPilot,
 	getEquippedThumperPartsForPilot,
+	getLatestThumperRunForPilot,
+	getOpenThumperRunForPilot,
+	getPilotTutorialStep,
 	listPilotRevealedResourceInstanceIds,
 	listPilotResourceStacksWithInstances,
 	listScannerItemsForPilot,
@@ -16,7 +19,12 @@ import {
 } from '@async-frontier-mmo/domain';
 import { fieldStatsFromInstance, type FieldResourceStats } from '$lib/field/resourceStats';
 import { familyDisplayLabel, thumperPartSlotLabel } from '$lib/displayLabels';
+import { loadFirstAsyncTailState } from './firstAsyncTailState.js';
+import { loadClaimScreen } from './fieldClaimState.js';
+import { loadOpenRunState } from './fieldRunState.js';
 import type { getGameDb } from './gameDb.js';
+import { rigEquipmentLockedFromState } from './rigEquipmentLock.js';
+import { resolveTargetDisplayName } from './targetResource.js';
 
 export type RigWearBar = {
 	label: string;
@@ -73,6 +81,9 @@ export type RigScreenData = {
 	repairKitCount: number;
 	hasRepairDebt: boolean;
 	repairDebtLine: string | null;
+	equipmentLocked: boolean;
+	activeRun: Awaited<ReturnType<typeof loadOpenRunState>> | null;
+	claimView: Awaited<ReturnType<typeof loadClaimScreen>> | null;
 	equippedParts: RigEquippedPart[];
 	partCandidates: Record<ThumperPartSlot, RigPartCandidate[]>;
 	equippedScanner: {
@@ -106,7 +117,9 @@ export async function loadRigScreen(
 		equippedScanner,
 		thumperPartItems,
 		equippedParts,
-		repairKitCount
+		repairKitCount,
+		tutorialStep,
+		openRun
 	] = await Promise.all([
 		listPilotResourceStacksWithInstances(db, pilotId),
 		listPilotRevealedResourceInstanceIds(db, pilotId),
@@ -114,8 +127,35 @@ export async function loadRigScreen(
 		getEquippedScannerForPilot(db, pilotId),
 		listThumperPartItemsForPilot(db, pilotId),
 		getEquippedThumperPartsForPilot(db, pilotId),
-		countFieldRepairKitsForPilot(db, pilotId)
+		countFieldRepairKitsForPilot(db, pilotId),
+		getPilotTutorialStep(db, pilotId),
+		getOpenThumperRunForPilot(db, pilotId)
 	]);
+
+	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
+	let activeRun = openRun
+		? await loadOpenRunState(db, openRun, repairKitCount, {
+				resolveDisplayName: resolveTargetDisplayName,
+				includeRunMeters: true,
+				firstAsync
+			})
+		: null;
+	const claimScreen = await loadClaimScreen(db, pilotId, new Date());
+	const claimView = claimScreen.mode === 'none' ? null : claimScreen;
+
+	if (
+		(claimView?.mode === 'claimable' || claimView?.mode === 'result') &&
+		activeRun === null
+	) {
+		const displayRun = await getLatestThumperRunForPilot(db, pilotId);
+		if (displayRun) {
+			activeRun = await loadOpenRunState(db, displayRun, repairKitCount, {
+				resolveDisplayName: resolveTargetDisplayName,
+				includeRunMeters: true,
+				firstAsync
+			});
+		}
+	}
 
 	const hullIntegrity = equippedParts.hull?.integrity ?? null;
 	const hullTier = hullTierFromIntegrity(hullIntegrity ?? 100);
@@ -199,6 +239,12 @@ export async function loadRigScreen(
 		repairKitCount,
 		hasRepairDebt,
 		repairDebtLine,
+		equipmentLocked: rigEquipmentLockedFromState({
+			hasOpenRun: openRun !== null,
+			claimMode: claimScreen.mode
+		}),
+		activeRun,
+		claimView,
 		equippedParts: equippedPartRows,
 		partCandidates,
 		equippedScanner: equippedScanner

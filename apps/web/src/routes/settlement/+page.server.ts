@@ -4,6 +4,7 @@ import {
 	getEquippedThumperPartsForPilot,
 	getPilotTutorialStep,
 	patchEquippedHullForTutorial,
+	refillSurveyEnergyToCap,
 	setPilotTutorialStep
 } from '@async-frontier-mmo/db';
 import { fail } from '@sveltejs/kit';
@@ -95,6 +96,8 @@ export const actions: Actions = {
 				? 'That stack is the wrong family for this order'
 				: outcome.status === 'wrong_instance'
 					? 'This order is bound to a different resource — only one stack counts'
+					: outcome.status === 'reserved_for_hull'
+						? 'Keep that Reactive Crystal for the Reinforced Hull Plate — orders only take spare after the first hull bill.'
 					: outcome.status === 'stack_empty'
 						? 'That stack is empty'
 						: outcome.status === 'order_not_open'
@@ -189,7 +192,12 @@ export const actions: Actions = {
 
 		await ensureNextNeedOrdersPostedForPilot(db, pilotId);
 		await trackAsyncDurationChosen(db, pilotId, { extractionTailMinutes: tailMinutes });
-		await advanceTutorialStepIf(db, pilotId, 'async_reveal', 'done');
+		if (await advanceTutorialStepIf(db, pilotId, 'async_reveal', 'done')) {
+			// The tutorial spends most of the survey energy cap and the trickle regime
+			// (Decision 022) assumes steady-state days start full, so graduation tops
+			// the tank once — sim-locked cap/regen stay untouched.
+			await refillSurveyEnergyToCap(db, pilotId, new Date());
+		}
 		return settlementData(db, pilotId);
 	}
 };

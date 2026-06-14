@@ -4,10 +4,11 @@
 
 	interface Props {
 		schematics: WorkshopSchematicRow[];
-		selectedSchematicId: string;
+		selectedSchematicId: string | null;
+		station?: 'fabricator';
 	}
 
-	let { schematics, selectedSchematicId }: Props = $props();
+	let { schematics, selectedSchematicId, station = 'fabricator' }: Props = $props();
 
 	function readinessLabel(row: WorkshopSchematicRow): string {
 		if (row.craftableNow) return 'Ready';
@@ -22,7 +23,7 @@
 		{#each schematics as row (row.id)}
 			<li>
 				<a
-					href="/workshop?schematic={row.id}"
+					href="/workshop?station={station}&schematic={row.id}"
 					class="schematic-row"
 					class:schematic-row--active={row.id === selectedSchematicId}
 					aria-current={row.id === selectedSchematicId ? 'page' : undefined}

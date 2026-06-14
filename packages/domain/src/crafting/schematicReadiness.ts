@@ -46,7 +46,7 @@ function sourceHintForFamily(family: ResourceFamily): string {
 	if (family === 'conductive_metal') {
 		return `${label} comes from thumper hauls — deploy and claim a thumper on a ${label} signal.`;
 	}
-	return `${label} is in your starter stockpile and also comes from thumper hauls.`;
+	return `${label} also comes from thumper hauls.`;
 }
 
 function quantityShortHint(input: {

@@ -4,18 +4,20 @@ Question: Can we configure sampling so that:
   (a) A dedicated all-day sampler's units/hour <= 5–10% of a deployed thumper's
       units/hour on a comparable spot.  "Comparable" = same resource, same conc tier;
       sampler at their best (farming bulk Keth SA at PEAK 88%) vs thumper on Keth PEAK.
-  (b) The tutorial single-stack turn-in is reachable in roughly 6–8 samples
-      ≈ 5–10 minutes at LOW-to-MID concentrations (first scan in low third of range).
+  (b) The tutorial single-stack turn-in is reachable in roughly 4–6 samples
+      ≈ 2–5 minutes at LOW concentrations (first scan in low third of range).
+      SA stack = 15u (TUTORIAL_ORDER_SA_STACK), CM stack = 12u.
       Evaluated at Keth Iron LOW (65%) — the SA family the tutorial's first foreman
       order uses; Veyrith is the QUALITY CM resource (conc 20–50%), not the tutorial SA.
   (c) Repair Kit (total 60 u across all slots) is sample-affordable in a pinch
       (~1–1.5 days of full energy budget at a good mid-conc spot); Hull Plate (120 u)
       clearly requires thumping (2+ days of pure sampling, making the thumper obvious).
 
-Real code constants (packages/domain/src/survey/prospectingSampling.ts):
-  SURVEY_ENERGY_CAP    = 100
-  SAMPLE_ENERGY_COST   = 12    -> max_samples = floor(100/12) = 8 at existing cap
-  SAMPLE_TRICKLE_UNITS = 2     (current code: flat constant, NOT concentration-scaled)
+Real code constants (packages/domain/src/survey/prospectingSampling.ts / tuning.ts):
+  SURVEY_ENERGY_CAP    = 120   (ENERGY_CAP_SAMPLES=10 × SAMPLE_ENERGY_COST=12)
+  SAMPLE_ENERGY_COST   = 12    -> max_samples = floor(120/12) = 10 at cap
+  ENERGY_REGEN_SAMPLES_PER_HOUR = 0.5  -> daily budget (dedicated sampler):
+      cap 10 + 16 waking hours × 0.5 = 18 samples/day
 
 Real thumper yield math (packages/domain/src/thumper/deployPreview.ts):
   DEFAULT_PROJECTED_RECOVERY = 60  (units at 1h tail, 67% conc, no part mods)
@@ -27,9 +29,9 @@ Decision 021 §C concentration ranges:
   Keth Iron      55–95%    (bulk SA — tutorial family for foreman's first order)
   Veyrith Copper 20–50%    (quality CM — prize resource, deliberately hard to mass)
 
-Spec sample yield formula (§5, not yet in code):
-  yield_per_sample = base_yield × (conc / 100)
-  Code currently uses flat SAMPLE_TRICKLE_UNITS=2; a code change is required.
+Sample yield formula (§5, now implemented in code as sampleYieldFromConcentration):
+  yield_per_sample = max(1, round(SAMPLE_BASE_YIELD × conc / 100))
+  (SAMPLE_BASE_YIELD = 5; Decision 022 / tuning.ts — no code change required.)
 
 Tension finding (see TENSION ANALYSIS section):
   Constraint (b) at Veyrith LOW (25%) with a 30u stack requires base_yield ~15–20,
@@ -42,9 +44,9 @@ Tension finding (see TENSION ANALYSIS section):
 import math
 
 # ── Real code constants ────────────────────────────────────────────────────────
-SURVEY_ENERGY_CAP    = 100
+SURVEY_ENERGY_CAP    = 120
 SAMPLE_ENERGY_COST   = 12
-CODE_MAX_SAMPLES     = SURVEY_ENERGY_CAP // SAMPLE_ENERGY_COST   # = 8
+CODE_MAX_SAMPLES     = SURVEY_ENERGY_CAP // SAMPLE_ENERGY_COST   # = 10
 DEFAULT_PROJECTED_RECOVERY = 60
 SWG_BASE_CONCENTRATION     = 67.0
 
@@ -67,10 +69,10 @@ def thumper_units_per_hour(conc_pct: float, tail_minutes: int = 60) -> float:
     total_hours = (1 + tail_minutes) / 60.0
     return thumper_units(conc_pct, tail_minutes) / total_hours
 
-# ── Sample yield formula (spec §5 intent, not yet in code) ───────────────────
+# ── Sample yield formula (mirrors sampleYieldFromConcentration in code) ──────
 def sample_yield(base_yield: float, conc_pct: float) -> float:
-    """yield = base_yield × (conc / 100)."""
-    return base_yield * (conc_pct / 100.0)
+    """yield = max(1, round(base_yield × conc / 100))  — Decision 022, implemented in code."""
+    return max(1, round(base_yield * conc_pct / 100.0))
 
 # ── Time / walk model ─────────────────────────────────────────────────────────
 SAMPLE_CYCLE_SECONDS = 30    # 10s animation + ~20s scan/move overhead (spec §5)
@@ -139,13 +141,14 @@ def run_sweep(verbose: bool = True) -> list[dict]:
     """
     Sweeps knobs and returns configs satisfying all three constraints:
       (a) sampler u/hr <= 10% of thumper u/hr at Keth PEAK (88%)
-      (b) tutorial stack reachable in 6–8 samples, 5–10 min at Keth LOW (65%)
+      (b) tutorial stack reachable in 4–6 samples, 2–5 min at Keth LOW (65%)
+          (SA stack = 15u per TUTORIAL_ORDER_SA_STACK; CM stack = 12u)
       (c) Repair Kit (60u) <= 1.5 days; Hull Plate (120u) > 1.5 days at Keth MID (75%)
     """
     base_yields      = [1, 2, 3, 4, 5, 6, 8, 10]
-    max_samples_list = [8, 12, 16, 20, 30, 40, 60]
+    max_samples_list = [8, 10, 12, 16, 20, 30, 40, 60]
     per_spot_pools   = [3, 4, 5, 6, 8, 10]
-    stack_sizes      = [12, 16, 20, 25, 30]
+    stack_sizes      = [12, 15, 16, 20, 25, 30]
 
     FARMING_CONC  = 88   # Keth PEAK — hardest case for constraint (a)
     TUTORIAL_CONC = 65   # Keth LOW  — first scan for constraint (b)
@@ -158,8 +161,8 @@ def run_sweep(verbose: bool = True) -> list[dict]:
     if verbose:
         print(f"Constraint (a): sampler u/hr <= 10% of thumper u/hr at Keth PEAK "
               f"({FARMING_CONC}%) = {t_ref:.1f} → ceiling {t_ref * 0.10:.1f} u/hr")
-        print(f"Constraint (b): stack reachable in 6–8 samples, 5–10 min "
-              f"at Keth LOW ({TUTORIAL_CONC}%)")
+        print(f"Constraint (b): SA tutorial stack (15u) reachable in 4–6 samples, "
+              f"2–5 min at Keth LOW ({TUTORIAL_CONC}%)")
         print(f"Constraint (c): Repair Kit (60u) <= 1.5 days, "
               f"Hull Plate (120u) > 1.5 days at Keth MID ({RECIPE_CONC}%)")
         print()
@@ -176,7 +179,7 @@ def run_sweep(verbose: bool = True) -> list[dict]:
                     # (b)
                     tut_s   = tutorial_samples_needed(base_yield, TUTORIAL_CONC, stack)
                     tut_min = tutorial_time_minutes(base_yield, TUTORIAL_CONC, stack, pool)
-                    b_ok    = (6 <= tut_s <= 8) and (5.0 <= tut_min <= 10.0)
+                    b_ok    = (4 <= tut_s <= 6) and (2.0 <= tut_min <= 5.0)
 
                     # (a)
                     s_uhr = sampler_units_per_hour(base_yield, FARMING_CONC, max_s, pool)
@@ -222,24 +225,55 @@ def print_recommendation(candidates: list[dict]) -> None:
               f"stack={c['stack']} | tut={c['tut_s']}s/{c['tut_min']:.1f}m | "
               f"ratio={c['ratio']:.1f}% | RK={c['rk_days']:.2f}d HP={c['hull_days']:.2f}d")
 
-    # Select best: prefer code-native energy (max_s=8 or 12), ratio ~6%, smallest stack
-    def score(c):
-        # prefer lower energy inflation from existing code
-        e_pen = abs(c["max_s"] - 12) * 0.5
-        r_pen = abs(c["ratio"] - 6.0)
-        s_pen = c["stack"] / 100.0
-        return e_pen + r_pen + s_pen
+    # ── Live config (hard-coded game constants, not a sweep selection) ───────────
+    # base_yield=5 (SAMPLE_BASE_YIELD, tuning.ts)
+    # max_s = CODE_MAX_SAMPLES = SURVEY_ENERGY_CAP // SAMPLE_ENERGY_COST = 10
+    # pool  = 5 (SPOT_SAMPLE_POOL, packages/domain/src/tuning.ts)
+    # stack = 15 (TUTORIAL_ORDER_SA_STACK)
+    by    = 5
+    ms    = CODE_MAX_SAMPLES   # = 10
+    pool  = 5
+    stack = 15
 
-    best = min(candidates, key=score)
-    by    = best["base_yield"]
-    ms    = best["max_s"]
-    pool  = best["pool"]
-    stack = best["stack"]
+    FARMING_CONC  = 88
+    TUTORIAL_CONC = 65
+    RECIPE_CONC   = 75
+
+    t_ref    = thumper_units_per_hour(FARMING_CONC)
+    tut_s    = tutorial_samples_needed(by, TUTORIAL_CONC, stack)
+    tut_min  = tutorial_time_minutes(by, TUTORIAL_CONC, stack, pool)
+    b_ok     = (4 <= tut_s <= 6) and (2.0 <= tut_min <= 5.0)
+    s_uhr    = sampler_units_per_hour(by, FARMING_CONC, ms, pool)
+    ratio    = 100.0 * s_uhr / t_ref
+    a_ok     = ratio <= 10.0
+    _, rk_days   = recipe_days(by, RECIPE_CONC, ms, 60)
+    _, hull_days = recipe_days(by, RECIPE_CONC, ms, 120)
+    c_ok     = (rk_days <= 1.5) and (hull_days > 1.5)
+
+    # Check whether the live config appears in the all-pass candidate list
+    live_in_candidates = any(
+        c["base_yield"] == by and c["max_s"] == ms
+        and c["pool"] == pool and c["stack"] == stack
+        for c in candidates
+    )
 
     print()
     print("=" * 74)
-    print("RECOMMENDATION")
+    print("LIVE CONFIG VERDICT (code constants)")
     print("=" * 74)
+    if live_in_candidates:
+        print("  Live config IS an all-pass candidate")
+    else:
+        print("  Live config NOT in all-pass set — check which constraint fails")
+        mark = lambda x, label: f"  {label}: {'PASS' if x else 'FAIL'}"
+        print(mark(a_ok,
+              f"  (a) ratio {ratio:.1f}% <= 10% at Keth PEAK {FARMING_CONC}%"))
+        print(mark(b_ok,
+              f"  (b) tutorial {stack}u stack: {tut_s} smpls / {tut_min:.1f} min "
+              f"[target 4-6 smpls / 2-5 min]"))
+        print(mark(c_ok,
+              f"  (c) RK {rk_days:.2f}d <= 1.5d AND HP {hull_days:.2f}d > 1.5d"))
+    print()
     print(f"  base_yield      = {by} u/sample  (concentration-scaled, spec §5)")
     print(f"  max_samples/day = {ms}  (energy: cap = {ms * SAMPLE_ENERGY_COST}, "
           f"cost = {SAMPLE_ENERGY_COST})")
@@ -273,14 +307,12 @@ def print_recommendation(candidates: list[dict]) -> None:
         print()
 
     # Tutorial
-    tut_s   = best["tut_s"]
-    tut_min = best["tut_min"]
     print(f"  Tutorial (b): {stack}u stack at Keth LOW (65%)")
-    print(f"    {tut_s} samples, {tut_min:.1f} minutes  [target: 6–8 smpls, 5–10 min]  PASS")
+    tut_verdict = "PASS" if b_ok else "FAIL"
+    print(f"    {tut_s} samples, {tut_min:.1f} minutes  [target: 4–6 smpls, 2–5 min]  {tut_verdict}")
 
     print()
     # Constraint (c) table
-    RECIPE_CONC = 75
     yps = sample_yield(by, RECIPE_CONC)
     daily_u = ms * yps
     print(f"  Recipe costs (c): Keth MID ({RECIPE_CONC}%), yield={yps:.2f}u/s, "
@@ -300,8 +332,9 @@ def print_recommendation(candidates: list[dict]) -> None:
 
     print()
     # Trickle yield table
-    print(f"  Code: replace flat SAMPLE_TRICKLE_UNITS=2 with concentration-scaled trickle:")
-    print(f"    trickle_units = {by} × (concentration_pct / 100)")
+    print(f"  Code: sampleYieldFromConcentration now implemented — "
+          f"max(1, round({by} × conc/100)):")
+    print(f"    trickle_units = max(1, round({by} × (concentration_pct / 100)))")
     print(f"    Yield at key concentrations:")
     for conc in [25, 35, 48, 65, 75, 88]:
         print(f"      {conc:>3}% → {sample_yield(by, conc):.2f} u/sample")
@@ -340,7 +373,8 @@ def print_tension_analysis() -> None:
     print("post 'structural alloy' needs first (the thumper needs a hull, which is SA).")
     print("Veyrith's tutorial role is the STAT REVEAL wow-beat and the scanner-slot")
     print("choice, not the 'fill a stack fast' tutorial. At 65%, base_yield=5 gives")
-    print("3.25u/sample — reachable in 6–7 samples for a 20u stack, within 5.5 minutes.")
+    print("round(5×0.65)=3u/sample — reachable in ceil(15/3)=5 samples for the 15u SA")
+    print("tutorial stack (TUTORIAL_ORDER_SA_STACK=15), within ~3 minutes. CM stack=12.")
 
 
 def print_thumper_reference() -> None:
@@ -396,16 +430,10 @@ def main():
     print_tension_analysis()
     print()
 
-    # Print first-session comparison using the recommended config
-    if candidates:
-        def score(c):
-            return (abs(c["max_s"] - 12) * 0.5 + abs(c["ratio"] - 6.0)
-                    + c["stack"] / 100.0)
-        best = min(candidates, key=score)
-        print()
-        print_first_session_comparison(
-            best["base_yield"], best["max_s"], best["pool"], best["stack"]
-        )
+    # Print first-session comparison using live game constants directly
+    # base_yield=5, max_s=CODE_MAX_SAMPLES=10, pool=5, stack=15 (TUTORIAL_ORDER_SA_STACK)
+    print()
+    print_first_session_comparison(5, CODE_MAX_SAMPLES, 5, 15)
 
 
 if __name__ == "__main__":

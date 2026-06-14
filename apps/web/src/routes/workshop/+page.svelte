@@ -2,6 +2,7 @@
 	import ChassisAssemblyPanel from '$lib/workshop/ChassisAssemblyPanel.svelte';
 	import SchematicList from '$lib/workshop/SchematicList.svelte';
 	import WorkshopBench from '$lib/workshop/WorkshopBench.svelte';
+	import { FABRICATOR_ONLINE } from '$lib/ascii';
 	import { THUMPER_CHASSIS_ASSEMBLY } from '@async-frontier-mmo/domain';
 	import type { PageData } from './$types';
 
@@ -11,34 +12,53 @@
 		form && 'craftOutcome' in form ? form.craftOutcome : undefined
 	);
 
-	const isChassisView = $derived(data.selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id);
+	const isThumperStation = $derived(data.workshopStation === 'thumper');
+	const showFirstDeployReady = $derived(
+		data.tutorialStep === 'first_deploy' && data.rigAssembled
+	);
 </script>
 
 <section class="screen" aria-label="Workshop console">
-	<header class="screen__header workshop-header">WORKSHOP — Fabricator bench</header>
+	<header class="screen__header workshop-header">WORKSHOP — Fabricator bay</header>
 
 	<div class="screen__body">
-		<pre class="workshop-art" aria-hidden="true">
-   ___[ WORKSHOP ]___
-  /                 \
- | SCHEMATIC | BENCH |
- |  STORAGE  | LIGHT |
-  \_________________/
-        FABRICATOR</pre>
-
-		<p class="workshop-framing">
-			Pick a schematic, fill each socket from one resource stack, tune three points, then assemble.
-		</p>
+		<nav class="station-nav" aria-label="Workshop stations">
+			<a
+				href="/workshop?station=thumper"
+				class="station-nav__link"
+				class:station-nav__link--active={isThumperStation}
+				aria-current={isThumperStation ? 'page' : undefined}
+			>
+				Thumper
+			</a>
+			<a
+				href="/workshop?station=fabricator"
+				class="station-nav__link"
+				class:station-nav__link--active={!isThumperStation}
+				aria-current={!isThumperStation ? 'page' : undefined}
+			>
+				Fabricator
+			</a>
+		</nav>
 
 		{#if form?.message && !craftOutcome}
 			<p class="flash flash--error" role="alert">{form.message}</p>
 		{/if}
 
-		<div class="workshop-layout">
-			<SchematicList schematics={data.schematics} selectedSchematicId={data.selectedSchematicId} />
-
-			<div class="workshop-main">
-				{#if isChassisView}
+		{#if isThumperStation}
+			<div class="workshop-layout workshop-layout--thumper">
+				<div class="workshop-main">
+					{#if showFirstDeployReady}
+						<h2 class="workshop-main__title">Rig assembled</h2>
+						<p class="workshop-framing">
+							Chassis is ready. Foreman wants you on FIELD — deploy on the deposit you sampled.
+						</p>
+					{:else}
+						<h2 class="workshop-main__title">Thumper chassis</h2>
+						<p class="workshop-framing">
+							Slot scavenged hull, drill, and pump into the chassis, then assemble the rig.
+						</p>
+					{/if}
 					<ChassisAssemblyPanel
 						title={data.chassisAssembly.displayName}
 						description={data.chassisAssembly.description}
@@ -47,19 +67,44 @@
 						selections={data.chassisSelections}
 						rigAssembled={data.rigAssembled}
 					/>
-				{:else}
-					<h2 class="workshop-main__title">Assemble {data.schematic.displayName}</h2>
-					<WorkshopBench
-						schematic={data.schematicDefinition}
-						inventory={data.inventory}
-						allocationHints={data.allocationHints}
-						defaultSelections={data.slotSelections}
-						{craftOutcome}
-						schematicReadiness={data.schematicReadiness}
-					/>
-				{/if}
+				</div>
 			</div>
-		</div>
+		{:else}
+			<div class="workshop-layout">
+				<SchematicList
+					schematics={data.schematics}
+					selectedSchematicId={data.selectedSchematicId}
+					station="fabricator"
+				/>
+
+				<div class="workshop-main">
+					{#if data.schematic && data.schematicDefinition}
+						<h2 class="workshop-main__title">Assemble {data.schematic.displayName}</h2>
+						{#if data.materialRollup}
+							<p class="workshop-material-rollup">{data.materialRollup}</p>
+						{/if}
+						<div class="fabricator-bench">
+							<WorkshopBench
+								schematic={data.schematicDefinition}
+								inventory={data.inventory}
+								allocationHints={data.allocationHints}
+								defaultSelections={data.slotSelections}
+								{craftOutcome}
+								schematicReadiness={data.schematicReadiness}
+							/>
+							<pre class="fabricator-art" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
+						</div>
+					{:else}
+						<h2 class="workshop-main__title">Fabricator bench</h2>
+						<p class="workshop-framing">
+							Pick a schematic from the list. Locked recipes stay visible — nothing auto-selects
+							a schematic you cannot craft yet.
+						</p>
+						<pre class="fabricator-art fabricator-art--solo" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
+					{/if}
+				</div>
+			</div>
+		{/if}
 	</div>
 </section>
 
@@ -68,14 +113,27 @@
 		margin: 0;
 	}
 
-	.workshop-art {
-		margin: 0 0 1rem;
+	.station-nav {
+		display: flex;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.station-nav__link {
+		padding: 0.45rem 0.85rem;
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
-		line-height: 1.35;
+		color: var(--text-secondary);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		text-decoration: none;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.station-nav__link--active {
 		color: var(--phosphor);
-		white-space: pre;
-		overflow-x: auto;
+		border-color: var(--phosphor-dim);
 	}
 
 	.workshop-framing {
@@ -99,12 +157,41 @@
 		font-size: var(--font-size-sm);
 		color: var(--phosphor);
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+	}
+
+	.workshop-material-rollup {
+		margin: 0 0 1rem;
+		font-size: var(--font-size-sm);
+		color: var(--accent-warning);
+	}
+
+	.fabricator-bench {
+		display: grid;
+		gap: 1rem;
+	}
+
+	.fabricator-art {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		line-height: 1.3;
+		color: var(--phosphor);
+		white-space: pre;
+		overflow-x: auto;
+	}
+
+	.fabricator-art--solo {
+		margin-top: 1rem;
 	}
 
 	@media (min-width: 900px) {
 		.workshop-layout {
 			grid-template-columns: minmax(14rem, 18rem) 1fr;
+			align-items: start;
+		}
+
+		.fabricator-bench {
+			grid-template-columns: 1fr minmax(12rem, 16rem);
 			align-items: start;
 		}
 	}

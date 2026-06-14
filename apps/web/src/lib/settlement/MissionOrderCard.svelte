@@ -50,6 +50,10 @@
 
 	<p class="order-card__tracker">{order.tracker.line}</p>
 
+	{#if order.reserveNoticeLine}
+		<p class="order-card__reserve-notice">{order.reserveNoticeLine}</p>
+	{/if}
+
 	{#if order.boundResource}
 		<div
 			class="order-card__commitment"
@@ -272,6 +276,13 @@
 		color: var(--accent-warning);
 		border-left: 2px solid var(--accent-warning-dim);
 		padding-left: 0.5rem;
+	}
+
+	.order-card__reserve-notice {
+		margin: 0 0 0.65rem;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		line-height: 1.45;
 	}
 
 	.order-card__progress {

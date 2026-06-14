@@ -36,14 +36,17 @@ export function resolveTutorialThumperRunResult(input: {
 	projectedRecovery: number;
 	hullIntegrityAtDeploy?: number;
 	plannedDurationSeconds?: number;
+	tutorialDeterministic?: boolean;
 }): ThumperRunResult {
+	const tutorialDeterministic = input.tutorialDeterministic ?? true;
 	if (input.tutorialRun === 2) {
 		const result = resolveThumperRunResult({
 			runConfig: {
 				targetResourceId: input.targetResourceId,
 				projectedRecovery: input.projectedRecovery,
 				appliedWear: input.appliedWear ?? 0,
-				partModifiers: input.partModifiers
+				partModifiers: input.partModifiers,
+				tutorialDeterministic
 			},
 			eventWindows: input.eventWindows,
 			responses: input.responses
@@ -69,7 +72,8 @@ export function resolveTutorialThumperRunResult(input: {
 			partModifiers: input.partModifiers,
 			hullTier: 'scavenged',
 			hullIntegrityAtDeploy,
-			plannedDurationSeconds
+			plannedDurationSeconds,
+			tutorialDeterministic
 		},
 		eventWindows: input.eventWindows,
 		responses: input.responses

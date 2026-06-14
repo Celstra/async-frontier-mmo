@@ -9,12 +9,17 @@ import {
 	listMissionOrderNudgeShownIds,
 	listPilotResourceStacksWithInstances,
 	listSettlementOrdersForMilestone,
+	listThumperPartItemsForPilot,
 	recordMissionOrderNudgeShown
 } from '@async-frontier-mmo/db';
 import {
 	boundStackProgress,
+	FIRST_HULL_RESERVE,
+	firstHullReserveMap,
 	missionTrackerState,
 	pickActiveSettlementOrder,
+	pickPinnedMissionOrder,
+	REINFORCED_HULL_PLATE,
 	SETTLEMENT_MILESTONES,
 	type FamilyStackCandidate,
 	type MissionTrackerState,
@@ -66,6 +71,17 @@ export type SettlementOrderCard = {
 	progressPercent: number;
 	eligibleStacks: SettlementEligibleStack[];
 	boundResource: SettlementBoundResource | null;
+	reserveNoticeLine?: string | null;
+};
+
+export type FirstHullReserveNotice = {
+	familyLabel: string;
+	resourceDisplayName: string;
+	reservedUnits: number;
+	requiredUnits: number;
+	spareUnits: number;
+	craftLabel: string;
+	line: string;
 };
 
 export type SettlementScreenData = {
@@ -78,6 +94,7 @@ export type SettlementScreenData = {
 	orders: SettlementOrderCard[];
 	activeOrderId: string | null;
 	activeMissionLine: string | null;
+	firstHullReserveNotice: FirstHullReserveNotice | null;
 	showFabricatorTakeover: boolean;
 	showPrologueTakeover: boolean;
 	tutorialStep: string | null;
@@ -150,6 +167,82 @@ function inventoryUnitsForInstance(
 	return (
 		inventory.find((stack) => stack.resourceInstanceId === instanceId)?.quantity ?? 0
 	);
+}
+
+function ownsReinforcedHullPlate(
+	thumperPartItems: Awaited<ReturnType<typeof listThumperPartItemsForPilot>>
+): boolean {
+	return thumperPartItems.some((part) => part.schematicId === REINFORCED_HULL_PLATE.id);
+}
+
+function buildFirstHullReserveNotice(input: {
+	milestoneKey: SettlementMilestoneKey;
+	inventory: Awaited<ReturnType<typeof listPilotResourceStacksWithInstances>>;
+	ownsHullPlate: boolean;
+}): FirstHullReserveNotice | null {
+	if (input.ownsHullPlate || input.milestoneKey !== 'next_need') {
+		return null;
+	}
+
+	const reserveMap = firstHullReserveMap({
+		milestoneKey: input.milestoneKey,
+		stacks: input.inventory.map((stack) => ({
+			resourceInstanceId: stack.resourceInstanceId,
+			family: stack.family as ResourceFamily,
+			quantity: stack.quantity
+		})),
+		ownsReinforcedHullPlate: input.ownsHullPlate
+	});
+
+	if (reserveMap.size === 0) {
+		return null;
+	}
+
+	const [resourceInstanceId, reservedUnits] = [...reserveMap.entries()][0]!;
+	const stack = input.inventory.find((entry) => entry.resourceInstanceId === resourceInstanceId);
+	if (!stack) {
+		return null;
+	}
+
+	const requiredUnits = FIRST_HULL_RESERVE.units;
+	const spareUnits = Math.max(0, stack.quantity - reservedUnits);
+	const craftLabel = REINFORCED_HULL_PLATE.displayName;
+	const resourceDisplayName = stack.displayName;
+	const familyLabel = familyDisplayLabel(FIRST_HULL_RESERVE.family);
+
+	return {
+		familyLabel,
+		resourceDisplayName,
+		reservedUnits,
+		requiredUnits,
+		spareUnits,
+		craftLabel,
+		line: `First hull reserve: ${reservedUnits}u ${resourceDisplayName} protected for ${craftLabel}. Foreman orders use spare Reactive Crystal only.`
+	};
+}
+
+const RC_ORDER_RESERVE_NOTICE =
+	'Reactive Crystal reserved for first hull does not count here; this order uses spare units only.';
+
+function applyFirstHullReserve(
+	milestoneKey: SettlementMilestoneKey,
+	inventory: Awaited<ReturnType<typeof listPilotResourceStacksWithInstances>>,
+	ownsHullPlate: boolean
+): Awaited<ReturnType<typeof listPilotResourceStacksWithInstances>> {
+	const reserveMap = firstHullReserveMap({
+		milestoneKey,
+		stacks: inventory.map((stack) => ({
+			resourceInstanceId: stack.resourceInstanceId,
+			family: stack.family as ResourceFamily,
+			quantity: stack.quantity
+		})),
+		ownsReinforcedHullPlate: ownsHullPlate
+	});
+
+	return inventory.map((stack) => ({
+		...stack,
+		quantity: Math.max(0, stack.quantity - (reserveMap.get(stack.resourceInstanceId) ?? 0))
+	}));
 }
 
 function buildBoundResource(
@@ -245,11 +338,14 @@ function eligibleStacksForOrder(
 	});
 }
 
-function activeMissionFromOrders(orders: SettlementOrderCard[]): {
+function activeMissionFromOrders(
+	orders: SettlementOrderCard[],
+	milestoneKey: SettlementMilestoneKey
+): {
 	activeOrderId: string | null;
 	activeMissionLine: string | null;
 } {
-	const active = pickActiveSettlementOrder(
+	const active = pickPinnedMissionOrder(
 		orders.map(
 			(order): SettlementOrder => ({
 				id: order.id,
@@ -260,7 +356,8 @@ function activeMissionFromOrders(orders: SettlementOrderCard[]): {
 				deliveredUnits: order.deliveredUnits,
 				status: order.status
 			})
-		)
+		),
+		milestoneKey
 	);
 
 	if (!active) {
@@ -284,8 +381,17 @@ async function buildSettlementOrderCards(
 	orders: SettlementOrderRow[],
 	inventory: Awaited<ReturnType<typeof listPilotResourceStacksWithInstances>>,
 	nudgeShownOrderIds: Set<string>,
-	options: { recordNudges: boolean }
+	options: {
+		recordNudges: boolean;
+		milestoneKey: SettlementMilestoneKey;
+		ownsReinforcedHullPlate: boolean;
+	}
 ): Promise<SettlementOrderCard[]> {
+	const availableInventory = applyFirstHullReserve(
+		options.milestoneKey,
+		inventory,
+		options.ownsReinforcedHullPlate
+	);
 	const boundInstanceMap = await loadBoundInstanceMap(
 		db,
 		orders
@@ -300,7 +406,7 @@ async function buildSettlementOrderCards(
 			order.boundInstanceId !== null
 				? (boundInstanceMap.get(order.boundInstanceId) ?? null)
 				: null;
-		const candidates = mergeFamilyCandidates(order.family, inventory, boundInstance);
+		const candidates = mergeFamilyCandidates(order.family, availableInventory, boundInstance);
 		const nudgeShown = nudgeShownOrderIds.has(order.id);
 		const tracker = missionTrackerState(order, candidates, { nudgeShown });
 		if (options.recordNudges && tracker.kind === 'bound' && tracker.nudge) {
@@ -313,10 +419,10 @@ async function buildSettlementOrderCards(
 				? Math.min(100, Math.round((progressUnits / order.stackSize) * 100))
 				: 0;
 
-		const inventoryUnits =
-			order.boundInstanceId !== null
-				? inventoryUnitsForInstance(inventory, order.boundInstanceId)
-				: 0;
+	const inventoryUnits =
+		order.boundInstanceId !== null
+			? inventoryUnitsForInstance(availableInventory, order.boundInstanceId)
+			: 0;
 
 		orderCards.push({
 			id: order.id,
@@ -329,13 +435,20 @@ async function buildSettlementOrderCards(
 			status: order.status,
 			tracker,
 			progressPercent,
-			eligibleStacks: eligibleStacksForOrder(order, inventory),
+			eligibleStacks: eligibleStacksForOrder(order, availableInventory),
 			boundResource: buildBoundResource(
 				order,
 				boundInstance,
 				inventoryUnits,
 				progressUnits
-			)
+			),
+			reserveNoticeLine:
+				!options.ownsReinforcedHullPlate &&
+				options.milestoneKey === 'next_need' &&
+				order.family === 'reactive_crystal' &&
+				order.status === 'open'
+					? RC_ORDER_RESERVE_NOTICE
+					: null
 		});
 	}
 
@@ -354,9 +467,10 @@ export async function loadActiveOrderStatusLine(
 	pilotId: string
 ): Promise<string | null> {
 	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
-	const [orders, inventory] = await Promise.all([
+	const [orders, inventory, thumperPartItems] = await Promise.all([
 		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
-		listPilotResourceStacksWithInstances(db, pilotId)
+		listPilotResourceStacksWithInstances(db, pilotId),
+		listThumperPartItemsForPilot(db, pilotId)
 	]);
 
 	const active = pickActiveSettlementOrder(orders);
@@ -368,7 +482,12 @@ export async function loadActiveOrderStatusLine(
 		active.boundInstanceId !== null
 			? await getResourceInstanceById(db, active.boundInstanceId)
 			: null;
-	const candidates = mergeFamilyCandidates(active.family, inventory, boundInstance);
+	const availableInventory = applyFirstHullReserve(
+		milestoneKey,
+		inventory,
+		ownsReinforcedHullPlate(thumperPartItems)
+	);
+	const candidates = mergeFamilyCandidates(active.family, availableInventory, boundInstance);
 	const progressUnits = boundStackProgress(active, candidates);
 
 	if (progressUnits >= active.stackSize) {
@@ -384,10 +503,11 @@ export async function loadSettlementMissionTicker(
 	pilotId: string
 ): Promise<string | null> {
 	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
-	const [orders, inventory, nudgeShownOrderIds] = await Promise.all([
+	const [orders, inventory, nudgeShownOrderIds, thumperPartItems] = await Promise.all([
 		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
 		listPilotResourceStacksWithInstances(db, pilotId),
-		listMissionOrderNudgeShownIds(db, pilotId)
+		listMissionOrderNudgeShownIds(db, pilotId),
+		listThumperPartItemsForPilot(db, pilotId)
 	]);
 
 	const orderCards = await buildSettlementOrderCards(
@@ -396,10 +516,44 @@ export async function loadSettlementMissionTicker(
 		orders,
 		inventory,
 		nudgeShownOrderIds,
-		{ recordNudges: false }
+		{
+			recordNudges: false,
+			milestoneKey,
+			ownsReinforcedHullPlate: ownsReinforcedHullPlate(thumperPartItems)
+		}
 	);
 
-	return activeMissionFromOrders(orderCards).activeMissionLine;
+	return activeMissionFromOrders(orderCards, milestoneKey).activeMissionLine;
+}
+
+export async function hasOrderReadyToTurnIn(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string
+): Promise<boolean> {
+	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
+	const [orders, inventory, nudgeShownOrderIds, thumperPartItems] = await Promise.all([
+		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
+		listPilotResourceStacksWithInstances(db, pilotId),
+		listMissionOrderNudgeShownIds(db, pilotId),
+		listThumperPartItemsForPilot(db, pilotId)
+	]);
+
+	const orderCards = await buildSettlementOrderCards(
+		db,
+		pilotId,
+		orders,
+		inventory,
+		nudgeShownOrderIds,
+		{
+			recordNudges: false,
+			milestoneKey,
+			ownsReinforcedHullPlate: ownsReinforcedHullPlate(thumperPartItems)
+		}
+	);
+
+	return orderCards.some(
+		(order) => order.status === 'open' && order.progressUnits >= order.stackSize
+	);
 }
 
 export async function loadSettlementScreen(
@@ -415,7 +569,8 @@ export async function loadSettlementScreen(
 		fabricatorUnlockedAt,
 		fabricatorSeenCount,
 		nudgeShownOrderIds,
-		equipped
+		equipped,
+		thumperPartItems
 	] = await Promise.all([
 		listSettlementOrdersForMilestone(db, { pilotId, milestoneKey }),
 		listPilotResourceStacksWithInstances(db, pilotId),
@@ -423,7 +578,8 @@ export async function loadSettlementScreen(
 		getSettlementMilestoneUnlockedAt(db, { pilotId, milestoneKey: 'fabricator_online' }),
 		countPlaytestEventsByName(db, pilotId, 'fabricator_online_seen'),
 		listMissionOrderNudgeShownIds(db, pilotId),
-		getEquippedThumperPartsForPilot(db, pilotId)
+		getEquippedThumperPartsForPilot(db, pilotId),
+		listThumperPartItemsForPilot(db, pilotId)
 	]);
 
 	const openOrders = orders.filter((order) => order.status === 'open');
@@ -433,10 +589,14 @@ export async function loadSettlementScreen(
 		orders,
 		inventory,
 		nudgeShownOrderIds,
-		{ recordNudges: true }
+		{
+			recordNudges: true,
+			milestoneKey,
+			ownsReinforcedHullPlate: ownsReinforcedHullPlate(thumperPartItems)
+		}
 	);
 
-	const { activeOrderId, activeMissionLine } = activeMissionFromOrders(orderCards);
+	const { activeOrderId, activeMissionLine } = activeMissionFromOrders(orderCards, milestoneKey);
 	const sortedOrders = activeOrderId
 		? [
 				...orderCards.filter((order) => order.id === activeOrderId),
@@ -450,6 +610,16 @@ export async function loadSettlementScreen(
 	const firstAsync = await loadFirstAsyncTailState(db, pilotId, { tutorialStep });
 	const { tailMenuOptions: asyncTailOptions } = hullDeployContextFromEquipped(equipped, firstAsync);
 
+	const orderReadyToTurnIn = orderCards.some(
+		(order) => order.status === 'open' && order.progressUnits >= order.stackSize
+	);
+	const ownsHullPlate = ownsReinforcedHullPlate(thumperPartItems);
+	const firstHullReserveNotice = buildFirstHullReserveNotice({
+		milestoneKey,
+		inventory,
+		ownsHullPlate
+	});
+
 	return {
 		milestoneKey,
 		milestoneLabel,
@@ -457,7 +627,10 @@ export async function loadSettlementScreen(
 			tutorialStep,
 			milestoneLabel,
 			hasOpenOrders: openOrders.length > 0,
-			fabricatorUnlocked
+			fabricatorUnlocked,
+			orderReadyToTurnIn,
+			openOrderCount: openOrders.length,
+			filledOrderCount: filledOrders.length
 		}),
 		boardSummary: buildMilestoneBoardSummary({
 			milestoneKey,
@@ -471,6 +644,7 @@ export async function loadSettlementScreen(
 		orders: sortedOrders,
 		activeOrderId,
 		activeMissionLine,
+		firstHullReserveNotice,
 		showFabricatorTakeover: fabricatorUnlocked && fabricatorSeenCount === 0,
 		showPrologueTakeover: tutorialStep === 'prologue',
 		tutorialStep,

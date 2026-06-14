@@ -5,12 +5,13 @@
 
 	interface Props {
 		slotLabel: string;
-		slot: 'drill' | 'pump' | 'hull';
-		candidates: RigPartCandidate[];
-		repairKitCount: number;
-	}
+	slot: 'drill' | 'pump' | 'hull';
+	candidates: RigPartCandidate[];
+	repairKitCount: number;
+	locked?: boolean;
+}
 
-	let { slotLabel, slot, candidates, repairKitCount }: Props = $props();
+let { slotLabel, slot, candidates, repairKitCount, locked = false }: Props = $props();
 	let open = $state(false);
 </script>
 
@@ -44,13 +45,13 @@
 							<form method="POST" action="?/equipThumperPart" use:enhance>
 								<input type="hidden" name="slot" value={slot} />
 								<input type="hidden" name="itemId" value={candidate.itemId} />
-								<button type="submit" class="action-row">Equip</button>
+<button type="submit" class="action-row" disabled={locked}>Equip</button>
 							</form>
 						{/if}
 						{#if candidate.canRepair}
 							<form method="POST" action="?/repairItem" use:enhance>
 								<input type="hidden" name="itemId" value={candidate.itemId} />
-								<button type="submit" class="action-row action-row--repair">Repair</button>
+<button type="submit" class="action-row action-row--repair" disabled={locked}>Repair</button>
 							</form>
 						{/if}
 					</div>
@@ -59,7 +60,9 @@
 				<li class="equip-slot__empty">No {slotLabel.toLowerCase()} parts — craft in WORKSHOP.</li>
 			{/each}
 		</ul>
-		{#if repairKitCount === 0}
+		{#if locked}
+			<p class="equip-slot__hint">Equipment locked while thumper deployed.</p>
+		{:else if repairKitCount === 0}
 			<p class="equip-slot__hint">No Field Repair kits — craft one in WORKSHOP to repair worn parts.</p>
 		{/if}
 	{/if}

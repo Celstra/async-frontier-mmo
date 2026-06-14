@@ -1,6 +1,6 @@
 import {
 	NEXT_NEED_ORDER_CM_STACK,
-	NEXT_NEED_ORDER_SA_STACK,
+	NEXT_NEED_ORDER_RC_STACK,
 	TUTORIAL_ORDER_CM_STACK,
 	TUTORIAL_ORDER_SA_STACK
 } from '../tuning.js';
@@ -42,7 +42,7 @@ export const SETTLEMENT_MILESTONES: ReadonlyArray<SettlementMilestoneDefinition>
 		key: 'next_need',
 		label: 'Foreman posts the next need',
 		orders: [
-			{ family: 'structural_alloy', stackSize: NEXT_NEED_ORDER_SA_STACK },
+			{ family: 'reactive_crystal', stackSize: NEXT_NEED_ORDER_RC_STACK },
 			{ family: 'conductive_metal', stackSize: NEXT_NEED_ORDER_CM_STACK }
 		]
 	}

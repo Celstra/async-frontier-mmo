@@ -78,16 +78,19 @@ function modeContributionText(resolution: CraftResolution): string {
 		return 'Safe Craft applied tuned scores exactly with no variance.';
 	}
 
-	switch (resolution.experimentOutcome) {
-		case 'boost':
-			return 'Careful Experiment succeeded: +3% applied to every property line (cap 100).';
-		case 'unchanged':
-			return 'Careful Experiment held steady: tuned scores unchanged.';
-		case 'minor_flaw':
-			return 'Careful Experiment introduced a minor flaw on the crafted item; scores unchanged.';
-		default:
-			return 'Careful Experiment resolved.';
+	if (resolution.experimentPulseResults && resolution.experimentPulseResults.length > 0) {
+		const summaries = resolution.experimentPulseResults.map(
+			(pulse) =>
+				`Pulse ${pulse.pulseIndex + 1} (${pulse.push} on ${pulse.propertyId}): ${pulse.outcome.replaceAll('_', ' ')}`
+		);
+		const scrap =
+			resolution.experimentScrapUnits && resolution.experimentScrapUnits > 0
+				? ` Scrap overhead: ${resolution.experimentScrapUnits}u.`
+				: '';
+		return `Experimentation — ${summaries.join('; ')}.${scrap}`;
 	}
+
+	return 'Experimentation resolved.';
 }
 
 function buildSummary(
@@ -100,10 +103,8 @@ function buildSummary(
 		resolution.mode === 'safe_craft'
 			? 'Safe Craft'
 			: resolution.hasMinorFlaw
-				? 'Careful Experiment (minor flaw)'
-				: resolution.experimentOutcome === 'boost'
-					? 'Careful Experiment (+3%)'
-					: 'Careful Experiment (unchanged)';
+				? 'Experimentation (crit)'
+				: 'Experimentation';
 
 	return `${schematic.displayName} crafted from ${resources} via ${mode}. Resource stats set each property base; tuning expressed your priorities; craft mode applied the final variance.`;
 }

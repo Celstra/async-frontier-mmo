@@ -1423,7 +1423,7 @@ Two external testers (2026-06-11/12, verbal + written feedback) plus `playtest_e
 1. **Settlement premise.** The player is part of a small settlement bringing thumper production back online. In the slice the settlement is a narrative frame plus a turn-in ledger — posted needs by resource family, visible contribution bars, visible unlocks when bars fill — not a simulated economy. The settlement is the standing answer to "why am I thumping."
 2. **One thumper; fleet size is settlement progression.** The slice has exactly one thumper slot. Additional slots are future settlement-infrastructure unlocks (Workshop tiers), a post-production-point layer. Noted constraint for that layer: event-window check-in burden multiplies with fleet size and needs a cap design.
 3. **Sampling is the synchronous toy** (extends 019). An ASCII field map gradient hunt: scan shows concentration at your position, move, re-scan, converge on a peak that may or may not be high this rotation; first scan lands low in the rolled range. Sampling a spot is a short (~10s) commitment whose yield scales with local concentration. **Map topology is generated per resource instance at spawn** — peak count and maxima rolled per Decision 019's grounding, so every resource is its own terrain to learn. Sampling and thumping are the same verb at two time scales — hand-scale and industrial-scale — and the tutorial says so explicitly.
-4. **Anti-substitution guards** so sampling can never replace thumping: (a) sampling spends pilot energy, thumping does not — energy regenerates as a **continuous trickle: cap 10 samples, 0.5 samples/hr** (sim-confirmed over daily reset; the most diligent player tops out at ~16 samples/day, holding the guard); (b) each spot holds a finite per-pilot hand-sample pool (4–5), separate from its thumpable units; (c) ratio verified by simulation: sampling yield/hour = 6.4–8.5% of thumping yield/hour at the locked quantities (sample yield 5u × concentration, 20u turn-in stacks).
+4. **Anti-substitution guards** so sampling can never replace thumping: (a) sampling spends pilot energy, thumping does not — energy regenerates as a **continuous trickle: cap 10 samples, 0.5 samples/hr** (sim-confirmed over daily reset; the most diligent player tops out at ~16 samples/day, holding the guard); (b) each spot holds a finite per-pilot hand-sample pool (4–5), separate from its thumpable units; (c) ratio verified by simulation: sampling yield/hour = **4.2–8.1%** of thumping yield/hour at the locked quantities (6.5% at the Keth-PEAK benchmark; sample yield 5u × concentration, 20u turn-in stacks). *Updated 2026-06-13 — was 6.4–8.5% under pre-slice sim.*
 5. **Frame choice is cut from the slice.** Not deferred within session one — removed. Frames return, if ever, as a backlog layer behind the production point.
 6. **Tutorial = the settlement bootstrap.** Prologue (three lines) → foreman posts family needs → player chooses which family to hunt first (CM/SA/RC order is their call) → gradient hunt + sampling with the Decision 019 stat-reveal wow beat intact → turn-ins bring production online → the player assembles the first thumper themselves through the full crafting flow, slotting components (including the settlement's worn drill head and a scavenged hull) into the chassis. The first craft is the thumper. **Turn-ins require a single stack**: e.g. 30 units of *one* Structural Alloy resource, any quality — mixing resources within a family is rejected, and the board says so explicitly. This teaches the SWG rule the whole economy runs on (a crafting slot consumes one homogeneous stack) and forces the within-family commitment decision at minute two.
 7. **The first run fails on purpose; the second run pays.** The scavenged hull is at ~5% integrity. First deploy lands on the player's best-sampled waypoint and is watched live; partway in, the hull gives out and the **fail-safe auto-recall fires on screen** — explained immediately as the rig protecting itself, with partial yield kept and carried home. This is the live demonstration of element 9 and of why hull quality matters. The foreman patches the hull to ~30% ("you can craft better ones — more durability, longer runs") and the second watched run (~5 min, two scripted event windows: Signal Drift, Pump Strain) completes on the same waypoint with a full in-session claim. Run durations then ramp across day one (~5 → 15 → 20+ min, tuned by simulation) before hour-scale runs appear; the async wait is introduced only after the reward beat has been felt twice. Framing constraint: the recall must read as the system working ("RIG SECURED — fail-safe nominal"), never as player error, and the partial yield must clear a felt-reward floor.
@@ -1437,7 +1437,7 @@ The slice is: settlement ledger, sampling minigame, tutorial bootstrap, one watc
 
 ### Simulation results (2026-06-12 — scripts in `design-docs/`, full detail in slice spec §8)
 
-- **Ratio sim:** sample yield 5u × concentration, pool 4–5/spot, turn-in stack 20u → sampler holds at 6.4–8.5% of thumper units/hour; Repair Kit pinch-affordable (1.3 days), Hull Plate thumper-bound (2.7 days). Tutorial stack anchored to bulk concentrations (Keth/Slag), Veyrith stays the prize.
+- **Ratio sim:** sample yield 5u × concentration, pool 4–5/spot, turn-in stack 20u → sampler holds at **4.2–8.1%** of thumper units/hour (6.5% Keth-PEAK); Repair Kit pinch-affordable (1.3 days), Hull Plate thumper-bound (2.7 days). Tutorial stack anchored to bulk concentrations (Keth/Slag), Veyrith stays the prize. *Ratio band updated 2026-06-13.*
 - **Run-ramp sim:** `max_run_minutes = TIER_BASE × (integrity/100)^1.2` — 5% scavenged ≈ 2 min and 30% patched ≈ 7 min fall out of the formula, crafted tiers reach 3–11 h. Duration picker: 15 min / 1 h / 4 h (20-min tier cut as a non-choice). **One-time first-async exception (locked with slice spec §7):** after `async_duration_chosen`, the first non-tutorial 15 min deploy on scavenged/patched hull may exceed the formula ceiling in the picker and waives hull-out fail-safe for that run only (`first_async_deploy_used` state); all later deploys obey the formula. Short-run spam = 1.9× active premium with natural 3-min redeploy friction — accepted, no cooldown; per-run wear floor is the reserve knob.
 - **Energy sim:** trickle+cap beats daily reset decisively (reset strands spaced visitors at 33–50% coverage). Trickle rate **locked at 0.5/hr, cap 10** (Ryan, 2026-06-12, on recommendation): preserves the anti-substitution guard (Hull Plate stays ~2 days of pure sampling); later check-ins are for tending thumpers, claims, and turn-ins rather than sampling. Existing `surveyEnergyOutlook` regen (~10 samples/hr) must come down ~20× to match.
 
@@ -1452,13 +1452,38 @@ The slice is: settlement ledger, sampling minigame, tutorial bootstrap, one watc
 
 `pnpm --filter @async-frontier-mmo/db db:smoke` still fails on the unchanged first-session path: it resolves a run with zero event-window responses and hits **"First-session run expects exactly two event window responses."** Track as smoke-harness debt — rewrite the smoke script against the slice Phase 7 tutorial state machine, not a blocker for WORKSHOP (Phase 5).
 
+### First-loop tightening (2026-06-13 — `docs/first-loop-tightening-plan-2026-06-13.md`)
+
+**Locked with Ryan (D2):** post-tutorial `next_need` orders are **12u Reactive Crystal + 18u Conductive Metal** (`NEXT_NEED_ORDER_RC_STACK` / `NEXT_NEED_ORDER_CM_STACK` in `packages/domain/src/tuning.ts`) — SA from Keth thumps flows untaxed to the 100-SA hull bill.
+
+**Decision 023 candidate — event bet-sizing + craft experimentation (sim-locked, implemented 2026-06-13):**
+
+- **Event windows** (`event_choice_liveness_sim.py` Candidate A): hold penalties **4–8u minor / 12–22u serious**, meter-coupled at resolution; matching-action wear **9 Condition**; tutorial runs keep fixed mid-rolls.
+- **Craft experimentation** (`experimentation_sim.py`, crit_od=0.25): **2 pulses** per craft; Careful +1 / Standard +2 / Overdrive +3 bands; Overdrive crit scraps largest socket (60u on Reinforced Hull Plate).
+
+Other slice fixes in the same pass: free samples do not bind foreman orders (paid samples do); fail-safe countdown + deploy `secures at ~m:ss` preview; workshop defaults to chassis/hull plate by tutorial step; FIELD hull-bill ticker on `next_need`.
+
+### Round-4 playtest fixes (2026-06-13 — `docs/round4-playtest-fixes-2026-06-13.md`)
+
+**Hull path sim gate:** `design-docs/first_hull_path_sim.py` confirms D2 quantities (`RC=12` / `CM=18`) do not strand the hull; pt-15 dead-end was hand-sampling vs thumping, not order size.
+
+**Locked UI/flow fixes:**
+
+- `formatMmSs` + `hullDeployWarningLine` floor fractional seconds (no float clocks).
+- Nav highlight uses `resolveNextActionScreen` — order-ready and claim-pending overlays on top of tutorial step.
+- Workshop **Thumper / Fabricator** station picker; no auto-select of locked Survey Scanner at `first_deploy`.
+- FIELD rig view: `▓` meter dashboard (signal, pump, hull condition/integrity, drill/pump condition, threat); ASCII footer trimmed to `HULL nn%`.
+- Tutorial-only `[RECOMMENDED]` tags on hand-fillable order resources (not Veyrith); sampling-vs-thumping mode line on FIELD.
+- Mission ticker uses `pickPinnedMissionOrder` (RC before CM on `next_need`) — decoupled from binding progress / async-tail transitions.
+- Overdrive scrap debited from largest socket stack in craft persistence + ledger.
+
 ---
 
 ## Current next decision candidates
 
-Decisions 001–022 are locked (022 locked 2026-06-12 per Ryan, balance constants sim-verified same day). Remaining:
+Decisions 001–022 are locked (022 locked 2026-06-12 per Ryan, balance constants sim-verified same day). **Decision 023 candidate** logged above (event + experimentation sims, 2026-06-13). Remaining:
 
-1. **Re-test with 3–5 external testers** on the slice spec §9 funnel (build + review pass complete 2026-06-12; energy-budget amendment: first sample of a resource is energy-free, SA tutorial stack 20→15 — see tutorialEnergyBudget.test.ts).
+1. **Re-test with 3–5 external testers** on the slice spec §9 funnel (build + review pass complete 2026-06-12; energy-budget amendment: first sample of a resource is energy-free, SA tutorial stack 20→15 — see tutorialEnergyBudget.test.ts; tutorial-graduation refill: survey energy tops to full cap once on the async_reveal→done transition — restores the energy sim's start-at-cap steady-state assumption without touching the locked cap/regen).
 2. **Decision 023 candidate — the Reclaimer (SWG recycler).** Stranded stacks of expired resources convert, lossy (~2:1), into family-generic "Reclaimed" units with fixed floor stats, usable in any family slot. Unlocks at the first bloom rotation — stranding cannot occur before a rotation, so it stays out of the tutorial and never competes with the single-stack lesson. Decide after external round 2.
 3. **Post-MVP Layer Gate**, including the combat-socket question above, thumper slot tiers, and the timed rotation scheduler.
 4. **Scope-change review** per the Decision 022 scope statement.

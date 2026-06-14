@@ -58,8 +58,8 @@ describe('resolveThumperRunResult', () => {
 		]);
 		const perfect = resolveFirstSession(perfectResponses);
 
-		expect(withHold.wasteQuantity).toBe(5);
-		expect(withHold.recoveredQuantity).toBe(perfect.recoveredQuantity - 5);
+		expect(withHold.wasteQuantity).toBe(6);
+		expect(withHold.recoveredQuantity).toBe(perfect.recoveredQuantity - 6);
 		expect(withHold.targetResourceId).toBe('veyrith_copper');
 	});
 

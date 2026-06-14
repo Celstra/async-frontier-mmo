@@ -35,8 +35,8 @@ export const TUTORIAL_RUN_2_YIELD = 60;
 export const TUTORIAL_ORDER_SA_STACK = 15;
 export const TUTORIAL_ORDER_CM_STACK = 12;
 
-/** Post-tutorial foreman board — bigger stacks (slice spec §6 async reveal). */
-export const NEXT_NEED_ORDER_SA_STACK = 30;
+/** Post-tutorial foreman board — RC hull ingredient + fast CM turn-in (slice tightening D2). */
+export const NEXT_NEED_ORDER_RC_STACK = 12;
 export const NEXT_NEED_ORDER_CM_STACK = 18;
 
 export const EVENT_WINDOW_SLOTS = { short: 2, push: 3 } as const;

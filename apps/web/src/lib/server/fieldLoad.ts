@@ -20,9 +20,12 @@ import {
 	getResourceInstanceById,
 	getPilotTutorialStep,
 	getPlaytestEventOnce,
+	getActiveSettlementMilestoneKey,
 	hasPilotClaimedTutorialRun,
 	hasPilotFamilyScan,
 	listPilotWaypointSamples,
+	listSettlementOrdersForMilestone,
+	listThumperPartItemsForPilot,
 	previewFamilyScanForPilot,
 	hasPilotResourceStatReveal,
 	sampleSpotForPilot,
@@ -47,16 +50,23 @@ import {
 	TUTORIAL_EXTRACTION_TAIL_OPTION,
 	TUTORIAL_EXTRACTION_TAIL_OPTION_5M,
 	TUTORIAL_RUN_1_SEED,
+	TUTORIAL_RUN_1_YIELD_FLOOR,
+	TUTORIAL_RUN_2_YIELD,
 	tutorialDeployForStep,
 	tutorialRunFromSeed,
 	isTutorialRunSeed,
+	REINFORCED_HULL_PLATE,
+	pickPinnedMissionOrder,
 	type NamedResourceId,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
 import { activeBloomDisplayName } from '$lib/bloomDisplay';
 import {
-	recommendedResourceSlugForBloom,
-	resourceTeachingNote
+	FIELD_MODE_LINE,
+	SAME_WAYPOINT_DEPLOY_HINT,
+	THUMP_TARGET_RESOURCE_SLUG,
+	parseFieldFamily,
+	tutorialRecommendResourceSlug
 } from '$lib/field/constants';
 import { loadDeployPreviewForPilot } from '$lib/server/fieldDeployLoad.js';
 import { loadClaimScreen } from '$lib/server/fieldClaimState.js';
@@ -73,6 +83,7 @@ import {
 } from '$lib/server/settlementLoad.js';
 import type { getGameDb } from './gameDb.js';
 import {
+	deployPreviewFirstAsyncWaiverActive,
 	firstAsyncUnlockForEquippedHull,
 	firstAsyncWaiverActiveForRun,
 	loadFirstAsyncTailState
@@ -229,10 +240,24 @@ export async function loadFieldScreen(
 			};
 		}
 	}
-	const [activeBloomId, missionTicker] = await Promise.all([
+	const [activeBloomId, missionTickerBase] = await Promise.all([
 		getActiveBloomId(db),
 		loadSettlementMissionTicker(db, pilotId)
 	]);
+	let missionTicker = missionTickerBase;
+	const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
+	let ownsReinforcedHullPlate = false;
+	if (milestoneKey === 'next_need') {
+		const thumperParts = await listThumperPartItemsForPilot(db, pilotId);
+		ownsReinforcedHullPlate = thumperParts.some(
+			(part) => part.schematicId === REINFORCED_HULL_PLATE.id
+		);
+		if (!ownsReinforcedHullPlate) {
+			const hullBill =
+				'HULL: 100 Structural Alloy + 20 Reactive Crystal (RC order 12u is part of the hull bill)';
+			missionTicker = hullBill;
+		}
+	}
 	let tutorialStep = await getPilotTutorialStep(db, pilotId);
 	await maybeAdvanceToFirstDeployAfterRigAssembly(db, pilotId);
 	await backfillTutorialPatchedHullCondition(db, pilotId);
@@ -259,7 +284,8 @@ export async function loadFieldScreen(
 		rigView = await loadOpenRunState(db, openRun, fieldRepairKitCount, {
 			resolveDisplayName: resolveTargetDisplayName,
 			includeRunMeters: true,
-			isTutorialRun
+			isTutorialRun,
+			firstAsync
 		});
 
 		const eventWindows = await getThumperEventWindowsForRun(db, openRun.id);
@@ -295,7 +321,8 @@ export async function loadFieldScreen(
 			rigView = await loadOpenRunState(db, displayRun, fieldRepairKitCount, {
 				resolveDisplayName: resolveTargetDisplayName,
 				includeRunMeters: true,
-				isTutorialRun: isTutorialRunSeed(displayRun.runSeed)
+				isTutorialRun: isTutorialRunSeed(displayRun.runSeed),
+				firstAsync
 			});
 			shouldPoll = shouldPoll || claimView.mode === 'claimable';
 		}
@@ -307,10 +334,19 @@ export async function loadFieldScreen(
 		bloomId: activeBloomId,
 		family: selectedFamily
 	});
-	const recommendedResourceSlug = recommendedResourceSlugForBloom(
-		activeBloomId,
-		hasCompletedTutorial
-	);
+	const recommendedResourceSlug = await (async () => {
+		const milestoneKey = await getActiveSettlementMilestoneKey(db, pilotId);
+		if (milestoneKey === 'next_need' && !ownsReinforcedHullPlate) {
+			return null;
+		}
+		const orders = await listSettlementOrdersForMilestone(db, { pilotId, milestoneKey });
+		const pinned = pickPinnedMissionOrder(orders, milestoneKey);
+		return tutorialRecommendResourceSlug({
+			hasCompletedTutorial,
+			tutorialStep,
+			activeOrderFamily: pinned?.family ?? null
+		});
+	})();
 
 	const preview = hasFamilyScan
 		? await previewFamilyScanForPilot(db, {
@@ -323,8 +359,9 @@ export async function loadFieldScreen(
 	const resources =
 		preview?.resources.map((resource) => ({
 			...resource,
-			teachingNote: resourceTeachingNote(resource.resourceSlug),
-			recommended: resource.resourceSlug === recommendedResourceSlug
+			recommended: resource.resourceSlug === recommendedResourceSlug,
+			recommendLabel:
+				resource.resourceSlug === recommendedResourceSlug ? '[RECOMMENDED]' : null
 		})) ?? [];
 
 	let mapView = null;
@@ -492,6 +529,19 @@ export async function loadFieldScreen(
 					tutorialDeployRun
 				});
 
+				const scriptedRecoveryUnits =
+					tutorialDeployRun === 2
+						? TUTORIAL_RUN_2_YIELD
+						: tutorialDeployRun === 1
+							? TUTORIAL_RUN_1_YIELD_FLOOR
+							: null;
+
+				const deployFirstAsyncWaiver = deployPreviewFirstAsyncWaiverActive(
+					hullIntegrity,
+					defaultTailMinutes,
+					firstAsync
+				);
+
 				deployContext = {
 					spotId: hereSpotId,
 					resourceInstanceId,
@@ -503,7 +553,18 @@ export async function loadFieldScreen(
 					tailOptions,
 					defaultTailMinutes,
 					deployPreview,
-					hullDeployWarning: hullDeployWarningLine(hullIntegrity),
+					scriptedRecoveryUnits,
+					hullDeployWarning: hullDeployWarningLine(hullIntegrity, {
+						plannedDurationSeconds: defaultTailMinutes * 60,
+						extractionTailMinutes: defaultTailMinutes,
+						firstAsyncWaiverActive: deployFirstAsyncWaiver
+					}),
+					sameWaypointDeployHint:
+						tutorialStep === 'second_deploy' ? SAME_WAYPOINT_DEPLOY_HINT : null,
+					thumpTargetNote:
+						resource.resourceSlug === THUMP_TARGET_RESOURCE_SLUG
+							? 'Thump target — deploy for bulk haul, not hand-sampling'
+							: null,
 					rigReady,
 					canDeploy:
 						rigReady &&
@@ -539,12 +600,7 @@ export async function loadFieldScreen(
 
 	const equippedScanner = await getEquippedScannerForPilot(db, pilotId);
 	const showRigView =
-		(openRun !== null &&
-			(openRun.durationSeconds <= WATCHED_RUN_MAX_SECONDS ||
-				isTutorialRunSeed(openRun.runSeed) ||
-				hasUnresolvedEventWindows)) ||
-		claimView?.mode === 'claimable' ||
-		claimView?.mode === 'result';
+		openRun !== null || claimView?.mode === 'claimable' || claimView?.mode === 'result';
 
 	return {
 		regionId: 'red_mesa' as const,
@@ -584,6 +640,8 @@ export async function loadFieldScreen(
 		rigView,
 		claimView,
 		shouldPoll,
+		fieldModeLine:
+			deployContext !== null || milestoneKey === 'next_need' ? FIELD_MODE_LINE : null,
 		loadedAt: now.toISOString()
 	};
 }

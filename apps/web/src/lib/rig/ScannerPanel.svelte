@@ -9,12 +9,13 @@
 			condition: number;
 			integrity: number;
 			surveyClarity: number;
-		} | null;
-		candidates: RigScannerCandidate[];
-		repairKitCount: number;
-	}
+	} | null;
+	candidates: RigScannerCandidate[];
+	repairKitCount: number;
+	locked?: boolean;
+}
 
-	let { equippedScanner, candidates, repairKitCount }: Props = $props();
+let { equippedScanner, candidates, repairKitCount, locked = false }: Props = $props();
 </script>
 
 <section class="scanner panel">
@@ -50,13 +51,13 @@
 					{#if !candidate.equipped}
 						<form method="POST" action="?/equipScanner" use:enhance>
 							<input type="hidden" name="itemId" value={candidate.itemId} />
-							<button type="submit" class="action-row">Equip</button>
+<button type="submit" class="action-row" disabled={locked}>Equip</button>
 						</form>
 					{/if}
 					{#if candidate.canRepair}
 						<form method="POST" action="?/repairItem" use:enhance>
 							<input type="hidden" name="itemId" value={candidate.itemId} />
-							<button type="submit" class="action-row action-row--repair">Repair</button>
+<button type="submit" class="action-row action-row--repair" disabled={locked}>Repair</button>
 						</form>
 					{/if}
 				</div>
@@ -66,7 +67,9 @@
 		{/each}
 	</ul>
 
-	{#if repairKitCount === 0}
+	{#if locked}
+		<p class="scanner__hint">Equipment locked while thumper deployed.</p>
+	{:else if repairKitCount === 0}
 		<p class="scanner__hint">Field Repair kits: 0 — craft in WORKSHOP to repair gear.</p>
 	{:else}
 		<p class="scanner__hint">Field Repair kits: {repairKitCount}</p>

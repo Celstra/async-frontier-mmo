@@ -1,5 +1,8 @@
 import {
 	bindOrderOnFirstSample,
+	firstHullReserveMap,
+	firstHullTurnInQuantity,
+	REINFORCED_HULL_PLATE,
 	SETTLEMENT_MILESTONES,
 	type ResourceFamily,
 	type SettlementMilestoneKey,
@@ -12,7 +15,9 @@ import { appendEconomyLedgerEntry } from './economyLedger.js';
 import { consumeResourceFromPilotTx, InsufficientResourceError } from './resourceConsumes.js';
 import { getResourceStackForPilotInstance } from './resourceGrants.js';
 import { getResourceInstanceById } from './resourceInstances.js';
+import { listPilotResourceStacksWithInstances } from './pilotInventory.js';
 import { ensureStarterThumperPartsForPilot } from './thumperPartEquipment.js';
+import { items } from '../schema/items.js';
 import { settlementMilestones } from '../schema/settlementMilestones.js';
 import { settlementOrders } from '../schema/settlementOrders.js';
 
@@ -238,9 +243,10 @@ export type DeliverStackToSettlementOrderOutcome =
 	  }
 	| { status: 'order_not_found' }
 	| { status: 'order_not_open' }
-	| { status: 'wrong_family' }
-	| { status: 'wrong_instance' }
-	| { status: 'stack_empty' };
+| { status: 'wrong_family' }
+| { status: 'wrong_instance' }
+| { status: 'stack_empty' }
+| { status: 'reserved_for_hull' };
 
 /**
  * Turn in one resource stack toward an open order — consumes the full stack in one transaction.
@@ -292,7 +298,37 @@ export async function deliverResourceStackToSettlementOrder(
 			return { status: 'order_not_open' as const };
 		}
 
-		const quantityToConsume = Math.min(stack.quantity, remaining);
+		const [reinforcedHull] = await tx
+			.select({ id: items.id })
+			.from(items)
+			.where(
+				and(
+					eq(items.pilotId, input.pilotId),
+					eq(items.schematicId, REINFORCED_HULL_PLATE.id),
+					isNull(items.consumedAt)
+				)
+			)
+			.limit(1);
+		const reserveMap = firstHullReserveMap({
+			milestoneKey: orderRow.milestoneKey,
+			stacks: (await listPilotResourceStacksWithInstances(tx, input.pilotId)).map((row) => ({
+				resourceInstanceId: row.resourceInstanceId,
+				family: row.family as ResourceFamily,
+				quantity: row.quantity
+			})),
+			ownsReinforcedHullPlate: reinforcedHull !== undefined
+		});
+
+		const quantityToConsume = firstHullTurnInQuantity({
+			milestoneKey: orderRow.milestoneKey,
+			family: orderRow.family as ResourceFamily,
+			stackQuantity: stack.quantity,
+			remainingOrderUnits: remaining,
+			reservedUnits: reserveMap.get(input.resourceInstanceId) ?? 0
+		});
+		if (quantityToConsume <= 0) {
+			return { status: 'reserved_for_hull' as const };
+		}
 
 		try {
 			await consumeResourceFromPilotTx(tx, {

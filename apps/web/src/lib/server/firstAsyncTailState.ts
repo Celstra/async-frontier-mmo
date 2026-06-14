@@ -67,6 +67,23 @@ export function firstAsyncWaiverActiveForRun(input: {
 	});
 }
 
+export function deployPreviewFirstAsyncWaiverActive(
+	hullIntegrity: number,
+	extractionTailMinutes: number,
+	firstAsync: FirstAsyncTailState
+): boolean {
+	if (!firstAsync.waiverPending) {
+		return false;
+	}
+
+	return resolveFirstAsyncWaiverActive({
+		hullTier: hullTierFromIntegrity(hullIntegrity),
+		hullIntegrityAtDeploy: hullIntegrity,
+		extractionTailMinutes,
+		firstAsyncUnlockPending: true
+	});
+}
+
 export function firstAsyncUnlockForEquippedHull(
 	hullIntegrity: number,
 	firstAsync: FirstAsyncTailState

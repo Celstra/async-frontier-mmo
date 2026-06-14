@@ -6,6 +6,7 @@ import {
 	THUMPER_PART_SLOT_LABEL,
 	type EventWindowSeverity
 } from './eventWindowSeverity.js';
+import { holdPenaltyForResponse, holdPenaltyRangeLabel } from './holdPenalty.js';
 import type { ThumperWindowResponseOptionId } from './getEventWindowResponseOptions.js';
 import { getEventWindowResponseOptions } from './getEventWindowResponseOptions.js';
 import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
@@ -123,14 +124,29 @@ function matchingActionEffectLine(input: {
 	return `Protects your yield — wears the ${partLabel} by ${MATCHING_ACTION_WEAR_CONDITION} Condition`;
 }
 
-function holdEffectLine(severity: EventWindowSeverity) {
-	const penalty = penaltyWasteForResponse(
-		'signal_drift',
-		'signal_tune',
-		'hold',
-		severity
-	);
-	return `Lose about ${penalty} units — your gear is untouched`;
+function holdEffectLine(input: {
+	severity: EventWindowSeverity;
+	complication: ThumperComplicationId;
+	onsetMeters: EventWindowMeterSnapshot;
+	tutorialDeterministic?: boolean;
+}) {
+	if (input.tutorialDeterministic) {
+		const penalty = holdPenaltyForResponse({
+			severity: input.severity,
+			complication: input.complication,
+			meters: input.onsetMeters,
+			tutorialDeterministic: true
+		});
+		return `Lose about ${penalty} units — your gear is untouched`;
+	}
+
+	const range = holdPenaltyRangeLabel(input.severity);
+	const implied = holdPenaltyForResponse({
+		severity: input.severity,
+		complication: input.complication,
+		meters: input.onsetMeters
+	});
+	return `Lose ${range} units (~${implied} at current meter) — gear untouched`;
 }
 
 function recallEffectLine(input: {
@@ -161,6 +177,7 @@ export function computeEventWindowProjectedMetrics(input: {
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
 	totalWindowCount: number;
+	tutorialDeterministic?: boolean;
 }): EventWindowProjectedMetrics {
 	const key = COMPLICATION_PRIMARY_METER[input.complication];
 	const meterLabel =
@@ -201,7 +218,11 @@ export function computeEventWindowProjectedMetrics(input: {
 			input.complication,
 			input.matchingAction,
 			'hold',
-			input.severity
+			{
+				severity: input.severity,
+				onsetMeters,
+				tutorialDeterministic: input.tutorialDeterministic
+			}
 		);
 	} else {
 		// Wrong action: meter stays at onset, bigger waste penalty
@@ -209,7 +230,7 @@ export function computeEventWindowProjectedMetrics(input: {
 			input.complication,
 			input.matchingAction,
 			input.optionId as Exclude<ThumperWindowChosenResponse, 'recall_early'>,
-			input.severity
+			{ severity: input.severity, tutorialDeterministic: input.tutorialDeterministic }
 		);
 	}
 
@@ -239,12 +260,15 @@ export function describeEventWindowStakes(input: {
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
 	totalWindowCount: number;
+	tutorialDeterministic?: boolean;
 }): EventWindowStakeOption[] {
 	const options = getEventWindowResponseOptions({
 		complication: input.complication,
 		matchingAction: input.matchingAction,
 		fieldRepairKitCount: input.fieldRepairKitCount
 	});
+
+	const onsetMeters = metersWithComplicationOnset(input.currentMeters, input.complication);
 
 	return options.map((option) => {
 		// Compute projected metrics for this option
@@ -255,13 +279,19 @@ export function describeEventWindowStakes(input: {
 			severity: input.severity,
 			currentMeters: input.currentMeters,
 			windowIndex: input.windowIndex,
-			totalWindowCount: input.totalWindowCount
+			totalWindowCount: input.totalWindowCount,
+			tutorialDeterministic: input.tutorialDeterministic
 		});
 
 		if (option.id === 'hold') {
 			return {
 				id: option.id,
-				effectLine: holdEffectLine(input.severity),
+				effectLine: holdEffectLine({
+					severity: input.severity,
+					complication: input.complication,
+					onsetMeters,
+					tutorialDeterministic: input.tutorialDeterministic
+				}),
 				projected
 			};
 		}
@@ -290,7 +320,7 @@ export function describeEventWindowStakes(input: {
 			input.complication,
 			input.matchingAction,
 			option.id as Exclude<ThumperWindowChosenResponse, 'recall_early'>,
-			input.severity
+			{ severity: input.severity, tutorialDeterministic: input.tutorialDeterministic }
 		);
 		return {
 			id: option.id,
@@ -319,6 +349,7 @@ export function resolveEventWindowOutcome(input: {
 	currentMeters: EventWindowMeterSnapshot;
 	windowIndex: number;
 	totalWindowCount: number;
+	tutorialDeterministic?: boolean;
 }): EventWindowOutcome {
 	const onsetMeters = metersWithComplicationOnset(input.currentMeters, input.complication);
 	const beforeState = snapshotWithSeverity(onsetMeters, input.severity);
@@ -375,7 +406,11 @@ export function resolveEventWindowOutcome(input: {
 		input.complication,
 		input.matchingAction,
 		input.chosenResponse,
-		input.severity
+		{
+			severity: input.severity,
+			onsetMeters: beforeState,
+			tutorialDeterministic: input.tutorialDeterministic
+		}
 	);
 	afterState = snapshotWithSeverity(
 		{

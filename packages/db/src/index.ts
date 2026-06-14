@@ -66,6 +66,7 @@ export {
 	accrueAndPersistSurveyEnergy,
 	ensurePilotSurveyEnergyRow,
 	persistSurveyEnergyAt,
+	refillSurveyEnergyToCap,
 	resolveStoredSurveyEnergy,
 	type PersistedSurveyEnergy
 } from './queries/surveyEnergy.js';

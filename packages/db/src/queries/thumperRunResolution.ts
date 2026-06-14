@@ -33,8 +33,35 @@ export function mapStoredWindowsToResolutionSnapshots(
 		windowIndex: window.windowIndex,
 		complication: window.complication as ThumperComplicationId,
 		matchingAction: window.matchingAction as ThumperEventActionId,
-		severity: parseEventWindowSeverity(window.severity)
+		severity: parseEventWindowSeverity(window.severity),
+		beforeState: parseStoredMeterSnapshot(window.beforeState)
 	}));
+}
+
+function parseStoredMeterSnapshot(value: unknown) {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const row = value as Record<string, unknown>;
+	if (
+		typeof row.projectedRecovery !== 'number' ||
+		typeof row.signalLock !== 'number' ||
+		typeof row.pumpFlow !== 'number' ||
+		typeof row.threatPressure !== 'number' ||
+		typeof row.hullCondition !== 'number'
+	) {
+		return undefined;
+	}
+	return {
+		projectedRecovery: row.projectedRecovery,
+		signalLock: row.signalLock,
+		pumpFlow: row.pumpFlow,
+		threatPressure: row.threatPressure,
+		hullCondition: row.hullCondition,
+		...(row.severity === 'minor' || row.severity === 'serious'
+			? { severity: row.severity as 'minor' | 'serious' }
+			: {})
+	};
 }
 
 export function mapStoredWindowsToResponses(
@@ -93,7 +120,8 @@ export async function resolveThumperRunForStoredWindows(
 			hullIntegrityAtDeploy: runHullIntegrity,
 			plannedDurationSeconds: run.durationSeconds,
 			eventWindows,
-			responses
+			responses,
+			tutorialDeterministic: true
 		});
 	}
 

@@ -135,91 +135,25 @@ describe('Survey Scanner Module Mk I schematic engine', () => {
 		).toThrow(TuningValidationError);
 	});
 
-	it('Careful Experiment rolls once per craft with one outcome on all lines', () => {
+	it('Experimentation applies two seeded pulses', () => {
 		const fills = scannerFills('veyrith_copper', 'pale_ember_crystal');
 
-		for (let seedIndex = 0; seedIndex < 100; seedIndex += 1) {
-			const result = resolveCraft({
-				schematic: SURVEY_SCANNER_MK_I,
-				slotFills: fills,
-				tuning: FULL_TUNING,
-				mode: 'careful_experiment',
-				experimentSeed: `careful-once-${seedIndex}`
-			});
+		const result = resolveCraft({
+			schematic: SURVEY_SCANNER_MK_I,
+			slotFills: fills,
+			tuning: FULL_TUNING,
+			mode: 'careful_experiment',
+			experimentSeed: 'experiment-smoke',
+			experimentPulses: [
+				{ propertyId: 'survey_clarity', push: 'careful' },
+				{ propertyId: 'signal_range', push: 'standard' }
+			]
+		});
 
-			expect(result.experimentOutcome).toBeDefined();
-			expect(result.hasMinorFlaw).toBe(result.experimentOutcome === 'minor_flaw');
-
-			for (const line of result.lines) {
-				if (result.experimentOutcome === 'boost') {
-					const boosted = Math.round(line.tunedScore * 1.03 * 1000) / 1000;
-					const expectedBoost = Math.min(line.resourceCeiling, 100, boosted);
-					expect(line.finalScore).toBe(expectedBoost);
-					expect(line.finalScore).toBeLessThanOrEqual(line.resourceCeiling);
-					expect(line.finalScore).toBeLessThanOrEqual(100);
-				} else {
-					expect(line.finalScore).toBe(line.tunedScore);
-				}
-			}
-		}
-	});
-
-	it('Careful Experiment boost is clamped to resourceCeiling', () => {
-		const fills = scannerFills('veyrith_copper', 'pale_ember_crystal');
-		const tuning = { survey_clarity: 3, stat_hint_accuracy: 0, signal_range: 0 };
-
-		let sawBoostOutcome = false;
-
-		for (let seedIndex = 0; seedIndex < 500; seedIndex += 1) {
-			const result = resolveCraft({
-				schematic: SURVEY_SCANNER_MK_I,
-				slotFills: fills,
-				tuning,
-				mode: 'careful_experiment',
-				experimentSeed: `careful-boost-${seedIndex}`
-			});
-
-			const clarity = result.lines.find((line) => line.propertyId === 'survey_clarity');
-			if (!clarity || result.experimentOutcome !== 'boost') {
-				continue;
-			}
-
-			sawBoostOutcome = true;
-			expect(clarity.finalScore).toBeLessThanOrEqual(clarity.resourceCeiling);
-			expect(clarity.finalScore).toBeLessThanOrEqual(100);
-		}
-
-		expect(sawBoostOutcome).toBe(true);
-	});
-
-	it('Careful Experiment boost is a no-op when tunedScore already equals resourceCeiling', () => {
-		const fills = scannerFills('veyrith_copper', 'pale_ember_crystal');
-		const tuning = { survey_clarity: 3, stat_hint_accuracy: 0, signal_range: 0 };
-		const preview = previewCraftProperties(SURVEY_SCANNER_MK_I, fills, tuning);
-		const clarityPreview = preview.lines.find((line) => line.propertyId === 'survey_clarity');
-		expect(clarityPreview?.tunedScore).toBe(clarityPreview?.resourceCeiling);
-
-		let boostResult: ReturnType<typeof resolveCraft> | null = null;
-
-		for (let seedIndex = 0; seedIndex < 500; seedIndex += 1) {
-			const result = resolveCraft({
-				schematic: SURVEY_SCANNER_MK_I,
-				slotFills: fills,
-				tuning,
-				mode: 'careful_experiment',
-				experimentSeed: `careful-noop-${seedIndex}`
-			});
-
-			if (result.experimentOutcome === 'boost') {
-				boostResult = result;
-				break;
-			}
-		}
-
-		expect(boostResult).not.toBeNull();
-		const clarity = boostResult!.lines.find((line) => line.propertyId === 'survey_clarity');
-		expect(clarity?.finalScore).toBe(clarity?.tunedScore);
-		expect(clarity?.finalScore).toBe(clarity?.resourceCeiling);
+		expect(result.experimentPulseResults).toHaveLength(2);
+		expect(result.lines.every((line) => line.finalScore >= 0 && line.finalScore <= 100)).toBe(
+			true
+		);
 	});
 });
 

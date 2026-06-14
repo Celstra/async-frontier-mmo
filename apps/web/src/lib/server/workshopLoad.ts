@@ -1,5 +1,6 @@
 import {
 	getResourceInstanceById,
+	getPilotTutorialStep,
 	getSettlementMilestoneUnlockedAt,
 	listPilotResourceStacksWithInstances,
 	listThumperPartItemsForPilot
@@ -20,9 +21,12 @@ import {
 	REINFORCED_HULL_PLATE,
 	SURVEY_SCANNER_MK_I,
 	THUMPER_CHASSIS_ASSEMBLY,
+	schematicMaterialRollup,
 	thumperPartSlotForSchematic,
 	type ChassisAssemblyReadiness,
 	type CraftMode,
+	type ExperimentPulse,
+	type ExperimentPushSize,
 	type OwnedThumperPart,
 	type ResourceFamily,
 	type SchematicDefinition,
@@ -47,11 +51,15 @@ export type WorkshopSchematicRow = {
 	craftableNow: boolean;
 };
 
+export type WorkshopStation = 'thumper' | 'fabricator';
+
 export type WorkshopScreenData = {
+	workshopStation: WorkshopStation;
+	tutorialStep: string | null;
 	schematics: WorkshopSchematicRow[];
-	selectedSchematicId: string;
-	schematic: ReturnType<typeof schematicToWorkshopUi>;
-	schematicDefinition: SchematicDefinition;
+	selectedSchematicId: string | null;
+	schematic: ReturnType<typeof schematicToWorkshopUi> | null;
+	schematicDefinition: SchematicDefinition | null;
 	inventory: Awaited<ReturnType<typeof loadInventoryWithStats>>;
 	allocationHints: ReturnType<typeof buildResourceAllocationHints>;
 	slotSelections: Record<string, string>;
@@ -67,7 +75,23 @@ export type WorkshopScreenData = {
 	thumperParts: OwnedThumperPart[];
 	chassisSelections: Partial<Record<'hull' | 'drill' | 'pump', string>>;
 	rigAssembled: boolean;
+	materialRollup: string | null;
 };
+
+function defaultWorkshopStation(tutorialStep: string | null): WorkshopStation {
+	if (tutorialStep === 'assemble_rig' || tutorialStep === 'first_deploy') {
+		return 'thumper';
+	}
+	return 'fabricator';
+}
+
+function parseWorkshopStation(url: URL, tutorialStep: string | null): WorkshopStation {
+	const param = url.searchParams.get('station');
+	if (param === 'thumper' || param === 'fabricator') {
+		return param;
+	}
+	return defaultWorkshopStation(tutorialStep);
+}
 
 export function schematicToWorkshopUi(schematic: SchematicDefinition) {
 	return {
@@ -112,6 +136,27 @@ export function parseCraftMode(value: FormDataEntryValue | null): CraftMode | nu
 		return value;
 	}
 	return null;
+}
+
+const EXPERIMENT_PUSH_SIZES: ExperimentPushSize[] = ['careful', 'standard', 'overdrive'];
+
+export function parseExperimentPulses(
+	schematic: SchematicDefinition,
+	formData: FormData
+): ExperimentPulse[] | null {
+	const pulses: ExperimentPulse[] = [];
+
+	for (let index = 0; index < 2; index += 1) {
+		const propertyId = String(formData.get(`pulse_${index}_property`));
+		const push = String(formData.get(`pulse_${index}_push`)) as ExperimentPushSize;
+		const validProperty = schematic.properties.some((property) => property.id === propertyId);
+		if (!validProperty || !EXPERIMENT_PUSH_SIZES.includes(push)) {
+			return null;
+		}
+		pulses.push({ propertyId, push });
+	}
+
+	return pulses;
 }
 
 export function parseTuningFromParams(
@@ -270,13 +315,39 @@ export async function loadWorkshopScreen(
 		milestoneKey: 'fabricator_online'
 	});
 	const showChassisAssembly = fabricatorUnlockedAt !== null;
-	const selectedSchematicId =
-		selectedParam === THUMPER_CHASSIS_ASSEMBLY.id && showChassisAssembly
-			? THUMPER_CHASSIS_ASSEMBLY.id
-			: (selectedParam ?? SURVEY_SCANNER_MK_I.id);
-
+	const tutorialStep = await getPilotTutorialStep(db, pilotId);
+	const workshopStation = parseWorkshopStation(url, tutorialStep);
 	const inventory = await loadInventoryWithStats(db, pilotId);
 	const thumperPartItems = await listThumperPartItemsForPilot(db, pilotId);
+	const ownsReinforcedHull = thumperPartItems.some(
+		(part) => part.schematicId === REINFORCED_HULL_PLATE.id
+	);
+
+	function defaultSchematicId(): string | null {
+		if (showChassisAssembly && tutorialStep === 'assemble_rig') {
+			return THUMPER_CHASSIS_ASSEMBLY.id;
+		}
+		if (tutorialStep === 'first_deploy') {
+			return null;
+		}
+		if ((tutorialStep === 'async_reveal' || tutorialStep === 'done') && !ownsReinforcedHull) {
+			return REINFORCED_HULL_PLATE.id;
+		}
+		return null;
+	}
+
+	const fabricatorSchematicId =
+		workshopStation === 'fabricator'
+			? selectedParam === THUMPER_CHASSIS_ASSEMBLY.id && showChassisAssembly
+				? THUMPER_CHASSIS_ASSEMBLY.id
+				: selectedParam && MVP_SCHEMATIC_BY_ID[selectedParam]
+					? selectedParam
+					: defaultSchematicId()
+			: null;
+
+	const selectedSchematicId =
+		workshopStation === 'thumper' ? THUMPER_CHASSIS_ASSEMBLY.id : fabricatorSchematicId;
+
 	const thumperParts = thumperPartsFromInventory(thumperPartItems);
 	const chassisReadiness = analyzeChassisAssemblyReadiness({ ownedParts: thumperParts });
 	const chassisSelections = parseChassisSelections(url.searchParams);
@@ -313,49 +384,71 @@ export async function loadWorkshopScreen(
 		});
 	}
 
-	const schematic =
-		selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id
-			? SURVEY_SCANNER_MK_I
-			: (MVP_SCHEMATIC_BY_ID[selectedSchematicId] ?? SURVEY_SCANNER_MK_I);
+	const schematicDefinition =
+		selectedSchematicId === null
+			? null
+			: selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id
+				? SURVEY_SCANNER_MK_I
+				: (MVP_SCHEMATIC_BY_ID[selectedSchematicId] ?? null);
 
+	const schematic = schematicDefinition ? schematicToWorkshopUi(schematicDefinition) : null;
 	const allocationHints = buildResourceAllocationHints(MVP_CRAFT_SCHEMATICS, inventory);
-	const slotSelections = parseSlotSelections(schematic, url.searchParams);
+	const slotSelections =
+		schematicDefinition !== null
+			? parseSlotSelections(schematicDefinition, url.searchParams)
+			: {};
 	const tuning =
-		Object.keys(parseTuningFromParams(schematic, url.searchParams)).length > 0
-			? parseTuningFromParams(schematic, url.searchParams)
-			: (WORKSHOP_SUGGESTED_TUNING[schematic.id] ?? {});
-
-	const slotFills = buildSlotFills(schematic, inventory, slotSelections);
+		schematicDefinition !== null
+			? Object.keys(parseTuningFromParams(schematicDefinition, url.searchParams)).length > 0
+				? parseTuningFromParams(schematicDefinition, url.searchParams)
+				: (WORKSHOP_SUGGESTED_TUNING[schematicDefinition.id] ?? {})
+			: {};
+	const slotFills =
+		schematicDefinition !== null
+			? buildSlotFills(schematicDefinition, inventory, slotSelections)
+			: null;
 	const propertyPreview =
-		slotFills !== null ? previewCraftProperties(schematic, slotFills, tuning) : null;
+		schematicDefinition !== null && slotFills !== null
+			? previewCraftProperties(schematicDefinition, slotFills, tuning)
+			: null;
 	const tuningTotal = Object.values(tuning).reduce((sum, points) => sum + points, 0);
 
-	const schematicReadiness = analyzeSchematicReadiness({
-		schematic,
-		ownedStacks: inventory.map((stack) => ({
-			resourceInstanceId: stack.resourceInstanceId,
-			resourceSlug: stack.resourceSlug,
-			displayName: stack.displayName,
-			family: stack.family,
-			quantity: stack.quantity
-		}))
-	});
+	const schematicReadiness =
+		schematicDefinition !== null
+			? analyzeSchematicReadiness({
+					schematic: schematicDefinition,
+					ownedStacks: inventory.map((stack) => ({
+						resourceInstanceId: stack.resourceInstanceId,
+						resourceSlug: stack.resourceSlug,
+						displayName: stack.displayName,
+						family: stack.family,
+						quantity: stack.quantity
+					}))
+				})
+			: {
+					slots: [],
+					craftableNow: false,
+					blockers: ['Pick a schematic from the list']
+				};
 
 	return {
-		schematics: schematicRows,
+		workshopStation,
+		tutorialStep,
+		schematics: schematicRows.filter((row) => row.id !== THUMPER_CHASSIS_ASSEMBLY.id),
 		selectedSchematicId:
-			selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id
+			workshopStation === 'thumper'
 				? THUMPER_CHASSIS_ASSEMBLY.id
-				: schematic.id,
-		schematic: schematicToWorkshopUi(schematic),
-		schematicDefinition: schematic,
+				: schematicDefinition?.id ?? null,
+		schematic,
+		schematicDefinition,
 		inventory,
 		allocationHints,
 		slotSelections,
 		tuning,
 		tuningTotal,
 		propertyPreview,
-		suggestedTuning: WORKSHOP_SUGGESTED_TUNING[schematic.id] ?? {},
+		suggestedTuning:
+			schematicDefinition !== null ? (WORKSHOP_SUGGESTED_TUNING[schematicDefinition.id] ?? {}) : {},
 		deemphasizedStatsByFamily: {
 			conductive_metal: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'conductive_metal'),
 			structural_alloy: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'structural_alloy'),
@@ -367,6 +460,7 @@ export async function loadWorkshopScreen(
 		chassisReadiness,
 		thumperParts,
 		chassisSelections,
-		rigAssembled: options?.rigAssembled ?? false
+		rigAssembled: options?.rigAssembled ?? false,
+		materialRollup: schematicDefinition ? schematicMaterialRollup(schematicDefinition) : null
 	};
 }

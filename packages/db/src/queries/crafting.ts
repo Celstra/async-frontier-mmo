@@ -1,12 +1,14 @@
 import { and, eq } from 'drizzle-orm';
 import {
 	buildCraftResultExplanation,
+	largestScrapSocket,
 	previewCraftProperties,
 	resolveCraft,
 	SchematicSlotValidationError,
 	SURVEY_SCANNER_MK_I,
 	TuningValidationError,
 	type CraftMode,
+	type ExperimentPulse,
 	type SchematicDefinition,
 	type SchematicSlotFill,
 	type TuningAllocation
@@ -42,6 +44,7 @@ export type CraftSchematicInput = {
 	tuning: TuningAllocation;
 	craftMode: CraftMode;
 	experimentSeed?: string;
+	experimentPulses?: ExperimentPulse[];
 };
 
 export type CraftSchematicSuccess = {
@@ -237,7 +240,8 @@ export async function craftSchematicForPilot(
 				slotFills,
 				tuning: input.tuning,
 				mode: input.craftMode,
-				experimentSeed: input.experimentSeed
+				experimentSeed: input.experimentSeed,
+				experimentPulses: input.experimentPulses
 			});
 			const explanation = buildCraftResultExplanation({
 				schematic: input.schematic,
@@ -296,12 +300,49 @@ export async function craftSchematicForPilot(
 			}
 
 			const attemptRow = insertedAttempt;
+			const experimentScrapUnits = resolution.experimentScrapUnits ?? 0;
+			let scrapResourceInstanceId: string | null = null;
+
+			if (experimentScrapUnits > 0) {
+				const scrapTarget = largestScrapSocket(input.schematic);
+				const scrapSelection = selections.find((row) => row.slotId === scrapTarget.slotId);
+				if (!scrapSelection) {
+					throw new CraftValidationError(
+						`Missing slot selection for scrap socket "${scrapTarget.slotId}"`
+					);
+				}
+				scrapResourceInstanceId = scrapSelection.resourceInstanceId;
+
+				const stack = await getResourceStackForPilotInstance(
+					tx,
+					input.pilotId,
+					scrapResourceInstanceId
+				);
+				const craftTotalFromInstance = selections
+					.filter((row) => row.resourceInstanceId === scrapResourceInstanceId)
+					.reduce((sum, row) => sum + row.quantity, 0);
+
+				if ((stack?.quantity ?? 0) < craftTotalFromInstance + experimentScrapUnits) {
+					throw new InsufficientResourceError(
+						`Overdrive scrap needs ${experimentScrapUnits} more units from the largest socket stack`
+					);
+				}
+			}
 
 			for (const selection of selections) {
 				await consumeResourceFromPilotTx(tx, {
 					pilotId: input.pilotId,
 					resourceInstanceId: selection.resourceInstanceId,
 					quantity: selection.quantity,
+					source: { type: 'crafting_attempt', id: attemptRow.id }
+				});
+			}
+
+			if (experimentScrapUnits > 0 && scrapResourceInstanceId) {
+				await consumeResourceFromPilotTx(tx, {
+					pilotId: input.pilotId,
+					resourceInstanceId: scrapResourceInstanceId,
+					quantity: experimentScrapUnits,
 					source: { type: 'crafting_attempt', id: attemptRow.id }
 				});
 			}
@@ -341,7 +382,8 @@ export async function craftSchematicForPilot(
 					schematic_id: input.schematic.id,
 					schematic_version: input.schematic.version,
 					craft_mode: input.craftMode,
-					has_minor_flaw: resolution.hasMinorFlaw
+					has_minor_flaw: resolution.hasMinorFlaw,
+					...(experimentScrapUnits > 0 ? { experiment_scrap_units: experimentScrapUnits } : {})
 				}
 			});
 

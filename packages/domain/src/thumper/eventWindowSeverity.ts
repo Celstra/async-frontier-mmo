@@ -5,14 +5,14 @@ import { createSeededRng } from '../rng.js';
 /** Player-visible window intensity — hold penalty scales; action wear does not. */
 export type EventWindowSeverity = 'minor' | 'serious';
 
-/** Fixed hold/ignore recovery loss per severity (BUILD_PLAN §14 tunable). */
+/** @deprecated Use {@link HOLD_PENALTY_RANGES} + meter coupling via holdPenaltyForResponse. */
 export const HOLD_PENALTY_BY_SEVERITY: Record<EventWindowSeverity, number> = {
 	minor: 5,
 	serious: 16
 };
 
-/** Condition wear when the matching action is used (field_repair excluded — kit cost only). */
-export const MATCHING_ACTION_WEAR_CONDITION = 3;
+/** SIM-LOCKED — event_choice_liveness_sim.py wear lever (was 3). */
+export const MATCHING_ACTION_WEAR_CONDITION = 9;
 
 /** Which thumper part takes wear for each matching event action. */
 export const MATCHING_ACTION_WEAR_PART_SLOT: Record<
@@ -34,8 +34,17 @@ export const THUMPER_PART_SLOT_LABEL: Record<ThumperPartSlot, string> = {
 export const SERIOUS_WINDOW_PROBABILITY = 0.4;
 
 export function holdPenaltyForSeverity(severity: EventWindowSeverity): number {
-	return HOLD_PENALTY_BY_SEVERITY[severity];
+	const [lo, hi] = HOLD_PENALTY_RANGES[severity];
+	return Math.round((lo + hi) / 2);
 }
+
+import {
+	HOLD_PENALTY_RANGES,
+	holdPenaltyForResponse,
+	holdPenaltyRangeLabel,
+	meterLambdaForComplication,
+	TUTORIAL_HOLD_PENALTY_BY_SEVERITY
+} from './holdPenalty.js';
 
 export function parseEventWindowSeverity(
 	value: string | null | undefined

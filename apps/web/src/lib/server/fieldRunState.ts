@@ -12,6 +12,9 @@ import {
 	buildGearYieldPenaltySummary,
 	computeThumperPartRunModifiers,
 	describeEventWindowStakes,
+	effectiveThumperRunDurationSeconds,
+	hullTierFromIntegrity,
+	isHullFailsafeActive,
 	TUTORIAL_RUN_1_YIELD_FLOOR,
 	formatEventWindowOutcomeLine,
 	generateSeededThumperEventWindows,
@@ -34,6 +37,8 @@ import {
 	validateEventWindowResponse
 } from '@async-frontier-mmo/domain';
 import type { NamedResourceId } from '@async-frontier-mmo/domain';
+import type { FirstAsyncTailState } from './firstAsyncTailState.js';
+import { firstAsyncWaiverActiveForRun } from './firstAsyncTailState.js';
 import type { getGameDb } from './gameDb.js';
 
 export function parseWindowIndex(value: FormDataEntryValue | null): number | null {
@@ -269,7 +274,8 @@ export function mapEventWindowsForUi(
 			fieldRepairKitCount,
 			currentMeters: metersForWindow,
 			windowIndex: plannedWindow.windowIndex,
-			totalWindowCount
+			totalWindowCount,
+			tutorialDeterministic: tutorialRun !== undefined
 		});
 
 		const beforeState = parseMeterSnapshot(window?.beforeState);
@@ -332,10 +338,27 @@ export async function loadOpenRunState(
 		) => Promise<string>;
 		includeRunMeters?: boolean;
 		isTutorialRun?: boolean;
+		firstAsync?: FirstAsyncTailState;
 	}
 ) {
 	const tutorialRun = tutorialRunFromSeed(run.runSeed);
 	const isTutorialRun = tutorialRun !== null;
+	const firstAsyncWaiverActive =
+		options?.firstAsync !== undefined
+			? firstAsyncWaiverActiveForRun({
+					hullIntegrity: run.runHullIntegrity ?? 100,
+					extractionTailMinutes: run.extractionTailMinutes,
+					thumperRunId: run.id,
+					firstAsync: options.firstAsync
+				})
+			: false;
+	const hullFailsafeInput = {
+		hullTier: hullTierFromIntegrity(run.runHullIntegrity ?? 100),
+		hullIntegrityAtDeploy: run.runHullIntegrity ?? 100,
+		plannedDurationSeconds: run.durationSeconds,
+		extractionTailMinutes: run.extractionTailMinutes,
+		firstAsyncWaiverActive
+	};
 	const now = new Date();
 	const thumperDemo = resolveThumperState({
 		deployedAt: run.deployedAt,
@@ -350,8 +373,12 @@ export async function loadOpenRunState(
 	let runMeters = null;
 	let overallCondition = null;
 	let gearYieldPenalty = null;
+	let drillCondition: number | null = null;
+	let pumpCondition: number | null = null;
 	if (options?.includeRunMeters) {
 		const equipped = await getEquippedThumperPartsForPilot(db, run.pilotId);
+		drillCondition = equipped.drill?.condition ?? null;
+		pumpCondition = equipped.pump?.condition ?? null;
 		const scanner = await getEquippedScannerForPilot(db, run.pilotId);
 		const partSnapshots = await getThumperRunPartSnapshots(db, run.id);
 		const partModifiers =
@@ -447,7 +474,11 @@ export async function loadOpenRunState(
 		runReadyToResolve: isThumperRunReadyToResolve(eventWindowsRaw),
 		runMeters: displayMeters,
 		overallThumperCondition: overallCondition,
-		gearYieldPenalty
+		drillCondition,
+		pumpCondition,
+		gearYieldPenalty,
+		effectiveDurationSeconds: effectiveThumperRunDurationSeconds(hullFailsafeInput),
+		failsafeActive: isHullFailsafeActive(hullFailsafeInput)
 	};
 }
 

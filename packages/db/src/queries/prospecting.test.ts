@@ -26,6 +26,12 @@ import {
 } from './prospecting.js';
 import { ensureBloomOneResourceInstances, getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import { getResourceStackForPilotInstance } from './resourceGrants.js';
+import { settlementOrders } from '../schema/settlementOrders.js';
+import {
+	clearPilotSettlementState,
+	ensureSettlementBootstrapForPilot,
+	listOpenSettlementOrdersForPilot
+} from './settlement.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeDb = databaseUrl ? describe : describe.skip;
@@ -65,6 +71,7 @@ describeDb('prospecting persistence', () => {
 
 	afterAll(async () => {
 		await clearPilotProspectingState(db, testPilotId);
+		await clearPilotSettlementState(db, testPilotId);
 		await db.delete(economyLedger).where(eq(economyLedger.pilotId, testPilotId));
 		await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, testPilotId));
 		await db.delete(pilots).where(eq(pilots.id, testPilotId));
@@ -357,5 +364,63 @@ describeDb('prospecting persistence', () => {
 
 		const progress = await getPilotProspectingProgress(db, testPilotId);
 		expect(progress.sampledSpotIds).toHaveLength(1);
+	});
+
+	it('free sample does not bind settlement orders; paid sample does', async () => {
+		await clearPilotProspectingState(db, testPilotId);
+		await clearPilotSettlementState(db, testPilotId);
+		await ensureSettlementBootstrapForPilot(db, testPilotId);
+		await scanConductiveMetalFamily();
+
+		const orders = await listOpenSettlementOrdersForPilot(db, testPilotId);
+		const cmOrder = orders.find((order) => order.family === 'conductive_metal');
+		expect(cmOrder).toBeDefined();
+
+		const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
+		expect(bloom).not.toBeNull();
+		const spots = generateDepositSpots({
+			resourceSlug: veyrithSlug,
+			bloomGenerationSeed: bloom!.generationSeed,
+			concentrationMinPercent: 30,
+			concentrationMaxPercent: 67,
+			prospectingCycle: (
+				await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, veyrithSlug)
+			)!.prospectingCycle
+		});
+		expect(spots.length).toBeGreaterThan(1);
+
+		const freeSample = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			spotId: spots[0]!.spotId
+		});
+		expect(freeSample.status).toBe('ok');
+		if (freeSample.status === 'ok') {
+			expect(freeSample.energyCost).toBe(0);
+		}
+
+		const [unboundRow] = await db
+			.select()
+			.from(settlementOrders)
+			.where(eq(settlementOrders.id, cmOrder!.id))
+			.limit(1);
+		expect(unboundRow?.boundInstanceId).toBeNull();
+
+		const paidSample = await sampleSpotForPilot(db, {
+			pilotId: testPilotId,
+			resourceInstanceId: veyrithInstanceId,
+			spotId: spots[1]!.spotId
+		});
+		expect(paidSample.status).toBe('ok');
+		if (paidSample.status === 'ok') {
+			expect(paidSample.energyCost).toBeGreaterThan(0);
+		}
+
+		const [boundRow] = await db
+			.select()
+			.from(settlementOrders)
+			.where(eq(settlementOrders.id, cmOrder!.id))
+			.limit(1);
+		expect(boundRow?.boundInstanceId).toBe(veyrithInstanceId);
 	});
 });

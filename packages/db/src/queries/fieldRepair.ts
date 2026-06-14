@@ -191,6 +191,7 @@ export type RecordThumperResponseInput = {
 	totalWindowCount: number;
 	runHullCondition: number;
 	runHullIntegrity: number;
+	tutorialDeterministic: boolean;
 };
 
 export type RecordThumperResponseOutcome =
@@ -227,7 +228,8 @@ export async function recordThumperEventWindowResponseForPilot(
 			chosenResponse: input.chosenResponse as ThumperWindowChosenResponse,
 			currentMeters: input.currentMeters,
 			windowIndex: input.windowIndex,
-			totalWindowCount: input.totalWindowCount
+			totalWindowCount: input.totalWindowCount,
+			tutorialDeterministic: input.tutorialDeterministic
 		});
 
 		const recorded = await recordThumperEventWindowResponse(tx, {

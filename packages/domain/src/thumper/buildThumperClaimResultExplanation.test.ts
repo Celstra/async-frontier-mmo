@@ -73,8 +73,8 @@ describe('buildThumperClaimResultExplanation', () => {
 		const explanation = buildThumperClaimResultExplanation({
 			targetResourceDisplayName: 'Veyrith Copper',
 			projectedRecovery: 60,
-			recoveredQuantity: 55,
-			wasteQuantity: 5,
+			recoveredQuantity: 54,
+			wasteQuantity: 6,
 			forfeitedRecovery: 0,
 			resolutionType: 'completed',
 			explanation: 'pump_strain: held/ignored',
@@ -100,7 +100,7 @@ describe('buildThumperClaimResultExplanation', () => {
 			isPushRun: false
 		});
 
-		expect(explanation.windowLines[1]?.wasteFromWindow).toBe(5);
+		expect(explanation.windowLines[1]?.wasteFromWindow).toBe(6);
 		expect(explanation.windowLines[1]?.consequence).toContain('held/ignored');
 		expect(explanation.salvageNote).toContain('waste/scrap');
 	});

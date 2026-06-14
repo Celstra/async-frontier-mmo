@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	FIRST_SCANNER_SUGGESTED_TUNING,
 	REINFORCED_HULL_PLATE,
+	resolveExperimentationPulses,
 	SURVEY_SCANNER_MK_I
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -13,7 +14,8 @@ import { pilots } from '../schema/pilots.js';
 import { resourceStacks } from '../schema/resourceStacks.js';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
 import { craftSchematicForPilot, craftSurveyScannerForPilot } from './crafting.js';
-import { grantResourceToPilot } from './resourceGrants.js';
+import { listEconomyLedgerEntriesForPilot } from './economyLedger.js';
+import { grantResourceToPilot, getResourceStackForPilotInstance } from './resourceGrants.js';
 import { ensureBloomOneResourceInstances, getResourceInstanceByBloomSlug } from './resourceInstances.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -37,6 +39,42 @@ function scannerSlotQuantity(slotId: string): number {
 		throw new Error(`Unknown scanner slot: ${slotId}`);
 	}
 	return slot.inputQuantity;
+}
+
+function findOverdriveScrapSeed(): string {
+	const pulses = [
+		{ propertyId: 'max_condition', push: 'overdrive' as const },
+		{ propertyId: 'damage_reduction', push: 'careful' as const }
+	];
+
+	for (let index = 0; index < 5_000; index += 1) {
+		const seed = `overdrive-scrap-${index}`;
+		const result = resolveExperimentationPulses({
+			preview: {
+				schematicId: REINFORCED_HULL_PLATE.id,
+				schematicVersion: REINFORCED_HULL_PLATE.version,
+				lines: REINFORCED_HULL_PLATE.properties.map((property) => ({
+					propertyId: property.id,
+					displayName: property.displayName,
+					baseScore: 60,
+					tunedScore: 62,
+					resourceCeiling: 80,
+					tunedBand: 'solid' as const,
+					ceilingBand: 'strong' as const
+				}))
+			},
+			schematic: REINFORCED_HULL_PLATE,
+			slotFills: [],
+			pulses,
+			experimentSeed: seed
+		});
+
+		if (result.totalScrapUnits > 0) {
+			return seed;
+		}
+	}
+
+	throw new Error('Could not find an Overdrive scrap seed for craft test');
 }
 
 describeDb('transactional scanner craft', () => {
@@ -270,5 +308,78 @@ describeDb('transactional scanner craft', () => {
 		if (result.status === 'invalid_craft') {
 			expect(result.reason).toContain('already assigned');
 		}
+	});
+
+	it('debits Overdrive scrap units from the largest socket stack', async () => {
+		const hullPilotId = `hull-scrap-${Date.now()}`;
+		await db.insert(pilots).values({ id: hullPilotId }).onConflictDoNothing();
+
+		const craftSetup = { type: 'test_grant' as const, id: 'hull-scrap-setup' };
+		const scrapSeed = findOverdriveScrapSeed();
+		const scrapUnits = 60;
+
+		await grantResourceToPilot(db, {
+			pilotId: hullPilotId,
+			resourceInstanceId: kethInstanceId,
+			quantity: 60 + 40 + scrapUnits,
+			source: craftSetup
+		});
+		await grantResourceToPilot(db, {
+			pilotId: hullPilotId,
+			resourceInstanceId: paleInstanceId,
+			quantity: 20,
+			source: craftSetup
+		});
+
+		const beforeKeth = await getResourceStackForPilotInstance(db, hullPilotId, kethInstanceId);
+		expect(beforeKeth?.quantity).toBe(160);
+
+		const result = await craftSchematicForPilot(db, {
+			pilotId: hullPilotId,
+			idempotencyKey: `hull-scrap-${Date.now()}`,
+			schematic: REINFORCED_HULL_PLATE,
+			slotInputs: [
+				{ slotId: 'outer_plate', resourceInstanceId: kethInstanceId },
+				{ slotId: 'bracing_layer', resourceInstanceId: kethInstanceId },
+				{ slotId: 'bonding_matrix', resourceInstanceId: paleInstanceId }
+			],
+			tuning: { max_condition: 1, damage_reduction: 1, repairability: 1 },
+			craftMode: 'careful_experiment',
+			experimentSeed: scrapSeed,
+			experimentPulses: [
+				{ propertyId: 'max_condition', push: 'overdrive' },
+				{ propertyId: 'damage_reduction', push: 'careful' }
+			]
+		});
+
+		expect(result.status).toBe('crafted');
+		if (result.status !== 'crafted') {
+			return;
+		}
+
+		const afterKeth = await getResourceStackForPilotInstance(db, hullPilotId, kethInstanceId);
+		expect(afterKeth?.quantity).toBe(0);
+
+		const craftedLedger = (await listEconomyLedgerEntriesForPilot(db, hullPilotId)).find(
+			(entry) => entry.eventType === 'item_crafted'
+		);
+		const craftedPayload = craftedLedger?.payload as Record<string, unknown> | null;
+		expect(craftedPayload?.experiment_scrap_units).toBe(scrapUnits);
+
+		const kethConsumes = (await listEconomyLedgerEntriesForPilot(db, hullPilotId)).filter(
+			(entry) =>
+				entry.eventType === 'resource_consumed' &&
+				entry.resourceInstanceId === kethInstanceId
+		);
+		expect(kethConsumes).toHaveLength(3);
+		expect(
+			kethConsumes.reduce((sum, entry) => sum + -(entry.quantityDelta ?? 0), 0)
+		).toBe(160);
+
+		await db.delete(craftingAttempts).where(eq(craftingAttempts.pilotId, hullPilotId));
+		await db.delete(items).where(eq(items.pilotId, hullPilotId));
+		await db.delete(economyLedger).where(eq(economyLedger.pilotId, hullPilotId));
+		await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, hullPilotId));
+		await db.delete(pilots).where(eq(pilots.id, hullPilotId));
 	});
 });

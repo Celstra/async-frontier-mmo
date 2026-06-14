@@ -3,6 +3,9 @@ export function foremanLine(input: {
 	milestoneLabel: string;
 	hasOpenOrders: boolean;
 	fabricatorUnlocked: boolean;
+	orderReadyToTurnIn?: boolean;
+	openOrderCount?: number;
+	filledOrderCount?: number;
 }): string {
 	if (input.tutorialStep === 'prologue') {
 		return 'Read the briefing, then review the foreman orders on this board.';
@@ -10,6 +13,14 @@ export function foremanLine(input: {
 
 	if (input.tutorialStep === 'first_orders') {
 		return 'Pick a resource family from the foreman list and hunt it on FIELD — one stack per order, no mixing.';
+	}
+
+	if (input.tutorialStep === 'assemble_rig') {
+		return 'Parts are on the bench. Assemble your rig in WORKSHOP.';
+	}
+
+	if (input.tutorialStep === 'first_deploy') {
+		return "Rig's ready. Deploy on the deposit you sampled — FIELD.";
 	}
 
 	if (input.tutorialStep === 'recall_lesson') {
@@ -29,11 +40,24 @@ export function foremanLine(input: {
 	}
 
 	if (input.tutorialStep === 'async_reveal') {
-		return 'Longer deployments run while you’re gone. Your rig, your call — pick a run length when you’re ready.';
+		return 'Longer deployments run while you’re gone. Pick a run length when you’re ready — I’ll top off your survey charge so you can scout fresh deposits while the rig works.';
 	}
 
 	if (input.tutorialStep === 'turn_in' || (input.hasOpenOrders && input.tutorialStep === 'hunting')) {
 		return 'Turn in one stack per order. No mixing — I need clean lots.';
+	}
+
+	if (input.orderReadyToTurnIn) {
+		return 'Stack’s complete on the board — turn it in here before you head back to FIELD.';
+	}
+
+	if (
+		input.openOrderCount &&
+		input.filledOrderCount &&
+		input.filledOrderCount > 0 &&
+		input.openOrderCount > 0
+	) {
+		return `Half the lot’s in — ${input.filledOrderCount} filled, ${input.openOrderCount} open. Back to FIELD for the rest.`;
 	}
 
 	if (input.hasOpenOrders) {
