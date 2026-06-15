@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import EnergyBar from '$lib/field/EnergyBar.svelte';
 	import FieldMap from '$lib/field/FieldMap.svelte';
 	import SampleResultPanel from '$lib/field/SampleResultPanel.svelte';
@@ -35,10 +36,15 @@
 		const startedAtMs = new Date(pending.startedAt).getTime();
 		const completesAtMs = new Date(pending.completesAt).getTime();
 		const totalMs = completesAtMs - startedAtMs;
+		let completionInvalidated = false;
 
 		const tick = () => {
 			const elapsedMs = Date.now() - startedAtMs;
 			localSamplePercent = Math.min(100, Math.round((elapsedMs / totalMs) * 100));
+			if (!completionInvalidated && Date.now() >= completesAtMs) {
+				completionInvalidated = true;
+				void invalidateAll();
+			}
 		};
 
 		tick();
@@ -165,12 +171,13 @@
 							<button
 								type="submit"
 								class="action-row action-row--primary"
-								disabled={data.pendingSampleProgress !== null ||
-									!data.surveyEnergyOutlook.canSampleNow}
-							>
-								Sample here
-							</button>
-						</form>
+						disabled={data.pendingSampleProgress !== null ||
+							!data.surveyEnergyOutlook.canSampleNow ||
+							!data.hasFamilyScan}
+					>
+						Sample here
+					</button>
+				</form>
 						{#if data.handSamplesLeft}
 							<p class="sample-pool-hint">
 								Hand samples left here: {Math.max(
@@ -182,10 +189,13 @@
 						{#if sampleHint}
 							<p class="sample-hint" role="status">{sampleHint}</p>
 						{/if}
-						{#if !data.surveyEnergyOutlook.canSampleNow && !data.pendingSampleProgress}
-							<p class="field-energy-hint">Not enough survey energy to sample here.</p>
-						{/if}
-					</div>
+				{#if !data.surveyEnergyOutlook.canSampleNow && !data.pendingSampleProgress}
+					<p class="field-energy-hint">Not enough survey energy to sample here.</p>
+				{/if}
+				{#if !data.hasFamilyScan && !data.pendingSampleProgress}
+					<p class="field-energy-hint">Scan family before sampling here.</p>
+				{/if}
+			</div>
 
 					{#if data.pendingSampleProgress}
 						<div class="sample-progress panel-inset">

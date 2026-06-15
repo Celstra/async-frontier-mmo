@@ -16,6 +16,7 @@ import {
 	getThumperEventWindowsForRun,
 	ensurePilotFieldSession,
 	getActiveBloomId,
+	hasPilotFamilyScan,
 	countPlaytestEventsByName,
 	scanFamilyForPilot,
 	acknowledgeThumperRunResult,
@@ -253,6 +254,18 @@ export const actions: Actions = {
 
 		if (!session.resourceInstanceId) {
 			return fail(400, { message: 'Activate a resource map first', ...(await fieldData(db, pilotId)) });
+		}
+		const resource = await getResourceInstanceById(db, session.resourceInstanceId);
+		if (!resource) {
+			return fail(400, { message: 'Resource not found', ...(await fieldData(db, pilotId)) });
+		}
+		const scannedFamily = await hasPilotFamilyScan(db, {
+			pilotId,
+			bloomId: resource.bloomId,
+			family: resource.family as ResourceFamily
+		});
+		if (!scannedFamily) {
+			return fail(400, { message: 'Scan family before sampling here', ...(await fieldData(db, pilotId)) });
 		}
 
 		const spotId = spotIdFor(

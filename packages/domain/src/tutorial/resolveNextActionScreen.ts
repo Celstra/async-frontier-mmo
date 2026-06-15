@@ -2,7 +2,7 @@ import { type TutorialScreenId, tutorialNextActionScreen } from './tutorialSteps
 
 export type NextActionScreenInput = {
 	tutorialStep: string | null;
-	/** Open order has enough sampled units to turn in at SETTLEMENT. */
+	/** Open order with enough sampled units to turn in at SETTLEMENT. */
 	orderReadyToTurnIn: boolean;
 	/** Open thumper run in progress. */
 	openRunActive: boolean;
@@ -26,20 +26,20 @@ export function settlementBriefingPendingForStep(tutorialStep: string | null): b
 	return tutorialStep !== null && SETTLEMENT_BRIEFING_STEPS.has(tutorialStep);
 }
 
-/** Tutorial nav highlight — step baseline with live-state overlays (round-4 Group 2). */
+/** Tutorial nav highlight: step baseline with live-state overlays. */
 export function resolveNextActionScreen(input: NextActionScreenInput): TutorialScreenId | null {
-	if (input.openRunActive || input.claimPendingOnRig) {
+	if (input.claimPendingOnRig) {
 		return 'rig';
 	}
-
 	if (input.orderReadyToTurnIn || input.settlementBriefingPending) {
 		return 'settlement';
 	}
-
+	if (input.openRunActive) {
+		return input.tutorialStep === 'done' ? 'field' : 'rig';
+	}
 	const base = tutorialNextActionScreen(input.tutorialStep);
 	if (input.tutorialStep === 'assemble_rig') {
 		return 'workshop';
 	}
-
 	return base;
 }

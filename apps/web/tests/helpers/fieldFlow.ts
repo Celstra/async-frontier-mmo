@@ -48,8 +48,6 @@ export async function scanAndSampleOnField(
 		return;
 	}
 	await expect(page.getByText(/Sampling/)).toBeVisible({ timeout: 5000 });
-	await page.waitForTimeout(11_000);
-	await page.reload({ waitUntil: 'networkidle' });
 	await expect(page.getByText(/Sample complete/)).toBeVisible({ timeout: 15_000 });
 }
 

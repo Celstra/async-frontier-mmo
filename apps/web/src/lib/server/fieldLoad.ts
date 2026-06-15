@@ -218,6 +218,8 @@ export async function loadFieldScreen(
 
 	if (sampleOutcome?.status === 'insufficient_energy') {
 		sampleFlash = 'Not enough survey energy to sample here';
+	} else if (sampleOutcome?.status === 'family_scan_required') {
+		sampleFlash = 'Scan family before sampling here';
 	} else if (
 		sampleOutcome?.status === 'spot_pool_exhausted' ||
 		sampleOutcome?.status === 'spot_already_sampled'

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+
 import { resolveNextActionScreen } from './resolveNextActionScreen.js';
 
 describe('resolveNextActionScreen', () => {
-	it('points to RIG while a claim is pending', () => {
+	it('points to RIG while claim is pending', () => {
 		expect(
 			resolveNextActionScreen({
 				tutorialStep: 'recall_lesson',
@@ -14,7 +15,7 @@ describe('resolveNextActionScreen', () => {
 		).toBe('rig');
 	});
 
-	it('points to RIG during an open run', () => {
+	it('points RIG during tutorial open run', () => {
 		expect(
 			resolveNextActionScreen({
 				tutorialStep: 'async_reveal',
@@ -26,7 +27,19 @@ describe('resolveNextActionScreen', () => {
 		).toBe('rig');
 	});
 
-	it('points to SETTLEMENT when an order is ready to turn in during hunting', () => {
+	it('points FIELD during post-tutorial open run so scouting can continue', () => {
+		expect(
+			resolveNextActionScreen({
+				tutorialStep: 'done',
+				orderReadyToTurnIn: false,
+				openRunActive: true,
+				claimPendingOnRig: false,
+				settlementBriefingPending: false
+			})
+		).toBe('field');
+	});
+
+	it('points SETTLEMENT when an order is ready to turn in during hunting', () => {
 		expect(
 			resolveNextActionScreen({
 				tutorialStep: 'hunting',
@@ -50,7 +63,7 @@ describe('resolveNextActionScreen', () => {
 		).toBe('field');
 	});
 
-	it('highlights FIELD after briefing for first_orders', () => {
+	it('highlights FIELD after briefing first_orders', () => {
 		expect(
 			resolveNextActionScreen({
 				tutorialStep: 'first_orders',
