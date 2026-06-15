@@ -45,3 +45,11 @@ export const FIELD_MODE_LINE =
 
 export const SAME_WAYPOINT_DEPLOY_HINT =
 	'Second tutorial run uses your first waypoint — same deposit, no new scouting.';
+
+export function fieldResumeHeadline(resourceDisplayName: string): string {
+	return `Known ${resourceDisplayName} waypoint.`;
+}
+
+export function fieldResumeFamilyScanRecoveryLine(familyLabel: string): string {
+	return `Scan ${familyLabel} to refresh field lock and resume sampling here.`;
+}

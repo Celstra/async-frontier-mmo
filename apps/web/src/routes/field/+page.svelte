@@ -82,9 +82,33 @@
 	{/if}
 
 	<div class="screen__body">
+			{#if data.fieldResume}
+				<section class="panel panel--resume" aria-label="Active field target">
+					<h2 class="panel__title panel__title--resume">{data.fieldResume.headline}</h2>
+					{#if data.fieldResume.remainingUnits !== null}
+						<p class="resume-waypoint">
+							{data.fieldResume.resourceDisplayName} · ~{data.fieldResume.remainingUnits}u left at
+							this waypoint
+						</p>
+					{/if}
+					{#if data.fieldResume.needsFamilyScan && data.fieldResume.recoveryLine}
+						<p class="resume-recovery">{data.fieldResume.recoveryLine}</p>
+						<form method="POST" action="?/scanFamily" use:enhance class="inline-action">
+							<input type="hidden" name="family" value={data.selectedFamily} />
+							<button type="submit" class="action-row action-row--primary">
+								Scan {FIELD_FAMILY_OPTIONS.find((f) => f.id === data.selectedFamily)?.label ??
+									'family'}
+							</button>
+						</form>
+					{/if}
+				</section>
+			{/if}
+
 			{#if data.fieldModeLine}
 				<p class="field-mode-line">{data.fieldModeLine}</p>
 			{/if}
+			<details class="field-family-details" open={!data.fieldResume}>
+				<summary class="field-family-details__summary">Resource family</summary>
 			<section class="panel">
 				<h2 class="panel__title">Resource family</h2>
 				<div class="action-rows">
@@ -109,6 +133,7 @@
 					</form>
 				{/if}
 			</section>
+			</details>
 
 			{#if data.hasFamilyScan && data.resources.length > 0}
 				<section class="panel">
@@ -192,7 +217,7 @@
 				{#if !data.surveyEnergyOutlook.canSampleNow && !data.pendingSampleProgress}
 					<p class="field-energy-hint">Not enough survey energy to sample here.</p>
 				{/if}
-				{#if !data.hasFamilyScan && !data.pendingSampleProgress}
+				{#if !data.hasFamilyScan && !data.pendingSampleProgress && !data.fieldResume}
 					<p class="field-energy-hint">Scan family before sampling here.</p>
 				{/if}
 			</div>
@@ -500,6 +525,41 @@
 		color: var(--text-secondary);
 		border-left: 2px solid var(--phosphor-dim);
 		line-height: 1.45;
+	}
+
+	.panel--resume {
+		border-color: var(--phosphor-dim);
+	}
+
+	.panel__title--resume {
+		color: var(--phosphor);
+		text-transform: none;
+		letter-spacing: 0.02em;
+		font-size: var(--font-size-base);
+	}
+
+	.resume-waypoint,
+	.resume-recovery {
+		margin: 0 0 0.75rem;
+		font-size: var(--font-size-sm);
+		line-height: 1.45;
+	}
+
+	.resume-recovery {
+		color: var(--accent-warning);
+	}
+
+	.field-family-details {
+		margin-bottom: 1rem;
+	}
+
+	.field-family-details__summary {
+		cursor: pointer;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 0.5rem;
 	}
 
 	.deploy-thump-target,

@@ -11,9 +11,11 @@ import {
 	backfillTutorialPatchedHullCondition,
 	getEquippedThumperPartsForPilot,
 	countFieldRepairKitsForPilot,
+	getLatestPilotWaypointSample,
 	getLatestThumperRunForPilot,
 	getOpenThumperRunForPilot,
 	getThumperEventWindowsForRun,
+	resumePilotFieldToWaypoint,
 	samplesTakenOnSpot,
 	getPilotDepositSample,
 	getPilotProspectingProgress,
@@ -73,9 +75,12 @@ import {
 	FIELD_MODE_LINE,
 	SAME_WAYPOINT_DEPLOY_HINT,
 	THUMP_TARGET_RESOURCE_SLUG,
+	fieldResumeFamilyScanRecoveryLine,
+	fieldResumeHeadline,
 	parseFieldFamily,
 	tutorialRecommendResourceSlug
 } from '$lib/field/constants';
+import { familyDisplayLabel } from '$lib/displayLabels';
 import { loadDeployPreviewForPilot } from '$lib/server/fieldDeployLoad.js';
 import { loadClaimScreen } from '$lib/server/fieldClaimState.js';
 import { loadOpenRunState } from '$lib/server/fieldRunState.js';
@@ -116,6 +121,14 @@ export type FieldLastSampleResult = {
 	yieldBandLabel: string;
 	stats: FieldResourceStats | null;
 	orderStatusLine: string | null;
+};
+
+export type FieldResumeContext = {
+	headline: string;
+	resourceDisplayName: string;
+	remainingUnits: number | null;
+	needsFamilyScan: boolean;
+	recoveryLine: string | null;
 };
 
 function isRigDeployReady(
@@ -198,6 +211,78 @@ async function completePendingSampleIfDue(
 	}
 
 	return outcome;
+}
+
+async function maybeResumeActiveFieldTarget(
+	db: ReturnType<typeof getGameDb>,
+	input: {
+		pilotId: string;
+		session: Awaited<ReturnType<typeof ensurePilotFieldSession>>;
+		activeBloomId: number;
+		openRun: Awaited<ReturnType<typeof getOpenThumperRunForPilot>>;
+		claimMode: 'none' | 'claimable' | 'result' | string;
+		tutorialStep: string | null;
+		now: Date;
+	}
+) {
+	if (isTutorialDeployLockedStep(input.tutorialStep)) {
+		return input.session;
+	}
+
+	const returningFromRig =
+		input.openRun !== null || input.claimMode === 'claimable' || input.claimMode === 'result';
+	if (!returningFromRig) {
+		return input.session;
+	}
+
+	const latest = await getLatestPilotWaypointSample(db, {
+		pilotId: input.pilotId,
+		bloomId: input.activeBloomId
+	});
+	if (!latest) {
+		return input.session;
+	}
+
+	if (
+		input.session.resourceInstanceId &&
+		input.session.resourceInstanceId !== latest.resourceInstanceId
+	) {
+		return input.session;
+	}
+
+	const bloom = await getBloomRecord(db, input.activeBloomId);
+	const generationSeed = bloom?.generationSeed ?? `red-mesa-bloom-${input.activeBloomId}`;
+	const spotYield = await getDepositSpotYieldState(db, {
+		spotId: latest.spotId,
+		resourceInstanceId: latest.resourceInstanceId,
+		generationSeed
+	});
+	if (spotYield.remainingUnits <= 0) {
+		return input.session;
+	}
+
+	const coords = parseTopologySpotId(latest.spotId);
+	if (!coords) {
+		return input.session;
+	}
+
+	const alreadyThere =
+		input.session.resourceInstanceId === latest.resourceInstanceId &&
+		input.session.positionX === coords.x &&
+		input.session.positionY === coords.y;
+	if (alreadyThere) {
+		return input.session;
+	}
+
+	const resumed = await resumePilotFieldToWaypoint(db, {
+		pilotId: input.pilotId,
+		resourceInstanceId: latest.resourceInstanceId,
+		family: latest.family as ResourceFamily,
+		spotId: latest.spotId,
+		now: input.now
+	});
+
+	return resumed ?? input.session;
 }
 
 export async function loadFieldScreen(
@@ -315,6 +400,16 @@ export async function loadFieldScreen(
 	const claimScreen = await loadClaimScreen(db, pilotId, now);
 	const claimView = claimScreen.mode === 'none' ? null : claimScreen;
 	let shouldPoll = false;
+
+	session = await maybeResumeActiveFieldTarget(db, {
+		pilotId,
+		session,
+		activeBloomId,
+		openRun,
+		claimMode: claimView?.mode ?? 'none',
+		tutorialStep,
+		now
+	});
 
 	const settlementOrders = await listSettlementOrdersForMilestone(db, { pilotId, milestoneKey });
 	const pinnedOrder = pickPinnedMissionOrder(settlementOrders, milestoneKey);
@@ -644,6 +739,33 @@ export async function loadFieldScreen(
 		});
 	}
 
+	let fieldResume: FieldResumeContext | null = null;
+	if (session.resourceInstanceId && hereSpotId) {
+		const activeResource = await getResourceInstanceById(db, session.resourceInstanceId);
+		const knownWaypoint = waypoints.find(
+			(waypoint) =>
+				waypoint.resourceInstanceId === session.resourceInstanceId &&
+				waypoint.spotId === hereSpotId
+		);
+		const depositSample = await getPilotDepositSample(db, {
+			pilotId,
+			resourceInstanceId: session.resourceInstanceId,
+			spotId: hereSpotId
+		});
+
+		if (activeResource && (knownWaypoint || depositSample || rigMonitorPrompt)) {
+			fieldResume = {
+				headline: fieldResumeHeadline(activeResource.displayName),
+				resourceDisplayName: activeResource.displayName,
+				remainingUnits: knownWaypoint?.remainingUnits ?? null,
+				needsFamilyScan: !hasFamilyScan,
+				recoveryLine: !hasFamilyScan
+					? fieldResumeFamilyScanRecoveryLine(familyDisplayLabel(selectedFamily))
+					: null
+			};
+		}
+	}
+
 	return {
 		regionId: 'red_mesa' as const,
 		activeBloomId,
@@ -689,6 +811,7 @@ export async function loadFieldScreen(
 		shouldPoll,
 		fieldModeLine:
 			deployContext !== null || milestoneKey === 'next_need' ? FIELD_MODE_LINE : null,
+		fieldResume,
 		loadedAt: now.toISOString()
 	};
 }

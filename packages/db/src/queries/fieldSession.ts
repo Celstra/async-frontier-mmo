@@ -1,6 +1,7 @@
 import {
 	discoveryPatchAround,
 	mergeDiscoveredTiles,
+	parseTopologySpotId,
 	PLAYER_SPAWN_X,
 	PLAYER_SPAWN_Y,
 	SAMPLE_DURATION_SECONDS,
@@ -9,7 +10,7 @@ import {
 	TOPOLOGY_GRID_WIDTH,
 	type ResourceFamily
 } from '@async-frontier-mmo/domain';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
 import { pilotFieldState } from '../schema/pilotFieldState.js';
@@ -382,6 +383,86 @@ export async function listPilotWaypointSamples(
 				eq(resourceInstances.bloomId, input.bloomId)
 			)
 		);
+}
+
+/** Most recent hand-sample waypoint in the active bloom — used to resume FIELD context. */
+export async function getLatestPilotWaypointSample(
+	db: DbExecutor,
+	input: { pilotId: string; bloomId: number }
+) {
+	const [row] = await db
+		.select({
+			spotId: pilotDepositSpotSamples.spotId,
+			resourceInstanceId: pilotDepositSpotSamples.resourceInstanceId,
+			displayName: resourceInstances.displayName,
+			resourceSlug: resourceInstances.resourceSlug,
+			family: resourceInstances.family,
+			trueConcentrationPercent: pilotDepositSpotSamples.trueConcentrationPercent,
+			samplesTaken: pilotDepositSpotSamples.samplesTaken
+		})
+		.from(pilotDepositSpotSamples)
+		.innerJoin(
+			resourceInstances,
+			eq(pilotDepositSpotSamples.resourceInstanceId, resourceInstances.id)
+		)
+		.where(
+			and(
+				eq(pilotDepositSpotSamples.pilotId, input.pilotId),
+				eq(resourceInstances.bloomId, input.bloomId)
+			)
+		)
+		.orderBy(desc(pilotDepositSpotSamples.sampledAt))
+		.limit(1);
+
+	return row ?? null;
+}
+
+/** Restore map position to a known waypoint without clearing unrelated session state. */
+export async function resumePilotFieldToWaypoint(
+	db: DbExecutor,
+	input: {
+		pilotId: string;
+		resourceInstanceId: string;
+		family: ResourceFamily;
+		spotId: string;
+		now?: Date;
+	}
+): Promise<PilotFieldSession | null> {
+	const coords = parseTopologySpotId(input.spotId);
+	if (!coords) {
+		return null;
+	}
+
+	const now = input.now ?? new Date();
+	await ensurePilotFieldSession(db, input.pilotId, now);
+
+	const [row] = await db
+		.update(pilotFieldState)
+		.set({
+			selectedFamily: input.family,
+			resourceInstanceId: input.resourceInstanceId,
+			positionX: coords.x,
+			positionY: coords.y,
+			scannedTiles: [],
+			pendingSampleSpotId: null,
+			pendingSampleResourceInstanceId: null,
+			pendingSampleStartedAt: null,
+			pendingSampleCompletesAt: null,
+			updatedAt: now
+		})
+		.where(eq(pilotFieldState.pilotId, input.pilotId))
+		.returning();
+
+	if (!row) {
+		return null;
+	}
+
+	return discoverPilotFieldTiles(db, {
+		pilotId: input.pilotId,
+		x: coords.x,
+		y: coords.y,
+		now
+	});
 }
 
 /** Earliest Keth Iron waypoint sample — locked tutorial deploy target. */
