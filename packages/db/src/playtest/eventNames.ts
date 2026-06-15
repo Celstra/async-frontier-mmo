@@ -54,6 +54,13 @@ export const PLAYTEST_COMPREHENSION_EVENTS = [
 	'rig_event_response_submitted',
 	'workshop_station_viewed',
 	'tutorial_recovery_state',
+	'craft_result_reveal_seen',
+	'craft_result_pulse_viewed',
+	'craft_result_compare_clicked',
+	'craft_result_install_confirmed',
+	'craft_result_craft_another_clicked',
+	'craft_result_abandoned',
+	'overdrive_crit_scrap_seen',
 	/** One-time state — first post-async 15m deploy on scavenged/patched hull (not a funnel metric). */
 	'first_async_deploy_used'
 ] as const;

@@ -30,6 +30,41 @@ export type ExperimentPulseResult = {
 	scrapUnits: number;
 };
 
+export function experimentPulseOutcomeLabel(outcome: ExperimentPulseOutcome): string {
+	switch (outcome) {
+		case 'success':
+			return 'SUCCESS';
+		case 'wasted':
+			return 'WASTED';
+		case 'crit_band_loss':
+			return 'CRIT: BAND LOST';
+		case 'crit_scrap':
+			return 'CRIT: MATERIAL SCRAPPED';
+	}
+}
+
+export function experimentPushDisplayLabel(push: ExperimentPushSize): string {
+	switch (push) {
+		case 'careful':
+			return 'CAREFUL PUSH';
+		case 'standard':
+			return 'STANDARD PUSH';
+		case 'overdrive':
+			return 'OVERDRIVE PUSH';
+	}
+}
+
+export function experimentPushProbabilityText(push: ExperimentPushSize): string {
+	switch (push) {
+		case 'careful':
+			return '+1 band · 90% success · 2% crit';
+		case 'standard':
+			return '+2 bands · 65% success · 10% crit';
+		case 'overdrive':
+			return '+3 bands · 40% success · 25% crit scrap';
+	}
+}
+
 const PROPERTY_BAND_ORDER: PropertyOutputBand[] = [
 	'poor',
 	'basic',

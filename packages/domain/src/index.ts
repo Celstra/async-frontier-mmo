@@ -37,8 +37,15 @@ export {
 export type {
 	CraftPropertyDriver,
 	CraftPropertyExplanation,
-	CraftResultExplanation
+	CraftResultExplanation,
+	CraftSlotFillSnapshot
 } from './crafting/buildCraftResultExplanation.js';
+export {
+	buildCraftInstallComparison,
+	type CraftInstallComparison,
+	type CraftInstallComparisonItem,
+	type CraftInstallComparisonLine
+} from './crafting/buildCraftInstallComparison.js';
 export { FIRST_SCANNER_SUGGESTED_TUNING } from './crafting/schematics/surveyScannerMkI.js';
 export {
 	CAREFUL_EXPERIMENT_BOOST,
@@ -63,6 +70,9 @@ export {
 export {
 	largestScrapSocket,
 	largestSocketScrapUnits,
+	experimentPulseOutcomeLabel,
+	experimentPushDisplayLabel,
+	experimentPushProbabilityText,
 	resolveExperimentationPulses,
 	schematicMaterialRollup,
 	type ExperimentPulse,

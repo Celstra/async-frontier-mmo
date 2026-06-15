@@ -220,3 +220,59 @@ export async function trackTutorialRecoveryState(
 ): Promise<void> {
 	await repeat(db, pilotId, 'tutorial_recovery_state', payload);
 }
+
+export async function trackCraftResultRevealSeen(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'craft_result_reveal_seen', payload);
+}
+
+export async function trackCraftResultPulseViewed(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'craft_result_pulse_viewed', payload);
+}
+
+export async function trackCraftResultCompareClicked(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'craft_result_compare_clicked', payload);
+}
+
+export async function trackCraftResultInstallConfirmed(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'craft_result_install_confirmed', payload);
+}
+
+export async function trackCraftResultCraftAnotherClicked(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'craft_result_craft_another_clicked', payload);
+}
+
+export async function trackCraftResultAbandoned(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'craft_result_abandoned', payload);
+}
+
+export async function trackOverdriveCritScrapSeen(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'overdrive_crit_scrap_seen', payload);
+}

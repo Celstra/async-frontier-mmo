@@ -60,5 +60,35 @@ describe('buildCraftResultExplanation', () => {
 		expect(clarity.tuningPoints).toBe(2);
 		expect(clarity.drivers[0]!.label).toContain('Conductivity');
 		expect(clarity.drivers[0]!.weightPercent).toBeGreaterThanOrEqual(25);
+		expect(explanation.slotFillsSnapshot).toHaveLength(3);
+		expect(explanation.resourceProvenance.some((line) => line.includes('Survey Clarity'))).toBe(
+			true
+		);
+	});
+
+	it('includes experiment pulse details for careful experiment crafts', () => {
+		const fills = scannerFills();
+		const resolution = resolveCraft({
+			schematic: SURVEY_SCANNER_MK_I,
+			slotFills: fills,
+			tuning: FIRST_SCANNER_SUGGESTED_TUNING,
+			mode: 'careful_experiment',
+			experimentSeed: 'pulse-explanation-test',
+			experimentPulses: [
+				{ propertyId: 'survey_clarity', push: 'standard' },
+				{ propertyId: 'stat_hint_accuracy', push: 'careful' }
+			]
+		});
+
+		const explanation = buildCraftResultExplanation({
+			schematic: SURVEY_SCANNER_MK_I,
+			slotFills: fills,
+			tuning: FIRST_SCANNER_SUGGESTED_TUNING,
+			resolution
+		});
+
+		expect(explanation.experimentPulseResults).toHaveLength(2);
+		expect(explanation.experimentPulseResults?.[0]?.pulseIndex).toBe(0);
+		expect(explanation.tuningSnapshot.survey_clarity).toBe(2);
 	});
 });

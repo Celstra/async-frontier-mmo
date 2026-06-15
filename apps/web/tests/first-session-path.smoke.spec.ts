@@ -23,9 +23,9 @@ test.beforeAll(async () => {
 });
 
 test.describe('first-session path smoke', () => {
-	test('briefing through hull reserve gate', async ({ page, context }) => {
+	test('briefing through hull reserve gate', async ({ page, context, baseURL }) => {
 		const pilotId = newSmokePilotId();
-		await seedPilotCookie(context, pilotId);
+		await seedPilotCookie(context, pilotId, baseURL);
 
 		await page.goto('/settlement');
 		await expect(page.getByRole('dialog', { name: /Incoming brief/i })).toBeVisible();

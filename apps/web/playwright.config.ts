@@ -32,7 +32,10 @@ export default defineConfig({
 		{
 			name: 'chromium',
 			use: { ...devices['Desktop Chrome'] },
-			testIgnore: '**/first-session-path.smoke.spec.ts'
+			testIgnore: [
+				'**/first-session-path.smoke.spec.ts',
+				'**/craft-reveal.smoke.spec.ts'
+			]
 		},
 		{
 			name: 'chromium-path',
@@ -40,9 +43,17 @@ export default defineConfig({
 			testMatch: '**/first-session-path.smoke.spec.ts'
 		},
 		{
+			name: 'chromium-craft-reveal',
+			use: { ...devices['Desktop Chrome'] },
+			testMatch: '**/craft-reveal.smoke.spec.ts'
+		},
+		{
 			name: 'mobile',
 			use: { ...devices['Pixel 7'] },
-			testIgnore: '**/first-session-path.smoke.spec.ts'
+			testIgnore: [
+				'**/first-session-path.smoke.spec.ts',
+				'**/craft-reveal.smoke.spec.ts'
+			]
 		}
 	]
 });

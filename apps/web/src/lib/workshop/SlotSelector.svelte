@@ -72,6 +72,13 @@
 		slotReadiness
 	}: Props = $props();
 
+	function chooseStack(stack: InventoryStack) {
+		if (!hasEnoughQuantity(stack)) {
+			return;
+		}
+		onSelect(stack.resourceInstanceId);
+	}
+
 	function missingHintHref(readiness: SchematicSlotReadiness): string {
 		if (readiness.missing?.sourceHint.includes('thumper haul')) {
 			return '/field';
@@ -259,7 +266,9 @@
 					class:selected={isSelected}
 					class:insufficient={!hasEnough}
 					disabled={!hasEnough}
-					onclick={() => hasEnough && onSelect(stack.resourceInstanceId)}
+					data-testid={`workshop-stack-${slot.id}-${stack.resourceSlug}`}
+					aria-pressed={isSelected}
+					onclick={() => chooseStack(stack)}
 				>
 					<div class="card-header">
 						<span class="stack-name">{stack.displayName}</span>

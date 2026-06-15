@@ -13,6 +13,7 @@
 		"smoke:browser:install": "playwright install chromium",
 		"smoke:browser": "playwright test --project=chromium --project=mobile",
 		"smoke:browser:path": "node scripts/require-database-url.mjs && playwright test --project=chromium-path",
+		"smoke:browser:craft-reveal": "node scripts/require-database-url.mjs && playwright test --project=chromium-craft-reveal",
 		"smoke:browser:gate": "node scripts/require-database-url.mjs && playwright test",
 		"smoke:domain": "pnpm --filter @async-frontier-mmo/domain test -- firstSessionGate"
 	},

@@ -1,4 +1,5 @@
 import type { ResourceStatCode } from 'shared';
+import type { ExperimentPulseResult } from './experimentation.js';
 import type { SchematicDefinition, SchematicSlotFill, SchematicWeightTerm, TuningAllocation } from './types.js';
 import type { CraftMode, CraftResolution } from './types.js';
 
@@ -29,6 +30,14 @@ export type CraftPropertyExplanation = {
 	drivers: CraftPropertyDriver[];
 };
 
+export type CraftSlotFillSnapshot = {
+	slotId: string;
+	slotDisplayName: string;
+	resourceDisplayName: string;
+	family: string;
+	inputQuantity: number;
+};
+
 export type CraftResultExplanation = {
 	summary: string;
 	craftMode: CraftMode;
@@ -36,6 +45,11 @@ export type CraftResultExplanation = {
 	hasMinorFlaw: boolean;
 	modeContribution: string;
 	properties: CraftPropertyExplanation[];
+	slotFillsSnapshot: CraftSlotFillSnapshot[];
+	tuningSnapshot: TuningAllocation;
+	experimentPulseResults?: ExperimentPulseResult[];
+	experimentScrapUnits?: number;
+	resourceProvenance: string[];
 };
 
 function slotDisplayName(schematic: SchematicDefinition, slotId: string): string {
@@ -109,6 +123,55 @@ function buildSummary(
 	return `${schematic.displayName} crafted from ${resources} via ${mode}. Resource stats set each property base; tuning expressed your priorities; craft mode applied the final variance.`;
 }
 
+function buildSlotFillsSnapshot(
+	schematic: SchematicDefinition,
+	slotFills: SchematicSlotFill[]
+): CraftSlotFillSnapshot[] {
+	return slotFills.map((fill) => {
+		const slot = schematic.slots.find((candidate) => candidate.id === fill.slotId);
+		return {
+			slotId: fill.slotId,
+			slotDisplayName: slot?.displayName ?? fill.slotId,
+			resourceDisplayName: fill.resourceDisplayName,
+			family: fill.family,
+			inputQuantity: slot?.inputQuantity ?? 0
+		};
+	});
+}
+
+function buildResourceProvenance(
+	schematic: SchematicDefinition,
+	slotFills: SchematicSlotFill[],
+	properties: CraftPropertyExplanation[]
+): string[] {
+	return properties.map((prop) => {
+		const topDriver = prop.drivers[0];
+		if (!topDriver) {
+			return `${prop.displayName} assembled from mixed inputs.`;
+		}
+
+		if (topDriver.stat === 'average_oq') {
+			return `Average OQ anchored ${prop.displayName}.`;
+		}
+
+		const propertyLine = schematic.properties.find((line) => line.id === prop.propertyId);
+		const topTerm = propertyLine?.terms
+			.map((term) => ({ term, driver: describeTerm(schematic, term, slotFills) }))
+			.sort((left, right) => right.driver.weightedContribution - left.driver.weightedContribution)[0]
+			?.term;
+
+		if (topTerm?.kind === 'slot_stat') {
+			const fill = slotFills.find((candidate) => candidate.slotId === topTerm.slotId);
+			const statLabel = STAT_LABELS[topTerm.stat];
+			if (fill) {
+				return `${fill.resourceDisplayName} carried ${prop.displayName} through ${statLabel}.`;
+			}
+		}
+
+		return `${topDriver.label} drove ${prop.displayName}.`;
+	});
+}
+
 /**
  * Decision 008 result explanation — which stats drove which lines, plus tuning/mode contribution.
  */
@@ -142,6 +205,11 @@ export function buildCraftResultExplanation(input: {
 		experimentOutcome: input.resolution.experimentOutcome,
 		hasMinorFlaw: input.resolution.hasMinorFlaw,
 		modeContribution: modeContributionText(input.resolution),
-		properties
+		properties,
+		slotFillsSnapshot: buildSlotFillsSnapshot(input.schematic, input.slotFills),
+		tuningSnapshot: { ...input.tuning },
+		experimentPulseResults: input.resolution.experimentPulseResults,
+		experimentScrapUnits: input.resolution.experimentScrapUnits,
+		resourceProvenance: buildResourceProvenance(input.schematic, input.slotFills, properties)
 	};
 }

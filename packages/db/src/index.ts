@@ -107,6 +107,11 @@ export {
 	type DrainDepositSpotOnClaimResult
 } from './queries/depositSpotYields.js';
 export {
+	cleanupScannerCraftPilotForSmoke,
+	deleteAllSmokePilotData,
+	seedScannerCraftPilotForSmoke
+} from './queries/smokeTestHelpers.js';
+export {
 	claimOpenThumperRunForPilot,
 	deployThumperRunWithEventWindows,
 	type ClaimResourceReward,

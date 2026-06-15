@@ -1,10 +1,12 @@
 import {
 	BLOOM_ONE_ID,
+	cleanupScannerCraftPilotForSmoke as cleanupScannerCraftPilot,
 	createDb,
 	fastForwardOpenThumperRunToClaimable,
 	getBloomRecord,
 	getResourceInstanceByBloomSlug,
-	resetKethIronDepositSpotsForSmoke as resetKethIronDepositSpots
+	resetKethIronDepositSpotsForSmoke as resetKethIronDepositSpots,
+	seedScannerCraftPilotForSmoke as seedScannerCraftPilot
 } from '@async-frontier-mmo/db';
 import { TUTORIAL_DEPLOY_RESOURCE_SLUG } from '@async-frontier-mmo/domain';
 
@@ -18,9 +20,13 @@ function requireDatabaseUrl(): string {
 	return url;
 }
 
+function smokeDb() {
+	return createDb(requireDatabaseUrl());
+}
+
 /** Shared bloom spots drain across pilots — reset Keth before each path run. */
 export async function resetKethIronDepositSpotsForSmoke(): Promise<void> {
-	const db = createDb(requireDatabaseUrl());
+	const db = smokeDb();
 	const bloom = await getBloomRecord(db, BLOOM_ONE_ID);
 	const generationSeed = bloom?.generationSeed ?? `red-mesa-bloom-${BLOOM_ONE_ID}`;
 	const instance = await getResourceInstanceByBloomSlug(
@@ -43,6 +49,14 @@ export async function resetKethIronDepositSpotsForSmoke(): Promise<void> {
 }
 
 export async function fastForwardOpenRunToClaimable(pilotId: string): Promise<void> {
-	const db = createDb(requireDatabaseUrl());
+	const db = smokeDb();
 	await fastForwardOpenThumperRunToClaimable(db, pilotId);
+}
+
+export async function seedScannerCraftPilotForSmoke(pilotId: string): Promise<void> {
+	await seedScannerCraftPilot(smokeDb(), pilotId);
+}
+
+export async function cleanupScannerCraftPilotForSmoke(pilotId: string): Promise<void> {
+	await cleanupScannerCraftPilot(smokeDb(), pilotId);
 }

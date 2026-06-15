@@ -4,6 +4,7 @@ import {
 	craftSchematicForPilot,
 	craftSurveyScannerForPilot,
 	ensureStarterThumperPartsForPilot,
+	equipScannerItemForPilot,
 	equipThumperPartForPilot,
 	getSettlementMilestoneUnlockedAt,
 	listThumperPartItemsForPilot
@@ -15,18 +16,29 @@ import {
 	THUMPER_CHASSIS_ASSEMBLY,
 	thumperPartSlotForSchematic,
 	validateChassisAssembly,
-	type OwnedThumperPart
+	type OwnedThumperPart,
+	type ThumperPartSlot
 } from '@async-frontier-mmo/domain';
 import { fail } from '@sveltejs/kit';
+import { buildWorkshopCraftOutcome } from '$lib/server/craftOutcome';
 import { getGameDb } from '$lib/server/gameDb';
 import { requirePlayablePilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
 import {
 	trackCraftCommitted,
+	trackCraftResultAbandoned,
+	trackCraftResultCompareClicked,
+	trackCraftResultCraftAnotherClicked,
+	trackCraftResultInstallConfirmed,
+	trackCraftResultPulseViewed,
+	trackCraftResultRevealSeen,
+	trackItemEquipped,
+	trackOverdriveCritScrapSeen,
 	trackRigAssembled,
 	trackWorkshopViewed,
 	trackWorkshopStationViewed
 } from '$lib/server/playtestTelemetry';
+import { isRigEquipmentLocked, RIG_EQUIPMENT_LOCKED_MESSAGE } from '$lib/server/rigEquipmentLock';
 import {
 	advanceTutorialStepIf,
 	maybeAdvanceToFirstDeployAfterRigAssembly
@@ -69,6 +81,28 @@ async function workshopData(
 		options?.rigAssembled ??
 		(await countPlaytestEventsByName(db, pilotId, 'rig_assembled')) > 0;
 	return loadWorkshopScreen(db, pilotId, url, { rigAssembled });
+}
+
+function parseThumperSlot(value: FormDataEntryValue | null): ThumperPartSlot | null {
+	if (value === 'hull' || value === 'drill' || value === 'pump') {
+		return value;
+	}
+	return null;
+}
+
+async function rejectEquipmentChangeIfLocked(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string,
+	url: URL
+) {
+	if (!(await isRigEquipmentLocked(db, pilotId))) {
+		return null;
+	}
+
+	return fail(400, {
+		message: RIG_EQUIPMENT_LOCKED_MESSAGE,
+		...(await workshopData(db, pilotId, url))
+	});
 }
 
 export const load: PageServerLoad = async (event) => {
@@ -173,14 +207,130 @@ export const actions: Actions = {
 			itemDisplayName: outcome.item.displayName
 		});
 
+		const craftOutcome = await buildWorkshopCraftOutcome(db, pilotId, {
+			schematic,
+			status: outcome.status,
+			item: outcome.item,
+			explanation: outcome.explanation
+		});
+
+		await trackCraftResultRevealSeen(db, pilotId, {
+			schematicId: schematic.id,
+			itemId: outcome.item.id,
+			craftMode
+		});
+
+		if ((craftOutcome.explanation.experimentScrapUnits ?? 0) > 0) {
+			await trackOverdriveCritScrapSeen(db, pilotId, {
+				schematicId: schematic.id,
+				itemId: outcome.item.id,
+				scrapUnits: craftOutcome.explanation.experimentScrapUnits
+			});
+		}
+
 		return {
-			craftOutcome: {
-				status: outcome.status,
-				item: outcome.item,
-				explanation: outcome.explanation
-			},
+			craftOutcome,
 			...(await workshopData(db, pilotId, event.url))
 		};
+	},
+
+	installCraftedItem: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+		const locked = await rejectEquipmentChangeIfLocked(db, pilotId, event.url);
+		if (locked) return locked;
+
+		const formData = await event.request.formData();
+		const itemId = formData.get('itemId');
+		const installKind = formData.get('installKind');
+
+		if (typeof itemId !== 'string') {
+			return fail(400, {
+				message: 'Pick an item to install',
+				...(await workshopData(db, pilotId, event.url))
+			});
+		}
+
+		if (installKind === 'scanner') {
+			const outcome = await equipScannerItemForPilot(db, { pilotId, itemId });
+			if (outcome.status === 'invalid') {
+				return fail(400, {
+					message: outcome.reason,
+					...(await workshopData(db, pilotId, event.url))
+				});
+			}
+
+			await trackItemEquipped(db, pilotId, {
+				itemKind: 'scanner',
+				displayName: outcome.item.displayName
+			});
+			await trackCraftResultInstallConfirmed(db, pilotId, {
+				itemId,
+				installKind: 'scanner'
+			});
+
+			return workshopData(db, pilotId, event.url);
+		}
+
+		const slot = parseThumperSlot(formData.get('slot'));
+		if (!slot || installKind !== 'thumper_part') {
+			return fail(400, {
+				message: 'Pick a valid install target',
+				...(await workshopData(db, pilotId, event.url))
+			});
+		}
+
+		const outcome = await equipThumperPartForPilot(db, { pilotId, slot, itemId });
+		if (outcome.status === 'invalid') {
+			return fail(400, {
+				message: outcome.reason,
+				...(await workshopData(db, pilotId, event.url))
+			});
+		}
+
+		if (outcome.status === 'equipped') {
+			await trackItemEquipped(db, pilotId, {
+				itemKind: 'thumper_part',
+				displayName: outcome.item.displayName,
+				slot
+			});
+			await trackCraftResultInstallConfirmed(db, pilotId, {
+				itemId,
+				installKind: 'thumper_part',
+				slot
+			});
+		}
+
+		return workshopData(db, pilotId, event.url);
+	},
+
+	craftRevealTelemetry: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+
+		const formData = await event.request.formData();
+		const telemetryEvent = formData.get('telemetryEvent');
+		const itemId = formData.get('itemId');
+		const schematicId = formData.get('schematicId');
+
+		const payload = {
+			...(typeof itemId === 'string' ? { itemId } : {}),
+			...(typeof schematicId === 'string' ? { schematicId } : {})
+		};
+
+		if (telemetryEvent === 'craft_result_compare_clicked') {
+			await trackCraftResultCompareClicked(db, pilotId, payload);
+		} else if (telemetryEvent === 'craft_result_craft_another_clicked') {
+			await trackCraftResultCraftAnotherClicked(db, pilotId, payload);
+		} else if (telemetryEvent === 'craft_result_pulse_viewed') {
+			await trackCraftResultPulseViewed(db, pilotId, payload);
+		} else if (telemetryEvent === 'craft_result_abandoned') {
+			await trackCraftResultAbandoned(db, pilotId, payload);
+		}
+
+		return { ok: true };
 	},
 
 	assembleRig: async (event) => {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import {
 		previewCraftProperties,
@@ -13,7 +14,6 @@
 		TUNING_POINTS_TOTAL,
 		canFillSlotWithStack,
 		type CraftMode,
-		type PropertyOutputBand,
 		type ExperimentPulse,
 		type ExperimentPushSize
 	} from '@async-frontier-mmo/domain';
@@ -21,6 +21,8 @@
 	import SlotSelector from './SlotSelector.svelte';
 	import TuningPanel from './TuningPanel.svelte';
 	import PropertyPreview from './PropertyPreview.svelte';
+	import CraftResultReveal from './CraftResultReveal.svelte';
+	import type { WorkshopCraftOutcome } from '$lib/server/craftOutcome';
 
 	interface InventoryStack {
 		resourceInstanceId: string;
@@ -52,37 +54,12 @@
 		};
 	}
 
-	interface CraftOutcome {
-		status: string;
-		item: {
-			id: string;
-			displayName: string;
-			condition: number;
-			integrity: number;
-			hasMinorFlaw: boolean;
-		};
-		explanation: {
-			summary: string;
-			modeContribution: string;
-			properties: Array<{
-				displayName: string;
-				propertyId: string;
-				finalScore: number;
-				finalBand: string;
-				baseScore: number;
-				tunedScore: number;
-				tuningPoints: number;
-				drivers: Array<{ label: string; statValue: number; weightPercent: number }>;
-			}>;
-		};
-	}
-
 	interface Props {
 		schematic: SchematicDefinition;
 		inventory: InventoryStack[];
 		allocationHints: AllocationHint[];
 		defaultSelections?: Record<string, string>;
-		craftOutcome?: CraftOutcome | null;
+		craftOutcome?: WorkshopCraftOutcome | null;
 		schematicReadiness: SchematicReadinessAnalysis;
 		onCelebrateDismiss?: () => void;
 	}
@@ -107,9 +84,9 @@
 	let craftMode = $state<CraftMode>('safe_craft');
 	let idempotencyKey = $state(generateIdempotencyKey());
 	let crafting = $state(false);
-	let showResult = $state(false);
+	let benchReady = $state(false);
+	let lockedCraftReveal = $state<WorkshopCraftOutcome | null>(null);
 	let lastCraftedKey = $state<string | null>(null);
-	let resultPanelEl = $state<HTMLElement | null>(null);
 
 	// Track resource changes for delta animation
 	let previousSlotFills = $state<SchematicSlotFill[] | null>(null);
@@ -137,6 +114,22 @@
 	}
 
 	let experimentPulses = $state<ExperimentPulse[]>([]);
+	let boundSchematicId = $state<string | null>(null);
+
+	// Reset bench state only when the schematic changes — not on every defaultSelections refresh.
+	$effect(() => {
+		if (boundSchematicId === schematic.id) {
+			return;
+		}
+
+		boundSchematicId = schematic.id;
+		slotSelections = { ...defaultSelections };
+		tuning = {};
+		lockedCraftReveal = null;
+		lastCraftedKey = null;
+		experimentPulses = defaultExperimentPulses(schematic);
+		// idempotencyKey and craftMode persist per-page-load intentionally
+	});
 
 	function setPulseProperty(index: number, propertyId: string) {
 		experimentPulses = experimentPulses.map((pulse, pulseIndex) =>
@@ -149,18 +142,6 @@
 			pulseIndex === index ? { ...pulse, push } : pulse
 		);
 	}
-
-	// Reset state when schematic changes (fixes state_referenced_locally warnings)
-	$effect(() => {
-		const schematicId = schematic.id;
-		const selections = { ...defaultSelections };
-		// Batch state updates — tuning starts empty; player spends the 3-point pool manually
-		slotSelections = selections;
-		tuning = {};
-		showResult = false;
-		experimentPulses = defaultExperimentPulses(schematic);
-		// idempotencyKey and craftMode persist per-page-load intentionally
-	});
 
 	function generateIdempotencyKey(): string {
 		return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -217,8 +198,10 @@
 		}
 	});
 
-	// Drop slot picks that no longer have enough quantity (e.g. after a prior craft).
+	// Drop slot picks that no longer have enough quantity — but not while the craft reveal is frozen.
 	$effect(() => {
+		if (lockedCraftReveal) return;
+
 		let changed = false;
 		const nextSelections = { ...slotSelections };
 
@@ -247,43 +230,27 @@
 		}
 	});
 
-	// When form returns a craft outcome, show it inline and scroll it into view
+	// Freeze craft reveal until the player explicitly resets — inventory refresh must not clear it.
 	$effect(() => {
 		if (craftOutcome && craftOutcome.item.id !== lastCraftedKey) {
-			showResult = true;
+			lockedCraftReveal = craftOutcome;
 			lastCraftedKey = craftOutcome.item.id;
 		}
 	});
 
-	$effect(() => {
-		if (!showResult || !craftOutcome || !resultPanelEl) return;
-		const prefersReducedMotion =
-			typeof window !== 'undefined' &&
-			window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		requestAnimationFrame(() => {
-			resultPanelEl?.scrollIntoView({
-				behavior: prefersReducedMotion ? 'auto' : 'smooth',
-				block: 'start'
-			});
-		});
-	});
-
 	function handleSlotSelect(slotId: string, instanceId: string) {
+		if (lockedCraftReveal) return;
 		slotSelections = { ...slotSelections, [slotId]: instanceId };
-		// Hide result when inputs change
-		showResult = false;
 	}
 
 	function handleTuningChange(propertyId: string, points: number) {
+		if (lockedCraftReveal) return;
 		tuning = { ...tuning, [propertyId]: points };
-		// Hide result when inputs change
-		showResult = false;
 	}
 
 	function handleModeChange(mode: CraftMode) {
+		if (lockedCraftReveal) return;
 		craftMode = mode;
-		// Hide result when inputs change
-		showResult = false;
 	}
 
 	function getTotalTuningPoints(): number {
@@ -298,7 +265,8 @@
 
 	function craftAnother() {
 		idempotencyKey = generateIdempotencyKey();
-		showResult = false;
+		lockedCraftReveal = null;
+		// Keep lastCraftedKey so stale action data cannot reopen the dismissed reveal.
 		tuning = {};
 		onCelebrateDismiss?.();
 	}
@@ -306,77 +274,27 @@
 	const handleSubmit: SubmitFunction = () => {
 		crafting = true;
 		return async ({ update }) => {
-			// CRITICAL: reset: false prevents scroll jump; invalidateAll defaults to true so inventory refreshes
 			await update({ reset: false });
 			crafting = false;
-			// Generate new key for next craft attempt
-			idempotencyKey = generateIdempotencyKey();
 		};
 	};
 
-	function formatBand(band: PropertyOutputBand): string {
-		return band.replace(/_/g, ' ');
-	}
+	onMount(() => {
+		benchReady = true;
+	});
 </script>
 
-<div class="workshop-bench panel">
+<div class="workshop-bench panel" data-workshop-ready={benchReady ? 'true' : undefined}>
 	<SchematicDiagram
 		title={schematic.displayName}
 		slots={schematic.slots.map((slot) => ({ id: slot.id, displayName: slot.displayName }))}
 	/>
-	{#if showResult && craftOutcome}
-		<div bind:this={resultPanelEl} class="result-panel flash flash--success" id="craft-result">
-			<div class="result-header">
-				<h3>You crafted: {craftOutcome.item.displayName}</h3>
-				{#if craftOutcome.item.hasMinorFlaw}
-					<span class="flaw-badge">Minor Flaw</span>
-				{/if}
-			</div>
-
-			<div class="result-summary">
-				<p class="summary-text">{craftOutcome.explanation.summary}</p>
-				<p class="mode-text">{craftOutcome.explanation.modeContribution}</p>
-			</div>
-
-			<div class="property-results">
-				{#each craftOutcome.explanation.properties as prop}
-					<div class="property-result">
-						<div class="result-line-header">
-							<span class="prop-name">{prop.displayName}</span>
-							<span class="prop-score {prop.finalBand}">
-								{Math.round(prop.finalScore)} <span class="band-label">({prop.finalBand})</span>
-							</span>
-						</div>
-						<div class="result-breakdown">
-							<span class="breakdown-base">Base {Math.round(prop.baseScore)}</span>
-							{#if prop.tuningPoints > 0}
-								<span class="breakdown-arrow">→</span>
-								<span class="breakdown-tuned">Tuned {Math.round(prop.tunedScore)}</span>
-								<span class="breakdown-tuning">(+{prop.tuningPoints}pt)</span>
-							{/if}
-							{#if prop.finalScore !== prop.tunedScore}
-								<span class="breakdown-arrow">→</span>
-								<span class="breakdown-final">Final {Math.round(prop.finalScore)}</span>
-							{/if}
-						</div>
-						<div class="top-driver">
-							Top driver: {prop.drivers[0]?.label} ({prop.drivers[0]?.statValue}, {prop.drivers[0]?.weightPercent}% weight)
-						</div>
-					</div>
-				{/each}
-			</div>
-
-			<div class="condition-display">
-				Condition {craftOutcome.item.condition}% · Integrity {craftOutcome.item.integrity}%
-			</div>
-
-			<div class="result-actions">
-				<p class="result-note">Item crafted — equip it from RIG.</p>
-				<button type="button" class="craft-another-btn" onclick={craftAnother}>
-					Craft another
-				</button>
-			</div>
-		</div>
+	{#if lockedCraftReveal}
+		<CraftResultReveal
+			{schematic}
+			craftOutcome={lockedCraftReveal}
+			onCraftAnother={craftAnother}
+		/>
 	{:else if !schematicReadiness.craftableNow}
 		<div class="blockers-panel" role="alert">
 			<h3>Can't craft yet</h3>
@@ -403,7 +321,7 @@
 					Each slot shows stats that matter for this schematic. Compare cards to see tradeoffs.
 				</p>
 
-				{#each schematic.slots as slot}
+				{#each schematic.slots as slot (slot.id)}
 					{@const stacks = stacksForFamily(slot.requiredFamily)}
 					{@const slotReadiness = readinessForSlot(slot.id)}
 				<SlotSelector
@@ -764,208 +682,6 @@
 		opacity: 0.6;
 		cursor: not-allowed;
 		background: var(--bg-inset);
-	}
-
-	/* Result Panel */
-	.result-panel {
-		border-width: 2px;
-	}
-
-	.result-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-	}
-
-	.result-header h3 {
-		margin: 0;
-		font-size: 1.15rem;
-	}
-
-	.flaw-badge {
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		padding: 0.25rem 0.5rem;
-		background: var(--accent-danger);
-		color: var(--bg-base);
-		border-radius: 4px;
-		font-weight: 600;
-	}
-
-	.result-summary {
-		background: var(--phosphor-glow);
-		padding: 0.75rem;
-		border-radius: 6px;
-		margin-bottom: 1rem;
-		border: 1px solid rgba(74, 222, 128, 0.3);
-	}
-
-	.summary-text {
-		margin: 0 0 0.5rem 0;
-		font-weight: 500;
-		color: var(--text-bright);
-	}
-
-	.mode-text {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--text-secondary);
-	}
-
-	.property-results {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		margin-bottom: 1rem;
-	}
-
-	.property-result {
-		background: var(--bg-panel);
-		padding: 0.75rem;
-		border-radius: 6px;
-		border: 1px solid var(--border-subtle);
-	}
-
-	.result-line-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 0.5rem;
-	}
-
-	.prop-name {
-		font-weight: 600;
-		font-size: 0.95rem;
-	}
-
-	.prop-score {
-		font-weight: 700;
-		text-transform: uppercase;
-		font-size: 0.85rem;
-	}
-
-	.band-label {
-		text-transform: lowercase;
-		font-weight: 500;
-		opacity: 0.8;
-	}
-
-	.prop-score.poor { color: var(--text-muted); }
-	.prop-score.basic { color: var(--text-secondary); }
-	.prop-score.solid { color: var(--accent-warning); }
-	.prop-score.strong { color: var(--phosphor); }
-	.prop-score.excellent { color: var(--phosphor); }
-	.prop-score.exceptional { color: #a78bfa; }
-
-	.result-breakdown {
-		display: flex;
-		gap: 0.5rem;
-		font-size: 0.85rem;
-		color: var(--text-muted);
-		margin-bottom: 0.25rem;
-		flex-wrap: wrap;
-	}
-
-	.breakdown-base {
-		color: var(--text-muted);
-	}
-
-	.breakdown-arrow {
-		color: var(--border-subtle);
-	}
-
-	.breakdown-tuned {
-		color: var(--phosphor);
-		font-weight: 500;
-	}
-
-	.breakdown-tuning {
-		color: var(--text-muted);
-		font-size: 0.8rem;
-	}
-
-	.breakdown-final {
-		color: var(--text-bright);
-		font-weight: 600;
-	}
-
-	.top-driver {
-		font-size: 0.8rem;
-		color: var(--text-muted);
-		font-style: italic;
-	}
-
-	.condition-display {
-		font-size: 0.9rem;
-		color: var(--text-secondary);
-		margin-bottom: 1rem;
-		padding: 0.5rem;
-		background: var(--bg-inset);
-		border-radius: 4px;
-		border: 1px solid var(--border-subtle);
-	}
-
-	.result-panel {
-		scroll-margin-top: 1rem;
-	}
-
-	.result-actions {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.result-note {
-		margin: 0;
-		font-size: 0.9rem;
-		color: var(--text-secondary);
-	}
-
-	.equip-now-btn {
-		width: 100%;
-		padding: 0.875rem;
-		background: var(--phosphor);
-		color: #0f0f0f;
-		border: none;
-		border-radius: 6px;
-		font-size: 0.95rem;
-		cursor: pointer;
-		font-weight: 600;
-	}
-
-	.equip-now-btn:hover {
-		filter: brightness(1.08);
-	}
-
-	.craft-another-btn {
-		width: 100%;
-		padding: 0.875rem;
-		background: var(--bg-hover);
-		color: var(--text-primary);
-		border: 1px solid var(--border-subtle);
-		border-radius: 6px;
-		font-size: 0.95rem;
-		cursor: pointer;
-		transition: background 0.15s ease;
-		font-weight: 500;
-	}
-
-	.craft-another-btn:hover {
-		background: var(--bg-inset);
-	}
-
-	@media (min-width: 480px) {
-		.result-actions {
-			flex-direction: row;
-		}
-
-		.equip-now-btn,
-		.craft-another-btn {
-			flex: 1;
-		}
 	}
 
 	@media (min-width: 640px) {

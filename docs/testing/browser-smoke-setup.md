@@ -22,7 +22,8 @@ Copy `apps/web/.env.example` to `apps/web/.env` (or use `packages/db/.env`). Pat
 |--------|----------------|
 | `pnpm --filter web smoke:browser` | Quick layout smoke only (`chromium` + `mobile`) — **no DB required** |
 | `pnpm --filter web smoke:browser:path` | End-to-end first-session path — **fails fast** if `DATABASE_URL` is unset |
-| `pnpm --filter web smoke:browser:gate` | Layout + path — **fails fast** if `DATABASE_URL` is unset (release gate; runs **serially**, one worker) |
+| `pnpm --filter web smoke:browser:craft-reveal` | Fabricator craft reveal path — **fails fast** if `DATABASE_URL` is unset |
+| `pnpm --filter web smoke:browser:gate` | Layout + path + craft reveal — **fails fast** if `DATABASE_URL` is unset (release gate; runs **serially**, one worker) |
 
 Playwright `baseURL` and the smoke pilot cookie both use `http://127.0.0.1:5173` (override with `PLAYWRIGHT_BASE_URL`).
 
@@ -53,6 +54,35 @@ pnpm --filter web smoke:browser:path
 5. Recall / patch / second deploy / async 15m → `.reserve-notice` hull plate first copy
 
 Path smoke resets shared Keth Iron deposit yields in `beforeAll` (spots drain across pilots). Restart `pnpm dev` if the server was running before pulling these changes.
+
+## What craft-reveal smoke covers
+
+`craft-reveal.smoke.spec.ts` (project `chromium-craft-reveal`) walks:
+
+1. Seeded pilot with fabricator unlocked and scanner materials in inventory
+2. Workshop slot picks via stable `data-testid` hooks (`workshop-stack-{slotId}-{slug}`)
+3. Tuning + experiment craft → frozen `CraftResultReveal` overlay
+4. Compare for RIG → Keep current → Craft another dismisses reveal
+
+Requires `DATABASE_URL`. Uses `deleteAllSmokePilotData` for teardown (all pilot FK tables).
+
+## Playwright project layout
+
+| Project | Specs | DB |
+|---------|-------|-----|
+| `chromium` | Layout smoke | No |
+| `mobile` | Layout smoke (Pixel 7) | No |
+| `chromium-path` | `first-session-path.smoke.spec.ts` | Yes |
+| `chromium-craft-reveal` | `craft-reveal.smoke.spec.ts` | Yes |
+
+DB smokes run in a **dedicated project** (not mobile) so layout and timing stay predictable.
+
+## Smoke test conventions
+
+- **Pilot cookie:** `seedPilotCookie(context, pilotId, baseURL)` — always pass Playwright's `baseURL` fixture so the cookie matches the dev server port.
+- **Slot selection:** prefer `data-testid="workshop-stack-{slotId}-{resourceSlug}"` and assert `aria-pressed="true"` plus hidden `input[name="slot_{slotId}"]` value — not CSS `.selected` alone.
+- **Hydration:** wait for `.workshop-bench[data-workshop-ready]` (set in `WorkshopBench` `onMount`) before clicking slot cards — SSR renders the bench before Svelte attaches handlers.
+- **Cleanup:** use `cleanupScannerCraftPilotForSmoke` / `deleteAllSmokePilotData` from `@async-frontier-mmo/db` — do not delete pilots inline in web tests.
 
 ## Domain-only gate
 
