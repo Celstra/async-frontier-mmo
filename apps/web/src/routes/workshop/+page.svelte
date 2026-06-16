@@ -72,7 +72,6 @@
 					<WorkshopBench
 						schematic={data.schematicDefinition}
 						inventory={data.inventory}
-						allocationHints={data.allocationHints}
 						defaultSelections={data.slotSelections}
 						{craftOutcome}
 						schematicReadiness={data.schematicReadiness}

@@ -39,25 +39,9 @@
 		};
 	}
 
-	interface AllocationHint {
-		resourceInstanceId: string;
-		displayName: string;
-		quantity: number;
-		bestUse: string;
-		otherUses: string[];
-		stats: {
-			OQ: number;
-			conductivity: number;
-			hardness: number;
-			heat_resistance: number;
-			malleability: number;
-		};
-	}
-
 	interface Props {
 		schematic: SchematicDefinition;
 		inventory: InventoryStack[];
-		allocationHints: AllocationHint[];
 		defaultSelections?: Record<string, string>;
 		craftOutcome?: WorkshopCraftOutcome | null;
 		schematicReadiness: SchematicReadinessAnalysis;
@@ -67,7 +51,6 @@
 	let {
 		schematic,
 		inventory,
-		allocationHints,
 		defaultSelections = {},
 		craftOutcome,
 		schematicReadiness,
@@ -426,7 +409,8 @@
 			<section class="slots-section">
 				<h3>Choose Resources</h3>
 				<p class="section-help">
-					Each slot shows stats that matter for this schematic. Compare cards to see tradeoffs.
+					Each stack shows its full stat profile. Fill every slot, then use the property preview below
+					to judge the outcome before you craft.
 				</p>
 
 				{#each schematic.slots as slot (slot.id)}
@@ -436,13 +420,9 @@
 					{schematic}
 					{slot}
 					{stacks}
-					hints={allocationHints}
 					allSlotSelections={slotSelections}
 					selectedInstanceId={slotSelections[slot.id] ?? null}
 					onSelect={(id) => handleSlotSelect(slot.id, id)}
-					currentSlotFills={slotFills}
-					{tuning}
-					{livePreview}
 					{slotReadiness}
 				/>
 					<input

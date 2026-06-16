@@ -90,7 +90,7 @@
 		</p>
 		<p class="supply-panel__hint">
 			Craft milestone: {supply.craftCountSinceCrate}/{supply.craftCountCrateInterval}
-			{#if craftsUntilMilestone() > 0}
+			{#if (craftsUntilMilestone() > 0)}
 				· {craftsUntilMilestone()} craft{craftsUntilMilestone() === 1 ? '' : 's'} until bonus crate
 			{:else}
 				· milestone crate due on next completed craft

@@ -7,7 +7,6 @@ import {
 import {
 	analyzeSchematicReadiness,
 	BASIC_DRILL_HEAD,
-	buildResourceAllocationHints,
 	canCraftAnyWorkshopThumperPart,
 	deemphasizedStatsForSlotFamily,
 	EFFICIENT_PUMP,
@@ -112,7 +111,6 @@ export type WorkshopScreenData = {
 	schematic: ReturnType<typeof schematicToWorkshopUi> | null;
 	schematicDefinition: SchematicDefinition | null;
 	inventory: Awaited<ReturnType<typeof loadInventoryWithStats>>;
-	allocationHints: ReturnType<typeof buildResourceAllocationHints>;
 	slotSelections: Record<string, string>;
 	tuning: TuningAllocation;
 	tuningTotal: number;
@@ -484,10 +482,6 @@ export async function loadWorkshopScreen(
 
 	const schematicDefinition = selectedSchematicId ? schematicById(selectedSchematicId) : null;
 	const schematic = schematicDefinition ? schematicToWorkshopUi(schematicDefinition) : null;
-	const allocationHints = buildResourceAllocationHints(
-		[...WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS],
-		inventory
-	);
 	const slotSelections =
 		schematicDefinition !== null
 			? parseSlotSelections(schematicDefinition, url.searchParams)
@@ -540,7 +534,6 @@ export async function loadWorkshopScreen(
 		schematic,
 		schematicDefinition,
 		inventory,
-		allocationHints,
 		slotSelections,
 		tuning,
 		tuningTotal,
