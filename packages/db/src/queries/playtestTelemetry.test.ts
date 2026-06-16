@@ -7,7 +7,9 @@ import {
 	countPlaytestEventsByName,
 	listPlaytestEventsForPilot,
 	recordPlaytestEvent,
-	recordPlaytestEventOnce
+	recordPlaytestEventOnce,
+	recordCraftStartedOnce,
+	recordSupplyCrateAvailableOnce
 } from './playtestTelemetry.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -72,5 +74,39 @@ describeDb('playtest telemetry', () => {
 		expect(
 			events.filter((event) => event.eventName === 'resource_stats_inspected')
 		).toHaveLength(2);
+	});
+
+	it('records craft_started once per pilot and idempotency key', async () => {
+		const idempotencyKey = `craft-key-${Date.now()}`;
+		const payload = {
+			schematicId: 'basic_drill_head',
+			craftMode: 'safe_craft',
+			idempotencyKey
+		};
+
+		const first = await recordCraftStartedOnce(db, { pilotId: testPilotId, payload });
+		const second = await recordCraftStartedOnce(db, { pilotId: testPilotId, payload });
+
+		expect(first).toBe(true);
+		expect(second).toBe(false);
+		expect(await countPlaytestEventsByName(db, testPilotId, 'craft_started')).toBe(1);
+	});
+
+	it('records supply_crate_available once per pilot and crate id', async () => {
+		const crateId = `crate-${Date.now()}`;
+		const payload = { crateId, reason: 'timer', sequence: 1 };
+
+		const first = await recordSupplyCrateAvailableOnce(db, {
+			pilotId: testPilotId,
+			payload
+		});
+		const second = await recordSupplyCrateAvailableOnce(db, {
+			pilotId: testPilotId,
+			payload
+		});
+
+		expect(first).toBe(true);
+		expect(second).toBe(false);
+		expect(await countPlaytestEventsByName(db, testPilotId, 'supply_crate_available')).toBe(1);
 	});
 });

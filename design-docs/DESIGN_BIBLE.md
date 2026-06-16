@@ -1043,3 +1043,9 @@ Question (Ryan's correction): repair must not be a generic instant full restore.
 ### R5 — SWG Pre-CU Resource/Crafting Verdict
 
 Question: was SWG's resource/crafting economy the failed part of SWG? Conclusion: **no** — it was among its most praised systems, creating real player roles (surveyor, harvester, crafter, shopkeeper, trader) and named-resource history/markets. SWG's failures were combat, content cadence, bugs, and redesigns. Pitfalls to avoid when adapting: opacity, complexity walls, high-end crafter dominance, low loot excitement for non-crafters, missing high-end sinks, and database/event-volume traps. Fit verdict: Farm RPG for scope discipline, SWG Pre-CU for the rotating named-resource economy, Firefall for extraction-event fantasy. Variable thumpers with degrading craftable parts create a self-sustaining loop but must launch small.
+
+---
+
+## Active Rollout Target Note
+
+As of 2026-06-16, Decision 024 supersedes Decision 022 as the current playtest target. The next build starts in WORKSHOP, grants low-to-mid bench stock and the three thumper-part schematics, and keeps FIELD / RIG / SETTLEMENT in development until crafting is proven fun on its own. See `WORKSHOP_FIRST_CRAFTING_SLICE_SPEC.md`.

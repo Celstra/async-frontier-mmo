@@ -1,8 +1,21 @@
 import { getPilotTutorialStep } from '@async-frontier-mmo/db';
 import type { getGameDb } from './gameDb.js';
+import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 
-/** Root `/` — new pilots land on SETTLEMENT; deploy beats route to FIELD or WORKSHOP. */
+/** Root `/` — Decision 024 pilots land on WORKSHOP. */
 export async function resolveRootRedirect(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string
+): Promise<string> {
+	if (WORKSHOP_SLICE_PLAYTEST) {
+		return '/workshop';
+	}
+
+	return resolveLegacyRootRedirect(db, pilotId);
+}
+
+/** Pre-Decision 024 tutorial funnel (restored when WORKSHOP_SLICE_PLAYTEST is false). */
+export async function resolveLegacyRootRedirect(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string
 ): Promise<string> {

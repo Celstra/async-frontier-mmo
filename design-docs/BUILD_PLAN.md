@@ -1363,3 +1363,9 @@ Roll distribution (uniform assumed; skewing low makes high quality rarer), famil
 **`run_duration_sim.py`** (Decision 017): three time models × three archetypes over 14 days. Pure short runs → 8.8:1 active:casual net (inflationary). Pure 4 h timers → 2.5:1 but active players can use only 10% of their playtime (tedium). Locked hybrid → **2.3:1**, casual 1.5 crafts/day, active 3.5, wear sink scaling 9%→20% with run frequency. Reward target band: 2–3:1, edge from prospecting skill and attention.
 
 **Allocation simulation** (Decision 021): on the nine-resource seed bloom, every slot context has a winner and seven of nine resources win at least one (Keth Iron and Glimmerfall Shard are the intended bulk archetypes). Monte Carlo with 3 resources/family and 016+021 weights (8,000 blooms): median best craft 86.1, exciting 58.2%, mediocre 0.8%, floor 0.00%, and a CM allocation decision exists in **87.8%** of blooms. Orphan family-stat combinations drop from 7 to 5. Knob if peaks feel too common at Stage 4: skew the stat roll distribution low.
+
+---
+
+## Active Rollout Target Note
+
+As of 2026-06-16, Decision 024 / `WORKSHOP_FIRST_CRAFTING_SLICE_SPEC.md` supersedes Decision 022 for the next playtest. The active build target starts in WORKSHOP, disables FIELD / RIG / SETTLEMENT as in-development screens, and proves repeated crafting with low-to-mid bench resources before restoring the field loop.

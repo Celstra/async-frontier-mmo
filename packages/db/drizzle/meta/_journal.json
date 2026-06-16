@@ -225,6 +225,20 @@
       "when": 1783900000000,
       "tag": "0031_thumper_run_result_acknowledged",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784000000000,
+      "tag": "0032_workshop_slice",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784100000000,
+      "tag": "0033_playtest_supply_crate_dedupe",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { WorkshopSchematicRow } from '$lib/server/workshopLoad';
-	import { THUMPER_CHASSIS_ASSEMBLY } from '@async-frontier-mmo/domain';
 
 	interface Props {
 		schematics: WorkshopSchematicRow[];
@@ -12,7 +11,6 @@
 
 	function readinessLabel(row: WorkshopSchematicRow): string {
 		if (row.craftableNow) return 'Ready';
-		if (row.id === THUMPER_CHASSIS_ASSEMBLY.id) return 'Needs parts';
 		return 'Missing materials';
 	}
 </script>

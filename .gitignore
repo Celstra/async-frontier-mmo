@@ -24,3 +24,7 @@ yarn-error.log*
 .DS_Store
 .vscode/settings.json
 .idea/
+
+# Python
+__pycache__/
+*.py[cod]

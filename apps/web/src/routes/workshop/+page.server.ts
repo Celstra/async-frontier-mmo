@@ -1,108 +1,68 @@
 import {
-	countPlaytestEventsByName,
-	craftFieldRepairKitForPilot,
+	assertWorkshopBenchCraftInputs,
 	craftSchematicForPilot,
-	craftSurveyScannerForPilot,
-	ensureStarterThumperPartsForPilot,
-	equipScannerItemForPilot,
-	equipThumperPartForPilot,
-	getSettlementMilestoneUnlockedAt,
-	listThumperPartItemsForPilot
+	ensureWorkshopStarterGrantForPilot,
+	openWorkshopCrateForPilot,
+	reclaimWorkshopItemForPilot,
+	setItemFavoriteForPilot,
+	syncWorkshopSupplyCratesForPilot,
+	WorkshopBenchResourceValidationError,
+	WorkshopCrateNotFoundError,
+	WorkshopCrateUnavailableError,
+	WorkshopItemNotFoundError,
+	WorkshopReclaimValidationError,
+	WorkshopSliceItemValidationError
 } from '@async-frontier-mmo/db';
-import {
-	FIELD_REPAIR_KIT,
-	MVP_SCHEMATIC_BY_ID,
-	SURVEY_SCANNER_MK_I,
-	THUMPER_CHASSIS_ASSEMBLY,
-	thumperPartSlotForSchematic,
-	validateChassisAssembly,
-	type OwnedThumperPart,
-	type ThumperPartSlot
-} from '@async-frontier-mmo/domain';
+import { isWorkshopActiveSchematic } from '@async-frontier-mmo/domain';
 import { fail } from '@sveltejs/kit';
 import { buildWorkshopCraftOutcome } from '$lib/server/craftOutcome';
+import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 import { getGameDb } from '$lib/server/gameDb';
 import { requirePlayablePilot } from '$lib/server/pilotGate';
 import { resolvePilotId } from '$lib/server/pilot';
 import {
-	trackCraftCommitted,
 	trackCraftResultAbandoned,
-	trackCraftResultCompareClicked,
 	trackCraftResultCraftAnotherClicked,
-	trackCraftResultInstallConfirmed,
 	trackCraftResultPulseViewed,
 	trackCraftResultRevealSeen,
-	trackItemEquipped,
+	trackCraftStarted,
+	trackCraftCompleted,
+	trackExperimentPulseConfigured,
+	trackItemFavorited,
+	trackItemReclaimPreviewed,
+	trackItemReclaimed,
+	trackItemUnfavorited,
+	trackNoCraftableResourcesState,
 	trackOverdriveCritScrapSeen,
-	trackRigAssembled,
-	trackWorkshopViewed,
-	trackWorkshopStationViewed
-} from '$lib/server/playtestTelemetry';
-import { isRigEquipmentLocked, RIG_EQUIPMENT_LOCKED_MESSAGE } from '$lib/server/rigEquipmentLock';
-import {
-	advanceTutorialStepIf,
-	maybeAdvanceToFirstDeployAfterRigAssembly
-} from '$lib/server/tutorialOrchestration';
+	trackResourceSlotFilled,
+	trackResourceSlotReplaced,
+	trackResultCompared,
+	trackSchematicSelected,
+	trackStarterResourcesViewed,
+	trackSupplyCrateAvailable,
+	trackSupplyCrateOpened,
+	trackTuningChanged,
+	trackWorkshopSliceSessionStarted,
+	trackWorkshopStationViewed,
+	trackWorkshopViewed
+} from '$lib/server/workshopTelemetry';
 import {
 	loadWorkshopScreen,
 	parseCraftMode,
 	parseExperimentPulses,
 	parseSlotInstanceId,
-	parseTuningFromForm
+	parseTuningFromForm,
+	schematicByIdFromActiveSlice
 } from '$lib/server/workshopLoad';
 import type { Actions, PageServerLoad } from './$types';
 
-function thumperPartsFromInventory(
-	items: Awaited<ReturnType<typeof listThumperPartItemsForPilot>>
-): OwnedThumperPart[] {
-	return items.flatMap((item) => {
-		const slot = thumperPartSlotForSchematic(item.schematicId);
-		if (!slot) return [];
-		return [
-			{
-				itemId: item.id,
-				schematicId: item.schematicId,
-				displayName: item.displayName,
-				slot,
-				condition: item.condition,
-				integrity: item.integrity
-			}
-		];
-	});
-}
-
-async function workshopData(
-	db: ReturnType<typeof getGameDb>,
-	pilotId: string,
-	url: URL,
-	options?: { rigAssembled?: boolean }
-) {
-	const rigAssembled =
-		options?.rigAssembled ??
-		(await countPlaytestEventsByName(db, pilotId, 'rig_assembled')) > 0;
-	return loadWorkshopScreen(db, pilotId, url, { rigAssembled });
-}
-
-function parseThumperSlot(value: FormDataEntryValue | null): ThumperPartSlot | null {
-	if (value === 'hull' || value === 'drill' || value === 'pump') {
-		return value;
-	}
-	return null;
-}
-
-async function rejectEquipmentChangeIfLocked(
+async function refreshWorkshopScreen(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string,
 	url: URL
 ) {
-	if (!(await isRigEquipmentLocked(db, pilotId))) {
-		return null;
-	}
-
-	return fail(400, {
-		message: RIG_EQUIPMENT_LOCKED_MESSAGE,
-		...(await workshopData(db, pilotId, url))
-	});
+	await syncWorkshopSupplyCratesForPilot(db, pilotId);
+	return loadWorkshopScreen(db, pilotId, url);
 }
 
 export const load: PageServerLoad = async (event) => {
@@ -110,10 +70,37 @@ export const load: PageServerLoad = async (event) => {
 	const pilotId = resolvePilotId(event);
 	await requirePlayablePilot(db, pilotId);
 
-	let screen = await workshopData(db, pilotId, event.url);
-	if (screen.showChassisAssembly) {
-		await ensureStarterThumperPartsForPilot(db, pilotId);
-		screen = await workshopData(db, pilotId, event.url);
+	event.depends('workshop:supply');
+
+	await ensureWorkshopStarterGrantForPilot(db, pilotId);
+
+	const screen = await refreshWorkshopScreen(db, pilotId, event.url);
+
+	for (const crate of screen.supply.availableCrates) {
+		await trackSupplyCrateAvailable(db, pilotId, {
+			crateId: crate.id,
+			reason: crate.reason,
+			sequence: crate.sequence
+		});
+	}
+
+	await trackWorkshopSliceSessionStarted(db, pilotId);
+	await trackStarterResourcesViewed(db, pilotId, {
+		stackCount: screen.inventory.length,
+		totalUnits: screen.inventory.reduce((sum, stack) => sum + stack.quantity, 0),
+		stacks: screen.inventory.map((stack) => ({
+			resourceInstanceId: stack.resourceInstanceId,
+			resourceSlug: stack.resourceSlug,
+			family: stack.family,
+			quantity: stack.quantity,
+			stats: stack.stats
+		}))
+	});
+	if (screen.selectedSchematicId) {
+		await trackSchematicSelected(db, pilotId, { schematicId: screen.selectedSchematicId });
+	}
+	if (!screen.supply.canCraftAnyThumperPart) {
+		await trackNoCraftableResourcesState(db, pilotId);
 	}
 
 	await trackWorkshopViewed(db, pilotId, {
@@ -138,11 +125,15 @@ export const actions: Actions = {
 		const idempotencyKey = formData.get('idempotencyKey');
 		const craftMode = parseCraftMode(formData.get('craftMode'));
 
-		if (typeof schematicId !== 'string' || !MVP_SCHEMATIC_BY_ID[schematicId]) {
+		if (typeof schematicId !== 'string' || !isWorkshopActiveSchematic(schematicId)) {
 			return fail(400, { message: 'Invalid schematic' });
 		}
 
-		const schematic = MVP_SCHEMATIC_BY_ID[schematicId]!;
+		const schematic = schematicByIdFromActiveSlice(schematicId);
+		if (!schematic) {
+			return fail(400, { message: 'Invalid schematic' });
+		}
+
 		const tuning = parseTuningFromForm(schematic, formData);
 
 		if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
@@ -167,6 +158,21 @@ export const actions: Actions = {
 			return fail(400, { message: 'Every schematic slot must be filled' });
 		}
 
+		try {
+			await assertWorkshopBenchCraftInputs(
+				db,
+				slotInputs.map((slot) => slot!.resourceInstanceId)
+			);
+		} catch (error) {
+			if (error instanceof WorkshopBenchResourceValidationError) {
+				return fail(400, {
+					message: 'Workshop crafting requires bench stock resources',
+					...(await refreshWorkshopScreen(db, pilotId, event.url))
+				});
+			}
+			throw error;
+		}
+
 		const experimentPulses =
 			craftMode === 'careful_experiment'
 				? parseExperimentPulses(schematic, formData)
@@ -177,35 +183,29 @@ export const actions: Actions = {
 			});
 		}
 
-		const craftInput = {
+		await trackCraftStarted(db, pilotId, {
+			schematicId: schematic.id,
+			craftMode,
+			idempotencyKey
+		});
+
+		const outcome = await craftSchematicForPilot(db, {
 			pilotId,
 			idempotencyKey,
+			schematic,
 			slotInputs: slotInputs as Array<{ slotId: string; resourceInstanceId: string }>,
 			tuning,
 			craftMode,
 			experimentSeed: idempotencyKey,
 			...(experimentPulses ? { experimentPulses } : {})
-		};
-
-		const outcome =
-			schematic.id === SURVEY_SCANNER_MK_I.id
-				? await craftSurveyScannerForPilot(db, craftInput)
-				: schematic.id === FIELD_REPAIR_KIT.id
-					? await craftFieldRepairKitForPilot(db, craftInput)
-					: await craftSchematicForPilot(db, { ...craftInput, schematic });
+		});
 
 		if (outcome.status === 'invalid_craft') {
 			return fail(400, {
 				message: outcome.reason,
-				...(await workshopData(db, pilotId, event.url))
+				...(await refreshWorkshopScreen(db, pilotId, event.url))
 			});
 		}
-
-		await trackCraftCommitted(db, pilotId, {
-			schematicId: schematic.id,
-			craftMode,
-			itemDisplayName: outcome.item.displayName
-		});
 
 		const craftOutcome = await buildWorkshopCraftOutcome(db, pilotId, {
 			schematic,
@@ -214,95 +214,32 @@ export const actions: Actions = {
 			explanation: outcome.explanation
 		});
 
-		await trackCraftResultRevealSeen(db, pilotId, {
-			schematicId: schematic.id,
-			itemId: outcome.item.id,
-			craftMode
-		});
-
-		if ((craftOutcome.explanation.experimentScrapUnits ?? 0) > 0) {
-			await trackOverdriveCritScrapSeen(db, pilotId, {
+		if (outcome.status !== 'already_crafted') {
+			await trackCraftCompleted(db, pilotId, {
+				schematicId: schematic.id,
+				craftMode,
+				item: outcome.item,
+				explanation: outcome.explanation
+			});
+			await trackCraftResultRevealSeen(db, pilotId, {
 				schematicId: schematic.id,
 				itemId: outcome.item.id,
-				scrapUnits: craftOutcome.explanation.experimentScrapUnits
+				craftMode
 			});
+
+			if ((craftOutcome.explanation.experimentScrapUnits ?? 0) > 0) {
+				await trackOverdriveCritScrapSeen(db, pilotId, {
+					schematicId: schematic.id,
+					itemId: outcome.item.id,
+					scrapUnits: craftOutcome.explanation.experimentScrapUnits
+				});
+			}
 		}
 
 		return {
 			craftOutcome,
-			...(await workshopData(db, pilotId, event.url))
+			...(await refreshWorkshopScreen(db, pilotId, event.url))
 		};
-	},
-
-	installCraftedItem: async (event) => {
-		const db = getGameDb();
-		const pilotId = resolvePilotId(event);
-		await requirePlayablePilot(db, pilotId);
-		const locked = await rejectEquipmentChangeIfLocked(db, pilotId, event.url);
-		if (locked) return locked;
-
-		const formData = await event.request.formData();
-		const itemId = formData.get('itemId');
-		const installKind = formData.get('installKind');
-
-		if (typeof itemId !== 'string') {
-			return fail(400, {
-				message: 'Pick an item to install',
-				...(await workshopData(db, pilotId, event.url))
-			});
-		}
-
-		if (installKind === 'scanner') {
-			const outcome = await equipScannerItemForPilot(db, { pilotId, itemId });
-			if (outcome.status === 'invalid') {
-				return fail(400, {
-					message: outcome.reason,
-					...(await workshopData(db, pilotId, event.url))
-				});
-			}
-
-			await trackItemEquipped(db, pilotId, {
-				itemKind: 'scanner',
-				displayName: outcome.item.displayName
-			});
-			await trackCraftResultInstallConfirmed(db, pilotId, {
-				itemId,
-				installKind: 'scanner'
-			});
-
-			return workshopData(db, pilotId, event.url);
-		}
-
-		const slot = parseThumperSlot(formData.get('slot'));
-		if (!slot || installKind !== 'thumper_part') {
-			return fail(400, {
-				message: 'Pick a valid install target',
-				...(await workshopData(db, pilotId, event.url))
-			});
-		}
-
-		const outcome = await equipThumperPartForPilot(db, { pilotId, slot, itemId });
-		if (outcome.status === 'invalid') {
-			return fail(400, {
-				message: outcome.reason,
-				...(await workshopData(db, pilotId, event.url))
-			});
-		}
-
-		if (outcome.status === 'equipped') {
-			await trackItemEquipped(db, pilotId, {
-				itemKind: 'thumper_part',
-				displayName: outcome.item.displayName,
-				slot
-			});
-			await trackCraftResultInstallConfirmed(db, pilotId, {
-				itemId,
-				installKind: 'thumper_part',
-				slot
-			});
-		}
-
-		return workshopData(db, pilotId, event.url);
 	},
 
 	craftRevealTelemetry: async (event) => {
@@ -321,7 +258,7 @@ export const actions: Actions = {
 		};
 
 		if (telemetryEvent === 'craft_result_compare_clicked') {
-			await trackCraftResultCompareClicked(db, pilotId, payload);
+			await trackResultCompared(db, pilotId, payload);
 		} else if (telemetryEvent === 'craft_result_craft_another_clicked') {
 			await trackCraftResultCraftAnotherClicked(db, pilotId, payload);
 		} else if (telemetryEvent === 'craft_result_pulse_viewed') {
@@ -333,72 +270,253 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	assembleRig: async (event) => {
+	benchTelemetry: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
 		await requirePlayablePilot(db, pilotId);
 
-		const fabricatorUnlockedAt = await getSettlementMilestoneUnlockedAt(db, {
-			pilotId,
-			milestoneKey: 'fabricator_online'
-		});
-		if (!fabricatorUnlockedAt) {
-			return fail(403, {
-				message: 'Bring the fabricator online at SETTLEMENT before assembling the rig',
-				...(await workshopData(db, pilotId, event.url))
-			});
+		const formData = await event.request.formData();
+		const telemetryEvent = formData.get('telemetryEvent');
+		const schematicId = formData.get('schematicId');
+		const payloadRaw = formData.get('payload');
+
+		if (typeof schematicId !== 'string' || typeof payloadRaw !== 'string') {
+			return fail(400, { message: 'Invalid bench telemetry' });
 		}
 
-		if ((await countPlaytestEventsByName(db, pilotId, 'rig_assembled')) > 0) {
-			return fail(400, {
-				message: 'Rig already assembled',
-				...(await workshopData(db, pilotId, event.url, { rigAssembled: true }))
-			});
+		let payload: Record<string, unknown>;
+		try {
+			payload = JSON.parse(payloadRaw) as Record<string, unknown>;
+		} catch {
+			return fail(400, { message: 'Invalid bench telemetry payload' });
 		}
+
+		if (telemetryEvent === 'resource_slot_filled') {
+			const slotId = payload.slotId;
+			const resourceInstanceId = payload.resourceInstanceId;
+			const resourceSlug = payload.resourceSlug;
+			const stats = payload.stats;
+			if (
+				typeof slotId !== 'string' ||
+				typeof resourceInstanceId !== 'string' ||
+				typeof resourceSlug !== 'string' ||
+				typeof stats !== 'object' ||
+				stats === null
+			) {
+				return fail(400, { message: 'Invalid slot fill telemetry' });
+			}
+			await trackResourceSlotFilled(db, pilotId, {
+				schematicId,
+				slotId,
+				resourceInstanceId,
+				resourceSlug,
+				stats: stats as Record<string, number>
+			});
+		} else if (telemetryEvent === 'resource_slot_replaced') {
+			const slotId = payload.slotId;
+			const fromResourceInstanceId = payload.fromResourceInstanceId;
+			const toResourceInstanceId = payload.toResourceInstanceId;
+			const toResourceSlug = payload.toResourceSlug;
+			const stats = payload.stats;
+			if (
+				typeof slotId !== 'string' ||
+				typeof fromResourceInstanceId !== 'string' ||
+				typeof toResourceInstanceId !== 'string' ||
+				typeof toResourceSlug !== 'string' ||
+				typeof stats !== 'object' ||
+				stats === null
+			) {
+				return fail(400, { message: 'Invalid slot replace telemetry' });
+			}
+			await trackResourceSlotReplaced(db, pilotId, {
+				schematicId,
+				slotId,
+				fromResourceInstanceId,
+				toResourceInstanceId,
+				toResourceSlug,
+				stats: stats as Record<string, number>
+			});
+		} else if (telemetryEvent === 'tuning_changed') {
+			const allocation = payload.allocation;
+			if (typeof allocation !== 'object' || allocation === null) {
+				return fail(400, { message: 'Invalid tuning telemetry' });
+			}
+			await trackTuningChanged(db, pilotId, {
+				schematicId,
+				allocation: allocation as Record<string, number>
+			});
+		} else if (telemetryEvent === 'experiment_pulse_configured') {
+			const pulseIndex = payload.pulseIndex;
+			const propertyId = payload.propertyId;
+			const push = payload.push;
+			if (
+				typeof pulseIndex !== 'number' ||
+				typeof propertyId !== 'string' ||
+				typeof push !== 'string'
+			) {
+				return fail(400, { message: 'Invalid pulse telemetry' });
+			}
+			await trackExperimentPulseConfigured(db, pilotId, {
+				schematicId,
+				pulseIndex,
+				propertyId,
+				push
+			});
+		} else {
+			return fail(400, { message: 'Unknown bench telemetry event' });
+		}
+
+		return { ok: true };
+	},
+
+	installCraftedItem: async (event) => {
+		if (WORKSHOP_SLICE_PLAYTEST) {
+			return fail(403, { message: 'Equipment install is not in this playtest yet.' });
+		}
+
+		return fail(404, { message: 'Unavailable' });
+	},
+
+	assembleRig: async (event) => {
+		if (WORKSHOP_SLICE_PLAYTEST) {
+			return fail(403, { message: 'Chassis assembly is not in this playtest yet.' });
+		}
+
+		return fail(404, { message: 'Unavailable' });
+	},
+
+	toggleFavorite: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
 
 		const formData = await event.request.formData();
-		const selections = {
-			hull: formData.get('chassis_hull'),
-			drill: formData.get('chassis_drill'),
-			pump: formData.get('chassis_pump')
-		};
+		const itemId = formData.get('itemId');
+		const favorited = formData.get('favorited') === 'true';
 
-		const ownedParts = thumperPartsFromInventory(await listThumperPartItemsForPilot(db, pilotId));
-		const validated = validateChassisAssembly({
-			selections: {
-				hull: typeof selections.hull === 'string' ? selections.hull : undefined,
-				drill: typeof selections.drill === 'string' ? selections.drill : undefined,
-				pump: typeof selections.pump === 'string' ? selections.pump : undefined
-			},
-			ownedParts
-		});
-
-		if (!validated.valid) {
-			return fail(400, {
-				message: validated.reason,
-				...(await workshopData(db, pilotId, event.url))
-			});
+		if (typeof itemId !== 'string' || itemId.length === 0) {
+			return fail(400, { message: 'Missing item' });
 		}
 
-		for (const slot of ['drill', 'pump', 'hull'] as const) {
-			const outcome = await equipThumperPartForPilot(db, {
+		try {
+			const updated = await setItemFavoriteForPilot(db, { pilotId, itemId, favorited });
+			if (favorited) {
+				await trackItemFavorited(db, pilotId, { itemId, schematicId: updated.schematicId });
+			} else {
+				await trackItemUnfavorited(db, pilotId, { itemId, schematicId: updated.schematicId });
+			}
+		} catch (error) {
+			if (error instanceof WorkshopItemNotFoundError) {
+				return fail(404, { message: 'Prototype not found' });
+			}
+			if (error instanceof WorkshopSliceItemValidationError) {
+				return fail(400, { message: error.message });
+			}
+			throw error;
+		}
+
+		return {
+			...(await refreshWorkshopScreen(db, pilotId, event.url))
+		};
+	},
+
+	reclaimItem: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+
+		const formData = await event.request.formData();
+		const itemId = formData.get('itemId');
+		const idempotencyKey = formData.get('idempotencyKey');
+		const confirmFavorited = formData.get('confirmFavorited') === 'true';
+
+		const previewed = formData.get('previewed') === 'true';
+
+		if (typeof itemId !== 'string' || itemId.length === 0) {
+			return fail(400, { message: 'Missing item' });
+		}
+		if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+			return fail(400, { message: 'Missing reclaim idempotency key' });
+		}
+
+		if (previewed) {
+			await trackItemReclaimPreviewed(db, pilotId, { itemId });
+		}
+
+		try {
+			const outcome = await reclaimWorkshopItemForPilot(db, {
 				pilotId,
-				slot,
-				itemId: validated.selections[slot]
+				itemId,
+				idempotencyKey,
+				confirmFavorited
 			});
-			if (outcome.status === 'invalid') {
-				return fail(400, {
-					message: outcome.reason,
-					...(await workshopData(db, pilotId, event.url))
+
+			if (outcome.status === 'reclaimed') {
+				await trackItemReclaimed(db, pilotId, {
+					itemId,
+					returnedResources: outcome.returnedResources
 				});
 			}
+		} catch (error) {
+			if (error instanceof WorkshopItemNotFoundError) {
+				return fail(404, { message: 'Prototype not found' });
+			}
+			if (error instanceof WorkshopReclaimValidationError) {
+				return fail(400, { message: error.message });
+			}
+			if (error instanceof WorkshopSliceItemValidationError) {
+				return fail(400, { message: error.message });
+			}
+			throw error;
 		}
 
-		await trackRigAssembled(db, pilotId);
-		if (!(await advanceTutorialStepIf(db, pilotId, 'assemble_rig', 'first_deploy'))) {
-			await maybeAdvanceToFirstDeployAfterRigAssembly(db, pilotId);
+		return {
+			...(await refreshWorkshopScreen(db, pilotId, event.url))
+		};
+	},
+
+	openCrate: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+
+		const formData = await event.request.formData();
+		const crateId = formData.get('crateId');
+		const idempotencyKey = formData.get('idempotencyKey');
+
+		if (typeof crateId !== 'string' || crateId.length === 0) {
+			return fail(400, { message: 'Missing crate' });
+		}
+		if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+			return fail(400, { message: 'Missing crate idempotency key' });
 		}
 
-		return workshopData(db, pilotId, event.url, { rigAssembled: true });
+		try {
+			const outcome = await openWorkshopCrateForPilot(db, {
+				pilotId,
+				crateId,
+				idempotencyKey
+			});
+
+			if (outcome.status === 'opened') {
+				await trackSupplyCrateOpened(db, pilotId, {
+					crateId: outcome.crate.id,
+					reason: outcome.crate.reason,
+					payload: outcome.crate.payload
+				});
+			}
+		} catch (error) {
+			if (error instanceof WorkshopCrateNotFoundError) {
+				return fail(404, { message: 'Crate not found' });
+			}
+			if (error instanceof WorkshopCrateUnavailableError) {
+				return fail(400, { message: error.message });
+			}
+			throw error;
+		}
+
+		return {
+			...(await refreshWorkshopScreen(db, pilotId, event.url))
+		};
 	}
 };

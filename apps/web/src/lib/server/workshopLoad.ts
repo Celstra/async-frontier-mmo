@@ -1,44 +1,44 @@
 import {
-	getResourceInstanceById,
-	getPilotTutorialStep,
-	getSettlementMilestoneUnlockedAt,
-	listPilotResourceStacksWithInstances,
-	listThumperPartItemsForPilot
+	getPilotWorkshopState,
+	listPilotWorkshopBenchStacksWithInstances,
+	listWorkshopCraftedItemsForPilot,
+	listWorkshopCratesForPilot
 } from '@async-frontier-mmo/db';
 import {
-	analyzeChassisAssemblyReadiness,
 	analyzeSchematicReadiness,
 	BASIC_DRILL_HEAD,
 	buildResourceAllocationHints,
+	canCraftAnyWorkshopThumperPart,
 	deemphasizedStatsForSlotFamily,
 	EFFICIENT_PUMP,
-	FIELD_REPAIR_KIT,
-	FIRST_REPAIR_KIT_SUGGESTED_TUNING,
-	FIRST_SCANNER_SUGGESTED_TUNING,
-	MVP_CRAFT_SCHEMATICS,
-	MVP_SCHEMATIC_BY_ID,
+	getStatBand,
+	getWorkshopBenchResource,
+	isWorkshopActiveSchematic,
+	isWorkshopChassisAssemblyEnabled,
+	isWorkshopStationEnabled,
+	pickBestWorkshopCraftItem,
+	previewWorkshopItemReclaimFromProvenance,
 	previewCraftProperties,
 	REINFORCED_HULL_PLATE,
-	SURVEY_SCANNER_MK_I,
-	THUMPER_CHASSIS_ASSEMBLY,
 	schematicMaterialRollup,
-	thumperPartSlotForSchematic,
-	type ChassisAssemblyReadiness,
+	scoreWorkshopCraftItem,
+	WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS,
+	WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL,
+	WORKSHOP_TIMER_CRATE_MINUTES,
 	type CraftMode,
 	type ExperimentPulse,
 	type ExperimentPushSize,
-	type OwnedThumperPart,
 	type ResourceFamily,
+	type NamedResourceId,
 	type SchematicDefinition,
 	type SchematicReadinessAnalysis,
 	type SchematicSlotFill,
-	type TuningAllocation
+	type TuningAllocation,
+	type WorkshopSupplyCrateReason
 } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
 
 export const WORKSHOP_SUGGESTED_TUNING: Record<string, TuningAllocation> = {
-	[SURVEY_SCANNER_MK_I.id]: FIRST_SCANNER_SUGGESTED_TUNING,
-	[FIELD_REPAIR_KIT.id]: FIRST_REPAIR_KIT_SUGGESTED_TUNING,
 	[EFFICIENT_PUMP.id]: { recovery_efficiency: 2, clog_resistance: 1, field_stability: 0 },
 	[BASIC_DRILL_HEAD.id]: { extraction_rate: 2, depth_access: 1, wear_control: 0 },
 	[REINFORCED_HULL_PLATE.id]: { max_condition: 2, damage_reduction: 1, repairability: 0 }
@@ -51,11 +51,62 @@ export type WorkshopSchematicRow = {
 	craftableNow: boolean;
 };
 
+export type WorkshopCraftHistoryEntry = {
+	itemId: string;
+	schematicId: string;
+	displayName: string;
+	favorited: boolean;
+	createdAt: string;
+	totalScore: number;
+	propertyScores: Record<string, number>;
+	condition: number;
+	integrity: number;
+	reclaimPreview: Array<{
+		resourceSlug: string;
+		resourceDisplayName: string;
+		quantity: number;
+	}>;
+};
+
+export type WorkshopSchematicCraftHistory = {
+	schematicId: string;
+	displayName: string;
+	lastCraft: WorkshopCraftHistoryEntry | null;
+	bestCraft: WorkshopCraftHistoryEntry | null;
+	crafts: WorkshopCraftHistoryEntry[];
+};
+
 export type WorkshopStation = 'thumper' | 'fabricator';
+
+export type WorkshopCratePayloadLineUi = {
+	resourceSlug: string;
+	displayName: string;
+	quantity: number;
+	family: string;
+	stats: Array<{ key: string; value: number; band: string }>;
+};
+
+export type WorkshopSupplyCrateUi = {
+	id: string;
+	reason: WorkshopSupplyCrateReason;
+	reasonLabel: string;
+	sequence: number;
+	availableAt: string;
+	payload: WorkshopCratePayloadLineUi[];
+};
+
+export type WorkshopSupplyState = {
+	nextTimedCrateAt: string | null;
+	timerCrateMinutes: number;
+	craftCountSinceCrate: number;
+	craftCountCrateInterval: number;
+	availableCrates: WorkshopSupplyCrateUi[];
+	canCraftAnyThumperPart: boolean;
+};
 
 export type WorkshopScreenData = {
 	workshopStation: WorkshopStation;
-	tutorialStep: string | null;
+	showChassisStation: boolean;
 	schematics: WorkshopSchematicRow[];
 	selectedSchematicId: string | null;
 	schematic: ReturnType<typeof schematicToWorkshopUi> | null;
@@ -69,28 +120,18 @@ export type WorkshopScreenData = {
 	suggestedTuning: TuningAllocation;
 	deemphasizedStatsByFamily: Record<ResourceFamily, string[]>;
 	schematicReadiness: SchematicReadinessAnalysis;
-	showChassisAssembly: boolean;
-	chassisAssembly: typeof THUMPER_CHASSIS_ASSEMBLY;
-	chassisReadiness: ChassisAssemblyReadiness;
-	thumperParts: OwnedThumperPart[];
-	chassisSelections: Partial<Record<'hull' | 'drill' | 'pump', string>>;
-	rigAssembled: boolean;
 	materialRollup: string | null;
+	craftHistoryBySchematic: Record<string, WorkshopSchematicCraftHistory>;
+	selectedCraftHistory: WorkshopSchematicCraftHistory | null;
+	supply: WorkshopSupplyState;
 };
 
-function defaultWorkshopStation(tutorialStep: string | null): WorkshopStation {
-	if (tutorialStep === 'assemble_rig' || tutorialStep === 'first_deploy') {
+function parseWorkshopStation(url: URL): WorkshopStation {
+	const param = url.searchParams.get('station');
+	if (param === 'thumper' && isWorkshopStationEnabled('thumper')) {
 		return 'thumper';
 	}
 	return 'fabricator';
-}
-
-function parseWorkshopStation(url: URL, tutorialStep: string | null): WorkshopStation {
-	const param = url.searchParams.get('station');
-	if (param === 'thumper' || param === 'fabricator') {
-		return param;
-	}
-	return defaultWorkshopStation(tutorialStep);
 }
 
 export function schematicToWorkshopUi(schematic: SchematicDefinition) {
@@ -216,44 +257,23 @@ export function parseSlotInstanceId(formData: FormData, slotId: string): string 
 	return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-function parseChassisSelections(
-	params: URLSearchParams | FormData
-): Partial<Record<'hull' | 'drill' | 'pump', string>> {
-	const selections: Partial<Record<'hull' | 'drill' | 'pump', string>> = {};
-	for (const slotId of ['hull', 'drill', 'pump'] as const) {
-		const value = params.get(`chassis_${slotId}`);
-		if (typeof value === 'string' && value.length > 0) {
-			selections[slotId] = value;
-		}
-	}
-	return selections;
-}
-
 async function loadInventoryWithStats(db: ReturnType<typeof getGameDb>, pilotId: string) {
-	const stacks = await listPilotResourceStacksWithInstances(db, pilotId);
-	const inventory = [];
+	const stacks = await listPilotWorkshopBenchStacksWithInstances(db, pilotId);
 
-	for (const stack of stacks) {
-		const instance = await getResourceInstanceById(db, stack.resourceInstanceId);
-		if (!instance) continue;
-
-		inventory.push({
-			resourceInstanceId: stack.resourceInstanceId,
-			resourceSlug: stack.resourceSlug,
-			displayName: stack.displayName,
-			family: stack.family as ResourceFamily,
-			quantity: stack.quantity,
-			stats: {
-				OQ: instance.statOq,
-				conductivity: instance.statConductivity,
-				hardness: instance.statHardness,
-				heat_resistance: instance.statHeatResistance,
-				malleability: instance.statMalleability
-			}
-		});
-	}
-
-	return inventory;
+	return stacks.map((stack) => ({
+		resourceInstanceId: stack.resourceInstanceId,
+		resourceSlug: stack.resourceSlug,
+		displayName: stack.displayName,
+		family: stack.family as ResourceFamily,
+		quantity: stack.quantity,
+		stats: {
+			OQ: stack.statOq,
+			conductivity: stack.statConductivity,
+			hardness: stack.statHardness,
+			heat_resistance: stack.statHeatResistance,
+			malleability: stack.statMalleability
+		}
+	}));
 }
 
 function buildSlotFills(
@@ -284,115 +304,190 @@ function buildSlotFills(
 	return fills;
 }
 
-function thumperPartsFromInventory(
-	items: Awaited<ReturnType<typeof listThumperPartItemsForPilot>>
-): OwnedThumperPart[] {
-	return items.flatMap((item) => {
-		const slot = thumperPartSlotForSchematic(item.schematicId);
-		if (!slot) return [];
-		return [
-			{
-				itemId: item.id,
-				schematicId: item.schematicId,
-				displayName: item.displayName,
-				slot,
-				condition: item.condition,
-				integrity: item.integrity
-			}
-		];
+function schematicById(schematicId: string): SchematicDefinition | null {
+	return (
+		WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS.find((row) => row.id === schematicId) ?? null
+	);
+}
+
+function itemRowToHistoryEntry(
+	schematic: SchematicDefinition,
+	row: Awaited<ReturnType<typeof listWorkshopCraftedItemsForPilot>>[number]
+): WorkshopCraftHistoryEntry {
+	return {
+		itemId: row.id,
+		schematicId: row.schematicId,
+		displayName: row.displayName,
+		favorited: row.favoritedAt !== null,
+		createdAt: row.createdAt.toISOString(),
+		totalScore: scoreWorkshopCraftItem(schematic, row.propertyScores),
+		propertyScores: row.propertyScores,
+		condition: row.condition,
+		integrity: row.integrity,
+		reclaimPreview: previewWorkshopItemReclaimFromProvenance(
+		row.provenance.map((line) => ({
+			resourceInstanceId: line.resourceInstanceId,
+			resourceSlug: line.resourceSlug as NamedResourceId,
+			resourceDisplayName: line.resourceDisplayName,
+			quantityConsumed: line.quantityConsumed
+		}))
+		).map((line) => ({
+			resourceSlug: line.resourceSlug,
+			resourceDisplayName: line.resourceDisplayName,
+			quantity: line.quantity
+		}))
+	};
+}
+
+async function loadCraftHistoryBySchematic(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string
+): Promise<Record<string, WorkshopSchematicCraftHistory>> {
+	const rows = await listWorkshopCraftedItemsForPilot(db, pilotId);
+	const rowsBySchematic = new Map<string, typeof rows>();
+
+	for (const row of rows) {
+		const bucket = rowsBySchematic.get(row.schematicId) ?? [];
+		bucket.push(row);
+		rowsBySchematic.set(row.schematicId, bucket);
+	}
+
+	const historyBySchematic: Record<string, WorkshopSchematicCraftHistory> = {};
+
+	for (const schematic of WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS) {
+		const schematicRows = rowsBySchematic.get(schematic.id) ?? [];
+		const crafts = schematicRows.map((row) => itemRowToHistoryEntry(schematic, row));
+		const bestRow = pickBestWorkshopCraftItem(schematic, schematicRows);
+
+		historyBySchematic[schematic.id] = {
+			schematicId: schematic.id,
+			displayName: schematic.displayName,
+			lastCraft: crafts[0] ?? null,
+			bestCraft: bestRow ? itemRowToHistoryEntry(schematic, bestRow) : null,
+			crafts
+		};
+	}
+
+	return historyBySchematic;
+}
+
+const SUPPLY_CRATE_REASON_LABELS: Record<WorkshopSupplyCrateReason, string> = {
+	timer: 'Timed resupply',
+	craft_count: 'Craft milestone resupply',
+	emergency: 'Emergency anti-stuck resupply',
+	starter: 'Starter resupply'
+};
+
+const STAT_LABELS: Record<string, string> = {
+	OQ: 'OQ',
+	conductivity: 'Conductivity',
+	hardness: 'Hardness',
+	heat_resistance: 'Heat resistance',
+	malleability: 'Malleability'
+};
+
+function cratePayloadToUi(
+	payload: Awaited<ReturnType<typeof listWorkshopCratesForPilot>>[number]['payload']
+): WorkshopCratePayloadLineUi[] {
+	return payload.map((line) => {
+		const definition = getWorkshopBenchResource(line.resourceSlug as NamedResourceId);
+		return {
+			resourceSlug: line.resourceSlug,
+			displayName: definition.displayName,
+			quantity: line.quantity,
+			family: definition.family,
+			stats: Object.entries(definition.stats).map(([key, value]) => ({
+				key: STAT_LABELS[key] ?? key,
+				value,
+				band: getStatBand(value)
+			}))
+		};
 	});
+}
+
+async function loadWorkshopSupplyState(
+	db: ReturnType<typeof getGameDb>,
+	pilotId: string,
+	inventory: Awaited<ReturnType<typeof loadInventoryWithStats>>
+): Promise<WorkshopSupplyState> {
+	const [state, crates] = await Promise.all([
+		getPilotWorkshopState(db, pilotId),
+		listWorkshopCratesForPilot(db, pilotId, 'available')
+	]);
+
+	const ownedStacks = inventory.map((stack) => ({
+		resourceInstanceId: stack.resourceInstanceId,
+		resourceSlug: stack.resourceSlug,
+		displayName: stack.displayName,
+		family: stack.family,
+		quantity: stack.quantity
+	}));
+
+	return {
+		nextTimedCrateAt: state?.nextTimedCrateAt?.toISOString() ?? null,
+		timerCrateMinutes: WORKSHOP_TIMER_CRATE_MINUTES,
+		craftCountSinceCrate: state?.craftCountSinceCrate ?? 0,
+		craftCountCrateInterval: WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL,
+		canCraftAnyThumperPart: canCraftAnyWorkshopThumperPart(ownedStacks),
+		availableCrates: crates.map((crate) => ({
+			id: crate.id,
+			reason: crate.reason,
+			reasonLabel: SUPPLY_CRATE_REASON_LABELS[crate.reason],
+			sequence: crate.sequence,
+			availableAt: crate.availableAt.toISOString(),
+			payload: cratePayloadToUi(crate.payload)
+		}))
+	};
+}
+
+export function schematicByIdFromActiveSlice(schematicId: string): SchematicDefinition | null {
+	return schematicById(schematicId);
 }
 
 export async function loadWorkshopScreen(
 	db: ReturnType<typeof getGameDb>,
 	pilotId: string,
-	url: URL,
-	options?: { rigAssembled?: boolean }
+	url: URL
 ): Promise<WorkshopScreenData> {
-	const selectedParam = url.searchParams.get('schematic');
-	const fabricatorUnlockedAt = await getSettlementMilestoneUnlockedAt(db, {
-		pilotId,
-		milestoneKey: 'fabricator_online'
-	});
-	const showChassisAssembly = fabricatorUnlockedAt !== null;
-	const tutorialStep = await getPilotTutorialStep(db, pilotId);
-	const workshopStation = parseWorkshopStation(url, tutorialStep);
+	const showChassisStation = isWorkshopChassisAssemblyEnabled();
+	const workshopStation = parseWorkshopStation(url);
 	const inventory = await loadInventoryWithStats(db, pilotId);
-	const thumperPartItems = await listThumperPartItemsForPilot(db, pilotId);
-	const ownsReinforcedHull = thumperPartItems.some(
-		(part) => part.schematicId === REINFORCED_HULL_PLATE.id
-	);
 
-	function defaultSchematicId(): string | null {
-		if (showChassisAssembly && tutorialStep === 'assemble_rig') {
-			return THUMPER_CHASSIS_ASSEMBLY.id;
-		}
-		if (tutorialStep === 'first_deploy') {
-			return null;
-		}
-		if ((tutorialStep === 'async_reveal' || tutorialStep === 'done') && !ownsReinforcedHull) {
-			return REINFORCED_HULL_PLATE.id;
-		}
-		return null;
-	}
-
-	const fabricatorSchematicId =
-		workshopStation === 'fabricator'
-			? selectedParam === THUMPER_CHASSIS_ASSEMBLY.id && showChassisAssembly
-				? THUMPER_CHASSIS_ASSEMBLY.id
-				: selectedParam && MVP_SCHEMATIC_BY_ID[selectedParam]
-					? selectedParam
-					: defaultSchematicId()
+	const selectedParam = url.searchParams.get('schematic');
+	const selectedSchematicId =
+		workshopStation === 'fabricator' &&
+		selectedParam &&
+		isWorkshopActiveSchematic(selectedParam)
+			? selectedParam
 			: null;
 
-	const selectedSchematicId =
-		workshopStation === 'thumper' ? THUMPER_CHASSIS_ASSEMBLY.id : fabricatorSchematicId;
+	const schematicRows: WorkshopSchematicRow[] = WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS.map(
+		(row) => {
+			const readiness = analyzeSchematicReadiness({
+				schematic: row,
+				ownedStacks: inventory.map((stack) => ({
+					resourceInstanceId: stack.resourceInstanceId,
+					resourceSlug: stack.resourceSlug,
+					displayName: stack.displayName,
+					family: stack.family,
+					quantity: stack.quantity
+				}))
+			});
+			return {
+				id: row.id,
+				displayName: row.displayName,
+				readiness,
+				craftableNow: readiness.craftableNow
+			};
+		}
+	);
 
-	const thumperParts = thumperPartsFromInventory(thumperPartItems);
-	const chassisReadiness = analyzeChassisAssemblyReadiness({ ownedParts: thumperParts });
-	const chassisSelections = parseChassisSelections(url.searchParams);
-
-	const schematicRows: WorkshopSchematicRow[] = MVP_CRAFT_SCHEMATICS.map((row) => {
-		const readiness = analyzeSchematicReadiness({
-			schematic: row,
-			ownedStacks: inventory.map((stack) => ({
-				resourceInstanceId: stack.resourceInstanceId,
-				resourceSlug: stack.resourceSlug,
-				displayName: stack.displayName,
-				family: stack.family,
-				quantity: stack.quantity
-			}))
-		});
-		return {
-			id: row.id,
-			displayName: row.displayName,
-			readiness,
-			craftableNow: readiness.craftableNow
-		};
-	});
-
-	if (showChassisAssembly) {
-		schematicRows.unshift({
-			id: THUMPER_CHASSIS_ASSEMBLY.id,
-			displayName: THUMPER_CHASSIS_ASSEMBLY.displayName,
-			readiness: {
-				slots: [],
-				craftableNow: chassisReadiness.assemblableNow,
-				blockers: chassisReadiness.blockers
-			},
-			craftableNow: chassisReadiness.assemblableNow
-		});
-	}
-
-	const schematicDefinition =
-		selectedSchematicId === null
-			? null
-			: selectedSchematicId === THUMPER_CHASSIS_ASSEMBLY.id
-				? SURVEY_SCANNER_MK_I
-				: (MVP_SCHEMATIC_BY_ID[selectedSchematicId] ?? null);
-
+	const schematicDefinition = selectedSchematicId ? schematicById(selectedSchematicId) : null;
 	const schematic = schematicDefinition ? schematicToWorkshopUi(schematicDefinition) : null;
-	const allocationHints = buildResourceAllocationHints(MVP_CRAFT_SCHEMATICS, inventory);
+	const allocationHints = buildResourceAllocationHints(
+		[...WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS],
+		inventory
+	);
 	const slotSelections =
 		schematicDefinition !== null
 			? parseSlotSelections(schematicDefinition, url.searchParams)
@@ -431,14 +526,17 @@ export async function loadWorkshopScreen(
 					blockers: ['Pick a schematic from the list']
 				};
 
+	const craftHistoryBySchematic = await loadCraftHistoryBySchematic(db, pilotId);
+	const selectedCraftHistory = schematicDefinition
+		? (craftHistoryBySchematic[schematicDefinition.id] ?? null)
+		: null;
+	const supply = await loadWorkshopSupplyState(db, pilotId, inventory);
+
 	return {
 		workshopStation,
-		tutorialStep,
-		schematics: schematicRows.filter((row) => row.id !== THUMPER_CHASSIS_ASSEMBLY.id),
-		selectedSchematicId:
-			workshopStation === 'thumper'
-				? THUMPER_CHASSIS_ASSEMBLY.id
-				: schematicDefinition?.id ?? null,
+		showChassisStation,
+		schematics: schematicRows,
+		selectedSchematicId: schematicDefinition?.id ?? null,
 		schematic,
 		schematicDefinition,
 		inventory,
@@ -448,19 +546,27 @@ export async function loadWorkshopScreen(
 		tuningTotal,
 		propertyPreview,
 		suggestedTuning:
-			schematicDefinition !== null ? (WORKSHOP_SUGGESTED_TUNING[schematicDefinition.id] ?? {}) : {},
+			schematicDefinition !== null
+				? (WORKSHOP_SUGGESTED_TUNING[schematicDefinition.id] ?? {})
+				: {},
 		deemphasizedStatsByFamily: {
-			conductive_metal: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'conductive_metal'),
-			structural_alloy: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'structural_alloy'),
-			reactive_crystal: deemphasizedStatsForSlotFamily(MVP_CRAFT_SCHEMATICS, 'reactive_crystal')
+			conductive_metal: deemphasizedStatsForSlotFamily(
+				[...WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS],
+				'conductive_metal'
+			),
+			structural_alloy: deemphasizedStatsForSlotFamily(
+				[...WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS],
+				'structural_alloy'
+			),
+			reactive_crystal: deemphasizedStatsForSlotFamily(
+				[...WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS],
+				'reactive_crystal'
+			)
 		},
 		schematicReadiness,
-		showChassisAssembly,
-		chassisAssembly: THUMPER_CHASSIS_ASSEMBLY,
-		chassisReadiness,
-		thumperParts,
-		chassisSelections,
-		rigAssembled: options?.rigAssembled ?? false,
-		materialRollup: schematicDefinition ? schematicMaterialRollup(schematicDefinition) : null
+		materialRollup: schematicDefinition ? schematicMaterialRollup(schematicDefinition) : null,
+		craftHistoryBySchematic,
+		selectedCraftHistory,
+		supply
 	};
 }

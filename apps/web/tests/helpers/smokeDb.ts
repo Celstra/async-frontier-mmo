@@ -1,12 +1,17 @@
 import {
 	BLOOM_ONE_ID,
 	cleanupScannerCraftPilotForSmoke as cleanupScannerCraftPilot,
+	cleanupWorkshopCraftPilotForSmoke as cleanupWorkshopCraftPilot,
+	countPlaytestEventsByName,
 	createDb,
 	fastForwardOpenThumperRunToClaimable,
 	getBloomRecord,
 	getResourceInstanceByBloomSlug,
+	getWorkshopBenchInstanceBySlug,
+	mintWorkshopTimerCrateForSmoke as mintWorkshopTimerCrate,
 	resetKethIronDepositSpotsForSmoke as resetKethIronDepositSpots,
-	seedScannerCraftPilotForSmoke as seedScannerCraftPilot
+	seedScannerCraftPilotForSmoke as seedScannerCraftPilot,
+	seedWorkshopCraftPilotForSmoke as seedWorkshopCraftPilot
 } from '@async-frontier-mmo/db';
 import { TUTORIAL_DEPLOY_RESOURCE_SLUG } from '@async-frontier-mmo/domain';
 
@@ -59,4 +64,48 @@ export async function seedScannerCraftPilotForSmoke(pilotId: string): Promise<vo
 
 export async function cleanupScannerCraftPilotForSmoke(pilotId: string): Promise<void> {
 	await cleanupScannerCraftPilot(smokeDb(), pilotId);
+}
+
+export async function seedWorkshopCraftPilotForSmoke(pilotId: string): Promise<void> {
+	await seedWorkshopCraftPilot(smokeDb(), pilotId);
+}
+
+export async function cleanupWorkshopCraftPilotForSmoke(pilotId: string): Promise<void> {
+	await cleanupWorkshopCraftPilot(smokeDb(), pilotId);
+}
+
+export async function mintWorkshopTimerCrateForSmoke(pilotId: string): Promise<void> {
+	await mintWorkshopTimerCrate(smokeDb(), pilotId);
+}
+
+export async function countPilotPlaytestEvents(
+	pilotId: string,
+	eventName: Parameters<typeof countPlaytestEventsByName>[2]
+): Promise<number> {
+	return countPlaytestEventsByName(smokeDb(), pilotId, eventName);
+}
+
+export async function getWorkshopBenchSlotInstanceIdsForSmoke(): Promise<{
+	kethIron: string;
+	veyrithCopper: string;
+	sorrelCopper: string;
+	paleCrystal: string;
+	asterionAlloy: string;
+}> {
+	const db = smokeDb();
+	const [kethIron, veyrithCopper, sorrelCopper, paleCrystal, asterionAlloy] = await Promise.all([
+		getWorkshopBenchInstanceBySlug(db, 'keth_iron'),
+		getWorkshopBenchInstanceBySlug(db, 'veyrith_copper'),
+		getWorkshopBenchInstanceBySlug(db, 'sorrel_vein_copper'),
+		getWorkshopBenchInstanceBySlug(db, 'pale_ember_crystal'),
+		getWorkshopBenchInstanceBySlug(db, 'asterion_frame_alloy')
+	]);
+
+	return {
+		kethIron: kethIron.id,
+		veyrithCopper: veyrithCopper.id,
+		sorrelCopper: sorrelCopper.id,
+		paleCrystal: paleCrystal.id,
+		asterionAlloy: asterionAlloy.id
+	};
 }

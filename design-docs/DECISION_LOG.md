@@ -1488,3 +1488,138 @@ Decisions 001–022 are locked (022 locked 2026-06-12 per Ryan, balance constant
 3. **Post-MVP Layer Gate**, including the combat-socket question above, thumper slot tiers, and the timed rotation scheduler.
 4. **Scope-change review** per the Decision 022 scope statement.
 ---
+
+## Decision 024 - Workshop-First Crafting Slice
+
+**Status:** Locked (2026-06-16, per Ryan: "Yes go ahead it all looks in line with what I have as the intention"). Full flow detail lives in `WORKSHOP_FIRST_CRAFTING_SLICE_SPEC.md`.
+
+### Why this supersedes the active rollout target
+
+Crafting is intended to be the first "wow" pillar, but previous playtest paths buried it under settlement onboarding, field movement, sampling, thumper deployment, event windows, hull fail-safes, and async return timing. Those systems still belong to the future loop, but they prevent the next playtest from answering whether the crafting toy itself is repeatable and fun.
+
+Decision 024 supersedes Decision 022 as the **active playtest rollout target**. Decision 022 remains historical and remains useful when FIELD / RIG / SETTLEMENT return, but those screens are now under-development placeholders for this version.
+
+### What stays canonical
+
+Decision 024 keeps the SWG-inspired economy core:
+
+- Named resource stats are fixed.
+- Resource stats set the practical ceiling.
+- Tuning and experimentation express potential, never mutate resources.
+- Weak resources cannot be laundered into rare-resource equivalents.
+- Crafted items preserve provenance.
+- High-quality resources remain rare and must not be granted as tutorial stock.
+- Decisions 007, 009, 010, 012, 016, and 021 remain the crafting/economy guardrails unless explicitly amended later.
+
+### Slice statement
+
+The next playtest starts in **WORKSHOP**.
+
+The player receives:
+
+- Three thumper-part schematics: **Basic Drill Head**, **Efficient Pump**, **Reinforced Hull Plate**.
+- Three named resources per family: **Structural Alloy**, **Conductive Metal**, **Reactive Crystal**.
+- Modest quantities sufficient for multiple crafts and experiments.
+- Low-to-mid quality bench stock, not unicorn resources.
+
+The player loop is:
+
+```text
+choose schematic -> compare named resources -> fill slots -> tune -> craft/experiment -> compare result -> keep/reclaim/sell -> receive more imperfect resources -> craft again
+```
+
+FIELD, RIG, and SETTLEMENT remain visible but show **In Development** messaging. They do not run partial old tutorials during this playtest.
+
+### Starter resource quality rule
+
+Starter resources are **workshop bench stock**, not the live Red Mesa bloom. They may use familiar family roles, but they must not grant Veyrith-tier or other high-end chase stats.
+
+Locked starter quality guardrails:
+
+- Most starter stat values sit in the **250-650** range.
+- A starter resource may have one specialist stat in the **650-799** range.
+- Starter resources must not contain **800+ Excellent** or **900+ Exceptional** stats unless Ryan explicitly runs a rarity test.
+- No starter resource should be a broad multi-stat winner.
+- At least one resource per family should be an awkward specialist with one tempting stat and one clear weakness.
+
+The intended player achievement is "best item I can make from this imperfect batch," not "best possible item."
+
+### Discovery rule
+
+The workshop may show resource stats and output previews, but it should not give away exact formula mastery up front.
+
+Before crafting, show:
+
+- family;
+- named resource identity;
+- resource stat values and bands;
+- schematic slot family requirements;
+- output preview bars;
+- tuning controls.
+
+Do not front-load:
+
+- exact formula weights;
+- "best input" recommendations;
+- global explanations of every resource/stat/property relationship.
+
+After crafting, show truthful bench-note explanations, such as:
+
+```text
+High Hardness helped Hull Integrity.
+Low Malleability limited Repairability.
+This Pump favored flexible conductive metals more than raw Conductivity.
+```
+
+Players should discover schematic/resource relationships by crafting and comparing, not by being handed a spreadsheet solution.
+
+### Repetition support while thumpers are disabled
+
+Because thumpers are offline in this playtest, the workshop needs a temporary material-renewal loop:
+
+- Reclaiming or breaking down old crafted parts returns a lossy percentage of the exact named resources consumed by that item.
+- Reclaim never improves or rerolls resource stats.
+- No new workshop-credit currency exists in this slice unless explicitly approved later.
+- Supply crates grant more low-to-mid named resources.
+- Crate cadence and reclaim percentage must be simulation-checked before implementation.
+- Supply must include a timer or other anti-stuck route so players cannot exhaust all craftable material and soft-lock.
+- Crates do not directly sell or guarantee high-quality named resources.
+
+This lets players experiment without turning mediocre resources into unicorns.
+
+### Playtest evidence
+
+Decision 024 replaces the active funnel with crafting-specific evidence:
+
+- Did the player craft five or more times without being prompted?
+- Did the player retry the same schematic with different resources?
+- Did the player understand that best resource depends on schematic and property?
+- Did the player talk about wanting better resources?
+- Did the player preserve a favorite craft?
+- Did the player ask how to go find better materials?
+
+Strongest success signal:
+
+```text
+I want to find better resources for another attempt.
+```
+
+### Scope statement
+
+Active slice is: workshop-first crafting, low/mid starter resources, three thumper-part schematics, repeated craft comparison, lossy reclaim/sell, controlled supply crates, and in-development placeholders for other screens.
+
+Nothing else enters until external testers show the crafting toy itself is understandable, repeatable, and desirable.
+
+---
+
+## Current active target
+
+Decision 024 is now the active rollout target. The stale "Current next decision candidates" section above remains historical context from Decision 022.
+
+Remaining work:
+
+1. Implement `WORKSHOP_FIRST_CRAFTING_SLICE_SPEC.md`.
+2. Run 3-5 external testers on workshop-only crafting evidence: repeat crafts, same-schematic retries, resource/stat comprehension, favorite preservation, and desire for better materials.
+3. Decide post-workshop reintroduction order: FIELD resource discovery first, RIG deployment first, or SETTLEMENT orders first.
+4. Decision 023 cleanup: either lock the implemented experimentation bet-sizing formally or demote any unshipped pieces back to backlog before the workshop slice ships.
+5. Reclaimer candidate remains deferred until resource rotation creates stranded stacks.

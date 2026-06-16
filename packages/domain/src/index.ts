@@ -112,6 +112,64 @@ export {
 	REINFORCED_HULL_PLATE,
 	SURVEY_SCANNER_MK_I
 } from './crafting/schematics/index.js';
+export {
+	WORKSHOP_BENCH_MAX_STAT,
+	WORKSHOP_BENCH_RESOURCE_IDS,
+	WORKSHOP_BENCH_RESOURCES,
+	WORKSHOP_STARTER_GRANT_UNITS,
+	getWorkshopBenchResource,
+	listWorkshopBenchResources,
+	workshopBenchResourcesByFamily
+} from './workshop/benchResources.js';
+export {
+	WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL,
+	WORKSHOP_CRATE_UNITS_PER_FAMILY,
+	WORKSHOP_EMERGENCY_CRATE_UNITS_PER_FAMILY,
+	WORKSHOP_RECLAIM_RATE,
+	WORKSHOP_RECLAIM_ROUND_DOWN_TO,
+	WORKSHOP_TIMER_CRATE_MINUTES
+} from './workshop/constants.js';
+export {
+	assertCanReclaimWorkshopItem,
+	canReclaimWorkshopItem,
+	computeReclaimReturns,
+	aggregateProvenanceByResourceInstance,
+	computeReclaimReturnsByResourceInstance,
+	floorReclaimQuantity,
+	totalConsumedUnits,
+	totalReturnedUnits,
+	type WorkshopConsumedResource,
+	type WorkshopConsumedResourceInstance,
+	type WorkshopItemReclaimState,
+	previewWorkshopItemReclaimFromProvenance
+} from './workshop/reclaim.js';
+export { pickBestWorkshopCraftItem, scoreWorkshopCraftItem } from './workshop/craftHistory.js';
+export {
+	buildEmergencySupplyCratePayload,
+	buildSupplyCratePayload,
+	cratePayloadCoversAllFamilies,
+	cratePayloadUsesOnlyLowMidBenchStats,
+	pickVariedBenchCrateResources,
+	WORKSHOP_FIXED_CRATE_RESOURCE_BY_FAMILY,
+	type WorkshopCrateGrantLine,
+	type WorkshopCrateGrantMode,
+	type WorkshopSupplyCrateReason
+} from './workshop/supplyCrates.js';
+export {
+	buildWorkshopStarterGrant,
+	canCraftAnyWorkshopThumperPart,
+	isWorkshopActiveSchematic,
+	isWorkshopChassisAssemblyEnabled,
+	isWorkshopHiddenSchematic,
+	isWorkshopStationEnabled,
+	WORKSHOP_ACTIVE_SCHEMATIC_IDS,
+	WORKSHOP_ACTIVE_THUMPER_PART_SCHEMATICS,
+	WORKSHOP_CHASSIS_ASSEMBLY_ID,
+	WORKSHOP_ENABLED_STATION_IDS,
+	WORKSHOP_HIDDEN_SCHEMATIC_IDS,
+	type WorkshopStarterGrantLine,
+	type WorkshopStationId
+} from './workshop/workshopSlice.js';
 export type {
 	CarefulExperimentOutcome,
 	CraftMode,

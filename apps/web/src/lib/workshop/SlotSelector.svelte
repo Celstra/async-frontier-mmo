@@ -12,6 +12,7 @@
 		type SchematicSlotDefinition
 	} from '@async-frontier-mmo/domain';
 	import { familyDisplayLabel } from '$lib/displayLabels';
+	import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 
 	interface InventoryStack {
 		resourceInstanceId: string;
@@ -79,9 +80,9 @@
 		onSelect(stack.resourceInstanceId);
 	}
 
-	function missingHintHref(readiness: SchematicSlotReadiness): string {
-		if (readiness.missing?.sourceHint.includes('thumper haul')) {
-			return '/field';
+	function missingHintHref(): string | null {
+		if (WORKSHOP_SLICE_PLAYTEST) {
+			return null;
 		}
 		return '/field';
 	}
@@ -248,12 +249,18 @@
 		<p class="slot-missing">
 			Needs {slotReadiness.quantityNeeded} {slotReadiness.familyNeeded} —
 			{slotReadiness.missing.sourceHint}
-			<a href={missingHintHref(slotReadiness)}>Go →</a>
+			{#if missingHintHref()}
+				<a href={missingHintHref()}>Go →</a>
+			{/if}
 		</p>
 	{/if}
 
 	{#if stacks.length === 0}
-		<p class="no-stacks">No {familyDisplayLabel(slot.requiredFamily)} stacks available. Survey and claim first.</p>
+		<p class="no-stacks">
+			{WORKSHOP_SLICE_PLAYTEST
+				? `No ${familyDisplayLabel(slot.requiredFamily)} bench stock available. Reclaim a crafted item or open a supply crate.`
+				: `No ${familyDisplayLabel(slot.requiredFamily)} stacks available. Survey and claim first.`}
+		</p>
 	{:else}
 		<div class="stack-cards">
 			{#each stacks as stack}

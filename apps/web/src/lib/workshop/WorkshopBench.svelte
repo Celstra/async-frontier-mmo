@@ -116,6 +116,42 @@
 	let experimentPulses = $state<ExperimentPulse[]>([]);
 	let boundSchematicId = $state<string | null>(null);
 
+	type BenchDraft = {
+		slotSelections: Record<string, string>;
+		tuning: TuningAllocation;
+		craftMode: CraftMode;
+		experimentPulses: ExperimentPulse[];
+	};
+
+	function benchDraftKey(schematicId: string): string {
+		return `workshop-bench-draft:${schematicId}`;
+	}
+
+	function readBenchDraft(schematicId: string): BenchDraft | null {
+		if (typeof sessionStorage === 'undefined') return null;
+		try {
+			const raw = sessionStorage.getItem(benchDraftKey(schematicId));
+			if (!raw) return null;
+			return JSON.parse(raw) as BenchDraft;
+		} catch {
+			return null;
+		}
+	}
+
+	function writeBenchDraft(schematicId: string, draft: BenchDraft): void {
+		if (typeof sessionStorage === 'undefined') return;
+		try {
+			sessionStorage.setItem(benchDraftKey(schematicId), JSON.stringify(draft));
+		} catch {
+			// Ignore quota errors — draft persistence is best-effort.
+		}
+	}
+
+	function clearBenchDraft(schematicId: string): void {
+		if (typeof sessionStorage === 'undefined') return;
+		sessionStorage.removeItem(benchDraftKey(schematicId));
+	}
+
 	// Reset bench state only when the schematic changes — not on every defaultSelections refresh.
 	$effect(() => {
 		if (boundSchematicId === schematic.id) {
@@ -123,24 +159,66 @@
 		}
 
 		boundSchematicId = schematic.id;
-		slotSelections = { ...defaultSelections };
-		tuning = {};
+		const draft = readBenchDraft(schematic.id);
+		slotSelections = draft?.slotSelections ?? { ...defaultSelections };
+		tuning = draft?.tuning ?? {};
+		craftMode = draft?.craftMode ?? 'safe_craft';
+		experimentPulses = draft?.experimentPulses ?? defaultExperimentPulses(schematic);
 		lockedCraftReveal = null;
 		lastCraftedKey = null;
-		experimentPulses = defaultExperimentPulses(schematic);
-		// idempotencyKey and craftMode persist per-page-load intentionally
+		// idempotencyKey persists per-page-load intentionally
+	});
+
+	$effect(() => {
+		if (boundSchematicId !== schematic.id || lockedCraftReveal) {
+			return;
+		}
+
+		writeBenchDraft(schematic.id, {
+			slotSelections,
+			tuning,
+			craftMode,
+			experimentPulses
+		});
 	});
 
 	function setPulseProperty(index: number, propertyId: string) {
+		const currentPush = experimentPulses[index]?.push ?? 'careful';
 		experimentPulses = experimentPulses.map((pulse, pulseIndex) =>
 			pulseIndex === index ? { ...pulse, propertyId } : pulse
 		);
+		void postBenchTelemetry('experiment_pulse_configured', {
+			pulseIndex: index,
+			propertyId,
+			push: currentPush
+		});
 	}
 
 	function setPulsePush(index: number, push: ExperimentPushSize) {
+		const currentPropertyId = experimentPulses[index]?.propertyId ?? '';
 		experimentPulses = experimentPulses.map((pulse, pulseIndex) =>
 			pulseIndex === index ? { ...pulse, push } : pulse
 		);
+		void postBenchTelemetry('experiment_pulse_configured', {
+			pulseIndex: index,
+			propertyId: currentPropertyId,
+			push
+		});
+	}
+
+	async function postBenchTelemetry(
+		telemetryEvent:
+			| 'resource_slot_filled'
+			| 'resource_slot_replaced'
+			| 'tuning_changed'
+			| 'experiment_pulse_configured',
+		payload: Record<string, unknown>
+	) {
+		const body = new FormData();
+		body.set('telemetryEvent', telemetryEvent);
+		body.set('schematicId', schematic.id);
+		body.set('payload', JSON.stringify(payload));
+		await fetch('?/benchTelemetry', { method: 'POST', body, keepalive: true });
 	}
 
 	function generateIdempotencyKey(): string {
@@ -240,12 +318,35 @@
 
 	function handleSlotSelect(slotId: string, instanceId: string) {
 		if (lockedCraftReveal) return;
+		const previousId = slotSelections[slotId];
 		slotSelections = { ...slotSelections, [slotId]: instanceId };
+		const stack = inventory.find((row) => row.resourceInstanceId === instanceId);
+		if (!stack) return;
+
+		const stats = { ...stack.stats };
+		if (previousId && previousId !== instanceId) {
+			void postBenchTelemetry('resource_slot_replaced', {
+				slotId,
+				fromResourceInstanceId: previousId,
+				toResourceInstanceId: instanceId,
+				toResourceSlug: stack.resourceSlug,
+				stats
+			});
+		} else if (!previousId) {
+			void postBenchTelemetry('resource_slot_filled', {
+				slotId,
+				resourceInstanceId: instanceId,
+				resourceSlug: stack.resourceSlug,
+				stats
+			});
+		}
 	}
 
 	function handleTuningChange(propertyId: string, points: number) {
 		if (lockedCraftReveal) return;
-		tuning = { ...tuning, [propertyId]: points };
+		const nextTuning = { ...tuning, [propertyId]: points };
+		tuning = nextTuning;
+		void postBenchTelemetry('tuning_changed', { allocation: nextTuning });
 	}
 
 	function handleModeChange(mode: CraftMode) {
@@ -268,6 +369,7 @@
 		lockedCraftReveal = null;
 		// Keep lastCraftedKey so stale action data cannot reopen the dismissed reveal.
 		tuning = {};
+		clearBenchDraft(schematic.id);
 		onCelebrateDismiss?.();
 	}
 
@@ -294,6 +396,14 @@
 			{schematic}
 			craftOutcome={lockedCraftReveal}
 			onCraftAnother={craftAnother}
+			onFavoriteChanged={(nextFavorited) => {
+				if (!lockedCraftReveal) return;
+				lockedCraftReveal = {
+					...lockedCraftReveal,
+					item: { ...lockedCraftReveal.item, favorited: nextFavorited }
+				};
+			}}
+			onReclaimed={craftAnother}
 		/>
 	{:else if !schematicReadiness.craftableNow}
 		<div class="blockers-panel" role="alert">
@@ -304,9 +414,7 @@
 				{/each}
 			</ul>
 			<p class="blockers-actions">
-				<a href="/field">Go to FIELD →</a>
-				·
-				<a href="/settlement">Go to SETTLEMENT →</a>
+				Try another bench resource combination or reclaim a crafted item for more stock.
 			</p>
 		</div>
 	{:else}
@@ -407,18 +515,23 @@
 					{#each experimentPulses as pulse, index (index)}
 						<div class="pulse-row">
 							<p class="pulse-row__title">Pulse {index + 1}</p>
-							<label class="pulse-row__field">
-								<span>Property line</span>
-								<select
-									value={pulse.propertyId}
-									onchange={(event) =>
-										setPulseProperty(index, event.currentTarget.value)}
-								>
-									{#each schematic.properties as property (property.id)}
-										<option value={property.id}>{property.displayName}</option>
-									{/each}
-								</select>
-							</label>
+							<div
+								class="property-options"
+								role="group"
+								aria-label="Property line for pulse {index + 1}"
+							>
+								{#each schematic.properties as property (property.id)}
+									<button
+										type="button"
+										class="property-btn"
+										class:selected={pulse.propertyId === property.id}
+										aria-pressed={pulse.propertyId === property.id}
+										onclick={() => setPulseProperty(index, property.id)}
+									>
+										{property.displayName}
+									</button>
+								{/each}
+							</div>
 							<div class="push-options" role="group" aria-label="Push size for pulse {index + 1}">
 								{#each EXPERIMENT_PUSH_OPTIONS as option (option.id)}
 									<button
@@ -608,21 +721,27 @@
 		letter-spacing: 0.06em;
 	}
 
-	.pulse-row__field {
+	.property-options {
 		display: flex;
 		flex-direction: column;
-		gap: 0.35rem;
-		font-size: 0.85rem;
-		color: var(--text-secondary);
+		gap: 0.5rem;
 	}
 
-	.pulse-row__field select {
-		padding: 0.5rem;
-		border: 1px solid var(--border-subtle);
-		border-radius: 4px;
+	.property-btn {
+		padding: 0.65rem 0.75rem;
+		border: 2px solid var(--border-subtle);
+		border-radius: 6px;
 		background: var(--bg-panel);
 		color: var(--text-primary);
+		cursor: pointer;
+		text-align: left;
 		font-family: inherit;
+		font-size: 0.9rem;
+	}
+
+	.property-btn.selected {
+		border-color: var(--phosphor);
+		background: var(--phosphor-glow);
 	}
 
 	.push-options {

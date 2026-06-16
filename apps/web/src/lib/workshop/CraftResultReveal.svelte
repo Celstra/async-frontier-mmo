@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 	import {
 		experimentPulseOutcomeLabel,
 		experimentPushDisplayLabel,
@@ -16,19 +17,32 @@
 		schematic: SchematicDefinition;
 		craftOutcome: WorkshopCraftOutcome;
 		onCraftAnother: () => void;
+		onFavoriteChanged?: (favorited: boolean) => void;
+		onReclaimed?: () => void;
 	}
 
-	let { schematic, craftOutcome, onCraftAnother }: Props = $props();
+	let {
+		schematic,
+		craftOutcome,
+		onCraftAnother,
+		onFavoriteChanged,
+		onReclaimed
+	}: Props = $props();
 
 	let revealEl = $state<HTMLElement | null>(null);
 	let showInstallPreview = $state(false);
+	let showReclaimConfirm = $state(false);
 	let installing = $state(false);
+	let reclaiming = $state(false);
 	let installError = $state<string | null>(null);
+	let reclaimError = $state<string | null>(null);
 	let pulseTelemetrySent = $state(false);
+	let reclaimIdempotencyKey = $state(`${Date.now()}-reclaim`);
 
 	const explanation: CraftResultExplanation = $derived(craftOutcome.explanation);
 	const comparison: CraftInstallComparison | null = $derived(craftOutcome.comparisonTarget);
 	const canCompare = $derived(comparison !== null);
+	const favorited = $derived(craftOutcome.item.favorited);
 
 	function propertyDisplayName(propertyId: string): string {
 		return schematic.properties.find((line) => line.id === propertyId)?.displayName ?? propertyId;
@@ -60,8 +74,16 @@
 
 	function openInstallPreview() {
 		showInstallPreview = true;
+		showReclaimConfirm = false;
 		installError = null;
 		void postTelemetry('craft_result_compare_clicked');
+	}
+
+	function openReclaimConfirm() {
+		showReclaimConfirm = true;
+		showInstallPreview = false;
+		reclaimError = null;
+		reclaimIdempotencyKey = `${Date.now()}-reclaim`;
 	}
 
 	async function postTelemetry(
@@ -233,15 +255,104 @@
 			Made from:
 			{(explanation.slotFillsSnapshot ?? []).map((slot) => slot.resourceDisplayName).join(', ')}
 		</p>
+
+		<div class="craft-reveal__item-actions">
+			<form
+				method="POST"
+				action="?/toggleFavorite"
+				use:enhance={() => {
+					return async ({ result, update }) => {
+						await update({ reset: false });
+						if (result.type === 'success') {
+							const nextFavorited = !favorited;
+							onFavoriteChanged?.(nextFavorited);
+						}
+					};
+				}}
+			>
+				<input type="hidden" name="itemId" value={craftOutcome.item.id} />
+				<input type="hidden" name="favorited" value={favorited ? 'false' : 'true'} />
+				<button type="submit" class="craft-reveal__keep-btn">
+					{favorited ? 'Unkeep prototype' : 'Keep prototype'}
+				</button>
+			</form>
+
+			<button type="button" class="craft-reveal__reclaim-btn" onclick={openReclaimConfirm}>
+				Reclaim materials
+			</button>
+		</div>
 	</section>
 
-	{#if showInstallPreview && comparison}
+	{#if showReclaimConfirm}
+		<section class="craft-reveal__reclaim-preview">
+			<h4>Reclaim preview</h4>
+			{#if favorited}
+				<p class="craft-reveal__reclaim-warning" role="alert">
+					This prototype is kept. Reclaiming destroys it and returns partial bench stock.
+				</p>
+			{:else}
+				<p>Breaking down returns partial bench stock. This cannot be undone.</p>
+			{/if}
+			<ul class="craft-reveal__reclaim-list">
+				{#each craftOutcome.reclaimPreview as line}
+					<li>{line.resourceDisplayName}: {line.quantity}u</li>
+				{/each}
+			</ul>
+
+			{#if reclaimError}
+				<p class="craft-reveal__install-error" role="alert">{reclaimError}</p>
+			{/if}
+
+			<form
+				method="POST"
+				action="?/reclaimItem"
+				use:enhance={() => {
+					reclaiming = true;
+					reclaimError = null;
+					return async ({ result, update }) => {
+						await update({ reset: false });
+						reclaiming = false;
+						if (result.type === 'success') {
+							showReclaimConfirm = false;
+							onReclaimed?.();
+							onCraftAnother();
+						} else if (result.type === 'failure') {
+							const message = result.data?.message;
+							reclaimError =
+								typeof message === 'string' ? message : 'Reclaim failed — try again.';
+						}
+					};
+				}}
+			>
+				<input type="hidden" name="itemId" value={craftOutcome.item.id} />
+				<input type="hidden" name="idempotencyKey" value={reclaimIdempotencyKey} />
+				<input type="hidden" name="previewed" value="true" />
+				{#if favorited}
+					<input type="hidden" name="confirmFavorited" value="true" />
+				{/if}
+				<button type="submit" class="craft-reveal__reclaim-confirm-btn" disabled={reclaiming}>
+					Confirm reclaim
+				</button>
+			</form>
+			<button
+				type="button"
+				class="craft-reveal__secondary-btn"
+				onclick={() => (showReclaimConfirm = false)}
+			>
+				Keep prototype
+			</button>
+		</section>
+	{:else if showInstallPreview && comparison}
 		<section class="craft-reveal__install-preview">
-			<h4>RIG install preview</h4>
-			<p class="craft-reveal__install-slot">{comparison.slotLabel}</p>
+			<h4>{WORKSHOP_SLICE_PLAYTEST ? 'Compare to your best' : 'RIG install preview'}</h4>
+			{#if WORKSHOP_SLICE_PLAYTEST}
+				<p class="craft-reveal__install-slot">Prior best for this schematic</p>
+			{:else}
+				<p class="craft-reveal__install-slot">{comparison.slotLabel}</p>
+			{/if}
 			<p>
 				Current:
-				{comparison.current?.displayName ?? 'Empty slot'}
+				{comparison.current?.displayName ?? 'No prior craft'}
 			</p>
 			<p>New: {comparison.candidate.displayName}</p>
 			<ul class="craft-reveal__delta-list">
@@ -252,71 +363,77 @@
 				{/each}
 			</ul>
 
-			{#if installError}
-				<p class="craft-reveal__install-error" role="alert">{installError}</p>
-			{/if}
-
-			<form
-				method="POST"
-				action="?/installCraftedItem"
-				use:enhance={() => {
-					installing = true;
-					installError = null;
-					return async ({ result, update }) => {
-						await update({ reset: false });
-						installing = false;
-						if (result.type === 'success') {
-							showInstallPreview = false;
-							onCraftAnother();
-						} else if (result.type === 'failure') {
-							const message = result.data?.message;
-							installError =
-								typeof message === 'string'
-									? message
-									: 'Install failed — equipment may be locked while a thumper run is active.';
-						}
-					};
-				}}
-			>
-				<input type="hidden" name="itemId" value={comparison.candidate.itemId} />
-				<input type="hidden" name="installKind" value={comparison.installKind} />
-				{#if comparison.thumperSlot}
-					<input type="hidden" name="slot" value={comparison.thumperSlot} />
+			{#if !WORKSHOP_SLICE_PLAYTEST}
+				{#if installError}
+					<p class="craft-reveal__install-error" role="alert">{installError}</p>
 				{/if}
-				<button type="submit" class="craft-reveal__install-btn" disabled={installing}>
-					Install {comparison.candidate.displayName}
-				</button>
-			</form>
+
+				<form
+					method="POST"
+					action="?/installCraftedItem"
+					use:enhance={() => {
+						installing = true;
+						installError = null;
+						return async ({ result, update }) => {
+							await update({ reset: false });
+							installing = false;
+							if (result.type === 'success') {
+								showInstallPreview = false;
+								onCraftAnother();
+							} else if (result.type === 'failure') {
+								const message = result.data?.message;
+								installError =
+									typeof message === 'string'
+										? message
+										: 'Install failed — equipment may be locked while a thumper run is active.';
+							}
+						};
+					}}
+				>
+					<input type="hidden" name="itemId" value={comparison.candidate.itemId} />
+					<input type="hidden" name="installKind" value={comparison.installKind} />
+					{#if comparison.thumperSlot}
+						<input type="hidden" name="slot" value={comparison.thumperSlot} />
+					{/if}
+					<button type="submit" class="craft-reveal__install-btn" disabled={installing}>
+						Install {comparison.candidate.displayName}
+					</button>
+				</form>
+			{/if}
 			<button
 				type="button"
 				class="craft-reveal__secondary-btn"
 				onclick={() => (showInstallPreview = false)}
 			>
-				Keep current
+				{WORKSHOP_SLICE_PLAYTEST ? 'Close comparison' : 'Keep current'}
 			</button>
 		</section>
 	{:else}
 		<div class="craft-reveal__actions">
 			{#if canCompare}
 				<button type="button" class="craft-reveal__primary-btn" onclick={openInstallPreview}>
-					Compare for RIG
+					{WORKSHOP_SLICE_PLAYTEST ? 'Compare to your best' : 'Compare for RIG'}
 				</button>
 			{/if}
 			<button type="button" class="craft-reveal__secondary-btn" onclick={handleCraftAnother}>
 				Craft another
 			</button>
-			<a class="craft-reveal__link-btn" href="/rig" onclick={(event) => handleRevealAbandon(event, '/rig')}>
-				View RIG
-			</a>
-			<a
-				class="craft-reveal__link-btn"
-				href="/field"
-				onclick={(event) => handleRevealAbandon(event, '/field')}
-			>
-				Return to FIELD
-			</a>
+			{#if !WORKSHOP_SLICE_PLAYTEST}
+				<a class="craft-reveal__link-btn" href="/rig" onclick={(event) => handleRevealAbandon(event, '/rig')}>
+					View RIG
+				</a>
+				<a
+					class="craft-reveal__link-btn"
+					href="/field"
+					onclick={(event) => handleRevealAbandon(event, '/field')}
+				>
+					Return to FIELD
+				</a>
+			{/if}
 		</div>
-		{#if canCompare}
+		{#if canCompare && WORKSHOP_SLICE_PLAYTEST}
+			<p class="craft-reveal__next-hint">Compare against your best craft for this schematic.</p>
+		{:else if canCompare && !WORKSHOP_SLICE_PLAYTEST}
 			<p class="craft-reveal__next-hint">Compare it at the RIG before the next run.</p>
 		{/if}
 	{/if}
@@ -549,6 +666,75 @@
 		background: rgba(251, 191, 36, 0.1);
 		color: var(--accent-warning);
 		font-size: 0.9rem;
+	}
+
+	.craft-reveal__item-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+
+	.craft-reveal__keep-btn,
+	.craft-reveal__reclaim-btn {
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		background: var(--bg-hover);
+		color: var(--text-primary);
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+
+	.craft-reveal__reclaim-btn {
+		border-color: rgba(251, 191, 36, 0.45);
+		color: var(--accent-warning);
+	}
+
+	.craft-reveal__reclaim-preview {
+		margin-bottom: 1rem;
+		padding: 0.85rem;
+		border: 1px solid rgba(251, 191, 36, 0.45);
+		border-radius: var(--radius-sm);
+		background: rgba(251, 191, 36, 0.08);
+	}
+
+	.craft-reveal__reclaim-preview h4 {
+		margin: 0 0 0.5rem;
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--accent-warning);
+	}
+
+	.craft-reveal__reclaim-preview p {
+		margin: 0 0 0.5rem;
+		font-size: 0.85rem;
+		color: var(--text-secondary);
+	}
+
+	.craft-reveal__reclaim-warning {
+		color: var(--accent-warning) !important;
+		font-weight: 600;
+	}
+
+	.craft-reveal__reclaim-list {
+		margin: 0 0 0.75rem;
+		padding-left: 1.1rem;
+		font-size: 0.85rem;
+		color: var(--text-bright);
+	}
+
+	.craft-reveal__reclaim-confirm-btn {
+		width: 100%;
+		margin-bottom: 0.5rem;
+		padding: 0.75rem;
+		border: none;
+		border-radius: var(--radius-sm);
+		background: var(--accent-warning);
+		color: var(--bg-base);
+		font-weight: 600;
+		cursor: pointer;
 	}
 
 	.craft-reveal__primary-btn,

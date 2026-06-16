@@ -4,6 +4,7 @@ import {
 	settlementBriefingPendingForStep
 } from '@async-frontier-mmo/domain';
 import type { getGameDb } from './gameDb.js';
+import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 import { loadClaimScreen } from './fieldClaimState.js';
 import { hasOrderReadyToTurnIn } from './settlementLoad.js';
 import { trackNextActionResolved } from './playtestTelemetry.js';
@@ -13,6 +14,17 @@ export async function loadNextActionScreen(
 	pilotId: string,
 	now = new Date()
 ) {
+	if (WORKSHOP_SLICE_PLAYTEST) {
+		const tutorialStep = await getPilotTutorialStep(db, pilotId);
+		await trackNextActionResolved(db, pilotId, {
+			nextActionScreen: 'workshop',
+			tutorialStep,
+			openRunActive: false,
+			claimPendingOnRig: false
+		});
+		return 'workshop' as const;
+	}
+
 	const [tutorialStep, orderReadyToTurnIn, claimView, openRun] = await Promise.all([
 		getPilotTutorialStep(db, pilotId),
 		hasOrderReadyToTurnIn(db, pilotId),

@@ -192,3 +192,71 @@ export async function recordMissionOrderNudgeShown(
 		payload: { orderId }
 	});
 }
+
+/** Logs craft_started at most once per pilot + craft idempotency key. */
+export async function recordCraftStartedOnce(
+	db: DbExecutor,
+	input: {
+		pilotId: string;
+		payload: { schematicId: string; craftMode: string; idempotencyKey: string };
+		createdAt?: Date;
+	}
+): Promise<boolean> {
+	const [existing] = await db
+		.select({ id: playtestEvents.id })
+		.from(playtestEvents)
+		.where(
+			and(
+				eq(playtestEvents.pilotId, input.pilotId),
+				eq(playtestEvents.eventName, 'craft_started'),
+				sql`${playtestEvents.payload}->>'idempotencyKey' = ${input.payload.idempotencyKey}`
+			)
+		)
+		.limit(1);
+
+	if (existing) {
+		return false;
+	}
+
+	await recordPlaytestEvent(db, {
+		pilotId: input.pilotId,
+		eventName: 'craft_started',
+		payload: input.payload,
+		createdAt: input.createdAt
+	});
+	return true;
+}
+
+/** Logs supply_crate_available at most once per pilot + crate id (race-safe via partial unique index). */
+export async function recordSupplyCrateAvailableOnce(
+	db: DbExecutor,
+	input: {
+		pilotId: string;
+		payload: { crateId: string; reason: string; sequence: number };
+		createdAt?: Date;
+	}
+): Promise<boolean> {
+	try {
+		await db.insert(playtestEvents).values({
+			pilotId: input.pilotId,
+			eventName: 'supply_crate_available',
+			payload: input.payload,
+			createdAt: input.createdAt ?? new Date()
+		});
+		return true;
+	} catch (error) {
+		if (isUniqueViolation(error)) {
+			return false;
+		}
+		throw error;
+	}
+}
+
+function isUniqueViolation(error: unknown): boolean {
+	return (
+		typeof error === 'object' &&
+		error !== null &&
+		'code' in error &&
+		(error as { code: string }).code === '23505'
+	);
+}

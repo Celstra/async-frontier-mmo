@@ -108,8 +108,11 @@ export {
 } from './queries/depositSpotYields.js';
 export {
 	cleanupScannerCraftPilotForSmoke,
+	cleanupWorkshopCraftPilotForSmoke,
 	deleteAllSmokePilotData,
-	seedScannerCraftPilotForSmoke
+	mintWorkshopTimerCrateForSmoke,
+	seedScannerCraftPilotForSmoke,
+	seedWorkshopCraftPilotForSmoke
 } from './queries/smokeTestHelpers.js';
 export {
 	claimOpenThumperRunForPilot,
@@ -232,6 +235,57 @@ export {
 	recordMissionOrderNudgeShown,
 	recordPlaytestEvent,
 	recordPlaytestEventOnce,
+	recordCraftStartedOnce,
+	recordSupplyCrateAvailableOnce,
 	type PlaytestEventPayload
 } from './queries/playtestTelemetry.js';
+export {
+	countCompletedCraftsForSchematic,
+	hasCraftedEachWorkshopThumperPart,
+	listCompletedWorkshopSchematicIdsForPilot
+} from './queries/workshopTelemetry.js';
 export { playtestEvents } from './schema/playtestEvents.js';
+export { pilotWorkshopState } from './schema/pilotWorkshopState.js';
+export { workshopCrates } from './schema/workshopCrates.js';
+export { workshopReclaims } from './schema/workshopReclaims.js';
+export {
+	ensurePilotWorkshopStateTx,
+	ensureWorkshopBenchResourceInstances,
+	ensureWorkshopStarterGrantForPilot,
+	getPilotItemById,
+	getPilotWorkshopState,
+	getWorkshopBenchInstanceBySlug,
+	listWorkshopCraftedItemsForPilot,
+	WorkshopItemNotFoundError,
+	WorkshopSliceItemValidationError,
+	setItemFavoriteForPilot,
+	type WorkshopStarterGrantOutcome
+} from './queries/workshopSlice.js';
+export {
+	createEmergencyWorkshopCrateTx,
+	createWorkshopCrateTx,
+	isTimedWorkshopCrateDue,
+	listWorkshopCratesForPilot,
+	openWorkshopCrateForPilot,
+	recordWorkshopCraftCompletionTx,
+	refreshTimedWorkshopCratesTx,
+	syncWorkshopSupplyCratesForPilot,
+	ensureEmergencyWorkshopCrateIfStuckTx,
+	WorkshopCrateNotFoundError,
+	WorkshopCrateUnavailableError,
+	type OpenWorkshopCrateOutcome
+} from './queries/workshopCrates.js';
+export {
+	getWorkshopReclaimByIdempotency,
+	reclaimWorkshopItemForPilot,
+	WorkshopReclaimValidationError,
+	type ReclaimWorkshopItemOutcome
+} from './queries/workshopReclaims.js';
+export {
+	assertWorkshopBenchCraftInputs,
+	isWorkshopBenchResourceInstance,
+	listPilotWorkshopBenchStacksWithInstances,
+	WorkshopBenchResourceValidationError,
+	type PilotWorkshopBenchStack
+} from './queries/workshopBenchInventory.js';
+export { WORKSHOP_BENCH_BLOOM_ID, WORKSHOP_BENCH_DISPLAY_SUFFIX } from './seed/workshopBenchSeed.js';

@@ -2177,3 +2177,9 @@ Needs UX/design pass before implementation (copy, placement on SETTLEMENT vs FIE
 Do not build all of this first.
 
 Build the smallest version of the core loop, then use this backlog as a menu of hypotheses. The right next feature is the one that makes the loop more readable, more surprising, more social, or more replayable without turning the project into a full realtime MMO.
+
+---
+
+## Active Playtest Target
+
+Decision 024 (`WORKSHOP_FIRST_CRAFTING_SLICE_SPEC.md`) is the current rollout target as of 2026-06-16. The next playtest starts in WORKSHOP with low-to-mid bench stock, three thumper-part schematics, repeated craft comparison, lossy reclaim/sell, and controlled supply crates. FIELD, RIG, and SETTLEMENT stay visible but read In Development until crafting proves fun on its own.

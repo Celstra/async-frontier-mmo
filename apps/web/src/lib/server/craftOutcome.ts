@@ -1,14 +1,19 @@
 import {
 	buildCraftInstallComparison,
+	isWorkshopActiveSchematic,
+	pickBestWorkshopCraftItem,
+	previewWorkshopItemReclaimFromProvenance,
 	SURVEY_SCANNER_MK_I,
 	thumperPartSlotForSchematic,
 	type CraftInstallComparison,
 	type CraftResultExplanation,
+	type NamedResourceId,
 	type SchematicDefinition
 } from '@async-frontier-mmo/domain';
 import {
 	getEquippedScannerForPilot,
 	getEquippedThumperPartsForPilot,
+	listWorkshopCraftedItemsForPilot,
 	type items
 } from '@async-frontier-mmo/db';
 import type { getGameDb } from './gameDb.js';
@@ -25,10 +30,16 @@ export type WorkshopCraftOutcome = {
 		hasMinorFlaw: boolean;
 		propertyScores: Record<string, number>;
 		schematicId: string;
+		favorited: boolean;
 	};
 	explanation: CraftResultExplanation;
 	comparisonTarget: CraftInstallComparison | null;
 	highlights: string[];
+	reclaimPreview: Array<{
+		resourceSlug: string;
+		resourceDisplayName: string;
+		quantity: number;
+	}>;
 };
 
 function comparisonItemFromRow(item: typeof items.$inferSelect) {
@@ -69,7 +80,48 @@ function buildHighlights(input: {
 		}
 	}
 
+	if (
+		input.comparison &&
+		input.comparison.candidate.itemId !== input.comparison.current?.itemId
+	) {
+		const candidateTotal = Object.values(input.comparison.candidate.propertyScores).reduce(
+			(sum, score) => sum + score,
+			0
+		);
+		const currentTotal = input.comparison.current
+			? Object.values(input.comparison.current.propertyScores).reduce(
+					(sum, score) => sum + score,
+					0
+				)
+			: 0;
+		if (candidateTotal > currentTotal) {
+			highlights.push('Beats prior best');
+		}
+	}
+
 	return highlights;
+}
+
+async function buildSessionBestComparison(
+	db: Db,
+	pilotId: string,
+	schematic: SchematicDefinition,
+	candidate: typeof items.$inferSelect
+): Promise<CraftInstallComparison | null> {
+	const craftedItems = await listWorkshopCraftedItemsForPilot(db, pilotId);
+	const priorItems = craftedItems.filter(
+		(item) => item.schematicId === schematic.id && item.id !== candidate.id
+	);
+	const bestPrior = pickBestWorkshopCraftItem(schematic, priorItems);
+	if (!bestPrior) {
+		return null;
+	}
+
+	return buildCraftInstallComparison({
+		schematic,
+		candidate: comparisonItemFromRow(candidate),
+		current: comparisonItemFromRow(bestPrior)
+	});
 }
 
 export async function buildWorkshopCraftOutcome(
@@ -85,7 +137,9 @@ export async function buildWorkshopCraftOutcome(
 	const candidate = comparisonItemFromRow(input.item);
 	let comparison: CraftInstallComparison | null = null;
 
-	if (input.schematic.id === SURVEY_SCANNER_MK_I.id) {
+	if (isWorkshopActiveSchematic(input.schematic.id)) {
+		comparison = await buildSessionBestComparison(db, pilotId, input.schematic, input.item);
+	} else if (input.schematic.id === SURVEY_SCANNER_MK_I.id) {
 		const equipped = await getEquippedScannerForPilot(db, pilotId);
 		comparison = buildCraftInstallComparison({
 			schematic: input.schematic,
@@ -114,7 +168,8 @@ export async function buildWorkshopCraftOutcome(
 			integrity: input.item.integrity,
 			hasMinorFlaw: input.item.hasMinorFlaw,
 			propertyScores: input.item.propertyScores,
-			schematicId: input.item.schematicId
+			schematicId: input.item.schematicId,
+			favorited: input.item.favoritedAt !== null
 		},
 		explanation: input.explanation,
 		comparisonTarget: comparison,
@@ -122,6 +177,22 @@ export async function buildWorkshopCraftOutcome(
 			schematic: input.schematic,
 			explanation: input.explanation,
 			comparison
-		})
+		}),
+		reclaimPreview: buildReclaimPreviewForItem(input.item).map((line) => ({
+			resourceSlug: line.resourceSlug,
+			resourceDisplayName: line.resourceDisplayName,
+			quantity: line.quantity
+		}))
 	};
+}
+
+export function buildReclaimPreviewForItem(item: typeof items.$inferSelect) {
+	return previewWorkshopItemReclaimFromProvenance(
+		item.provenance.map((line) => ({
+			resourceInstanceId: line.resourceInstanceId,
+			resourceSlug: line.resourceSlug as NamedResourceId,
+			resourceDisplayName: line.resourceDisplayName,
+			quantityConsumed: line.quantityConsumed
+		}))
+	);
 }

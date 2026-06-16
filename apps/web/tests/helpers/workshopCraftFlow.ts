@@ -1,5 +1,11 @@
 import { expect, type Page } from '@playwright/test';
 
+const DRILL_HEAD_SLOT_STACKS = [
+	{ slotId: 'cutting_bit', heading: 'Cutting Bit', slug: 'keth_iron' },
+	{ slotId: 'conductive_coil', heading: 'Conductive Coil', slug: 'veyrith_copper' },
+	{ slotId: 'resonance_crystal', heading: 'Resonance Crystal', slug: 'pale_ember_crystal' }
+] as const;
+
 const SCANNER_SLOT_STACKS = [
 	{ slotId: 'conductive_core', heading: 'Conductive Core', slug: 'veyrith_copper' },
 	{ slotId: 'crystal_lens', heading: 'Crystal Lens', slug: 'pale_ember_crystal' },
@@ -32,6 +38,146 @@ async function selectStackForSlot(
 	await card.click();
 	await expect(card).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.locator(`input[name="slot_${slotId}"]`)).not.toHaveValue('');
+}
+
+export async function fillDrillHeadCraftBench(page: Page): Promise<void> {
+	await waitForWorkbenchReady(page);
+
+	for (const row of DRILL_HEAD_SLOT_STACKS) {
+		await selectStackForSlot(page, row.slotId, row.heading, row.slug);
+	}
+
+	await page.getByRole('button', { name: /Increase Extraction Rate tuning/i }).click();
+	await page.getByRole('button', { name: /Increase Extraction Rate tuning/i }).click();
+	await page.getByRole('button', { name: /Increase Depth Access tuning/i }).click();
+
+	await expect(page.locator('.points-indicator.complete')).toBeVisible({ timeout: 5_000 });
+
+	const submit = page.getByRole('button', { name: /Craft Basic Drill Head/i });
+	await expect(submit).toBeEnabled({ timeout: 10_000 });
+}
+
+export async function craftDrillHeadWithExperiment(page: Page): Promise<void> {
+	await page.getByRole('button', { name: /experiment \(2 pulses\)/i }).click();
+	const submit = page.getByRole('button', { name: /Craft Basic Drill Head/i });
+	await expect(submit).toBeEnabled({ timeout: 10_000 });
+	await submit.click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function expectWorkshopCraftResultReveal(
+	page: Page,
+	options: { compareToBest?: boolean } = {}
+): Promise<void> {
+	const reveal = page.locator('.craft-reveal');
+	await expect(reveal.getByText('Fabricator sealed')).toBeVisible({ timeout: 15_000 });
+	await expect(reveal.getByText('Prototype complete')).toBeVisible();
+	await expect(reveal.getByText('Pulse 1')).toBeVisible();
+	await expect(reveal.getByText('Pulse 2')).toBeVisible();
+	if (options.compareToBest) {
+		await expect(reveal.getByRole('button', { name: 'Compare to your best' })).toBeVisible();
+	} else {
+		await expect(reveal.getByRole('button', { name: 'Compare to your best' })).toHaveCount(0);
+	}
+	await expect(reveal.getByRole('button', { name: 'Keep prototype' })).toBeVisible();
+	await expect(reveal.getByRole('button', { name: 'Reclaim materials' })).toBeVisible();
+	await expect(page.getByText(/item crafted — equip it/i)).toHaveCount(0);
+}
+
+export async function keepPrototypeFromReveal(page: Page): Promise<void> {
+	const reveal = page.locator('.craft-reveal');
+	await reveal.getByRole('button', { name: 'Keep prototype' }).click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function craftAnotherFromReveal(page: Page): Promise<void> {
+	const reveal = page.locator('.craft-reveal');
+	await reveal.getByRole('button', { name: 'Craft another' }).click();
+	await expect(reveal).toHaveCount(0, { timeout: 10_000 });
+}
+
+const PUMP_SLOT_STACKS = [
+	{ slotId: 'intake_manifold', heading: 'Intake Manifold', slug: 'sorrel_vein_copper' },
+	{ slotId: 'flexible_housing', heading: 'Flexible Housing', slug: 'keth_iron' },
+	{ slotId: 'flow_crystal', heading: 'Flow Crystal', slug: 'pale_ember_crystal' }
+] as const;
+
+const HULL_SLOT_STACKS = [
+	{ slotId: 'outer_plate', heading: 'Outer Plate', slug: 'keth_iron' },
+	{ slotId: 'bracing_layer', heading: 'Bracing Layer', slug: 'asterion_frame_alloy' },
+	{ slotId: 'bonding_matrix', heading: 'Bonding Matrix', slug: 'pale_ember_crystal' }
+] as const;
+
+export async function fillEfficientPumpCraftBench(page: Page): Promise<void> {
+	await waitForWorkbenchReady(page);
+
+	for (const row of PUMP_SLOT_STACKS) {
+		await selectStackForSlot(page, row.slotId, row.heading, row.slug);
+	}
+
+	await page.getByRole('button', { name: /Increase Recovery Efficiency tuning/i }).click();
+	await page.getByRole('button', { name: /Increase Recovery Efficiency tuning/i }).click();
+	await page.getByRole('button', { name: /Increase Clog Resistance tuning/i }).click();
+
+	await expect(page.locator('.points-indicator.complete')).toBeVisible({ timeout: 5_000 });
+	await expect(page.getByRole('button', { name: /Craft Efficient Pump/i })).toBeEnabled({
+		timeout: 10_000
+	});
+}
+
+export async function craftEfficientPumpSafe(page: Page): Promise<void> {
+	const submit = page.getByRole('button', { name: /Craft Efficient Pump/i });
+	await submit.click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function fillReinforcedHullCraftBench(page: Page): Promise<void> {
+	await waitForWorkbenchReady(page);
+
+	for (const row of HULL_SLOT_STACKS) {
+		await selectStackForSlot(page, row.slotId, row.heading, row.slug);
+	}
+
+	await page.getByRole('button', { name: /Increase Max Condition tuning/i }).click();
+	await page.getByRole('button', { name: /Increase Max Condition tuning/i }).click();
+	await page.getByRole('button', { name: /Increase Damage Reduction tuning/i }).click();
+
+	await expect(page.locator('.points-indicator.complete')).toBeVisible({ timeout: 5_000 });
+	await expect(page.getByRole('button', { name: /Craft Reinforced Hull Plate/i })).toBeEnabled({
+		timeout: 10_000
+	});
+}
+
+export async function craftReinforcedHullSafe(page: Page): Promise<void> {
+	const submit = page.getByRole('button', { name: /Craft Reinforced Hull Plate/i });
+	await submit.click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function favoritePrototypeFromReveal(page: Page): Promise<void> {
+	const reveal = page.locator('.craft-reveal');
+	await reveal.getByRole('button', { name: 'Keep prototype' }).click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function openFirstAvailableCrate(page: Page): Promise<void> {
+	const panel = page.getByLabel('Workshop supply crates');
+	await panel.getByRole('button', { name: 'Open crate' }).first().click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function reclaimPrototypeFromReveal(page: Page): Promise<void> {
+	const reveal = page.locator('.craft-reveal');
+	await reveal.getByRole('button', { name: 'Reclaim materials' }).click();
+	await reveal.getByRole('button', { name: 'Confirm reclaim' }).click();
+	await page.waitForLoadState('networkidle');
+	await expect(reveal).toHaveCount(0, { timeout: 10_000 });
+}
+
+export async function openCompareToBestFromReveal(page: Page): Promise<void> {
+	const reveal = page.locator('.craft-reveal');
+	await reveal.getByRole('button', { name: 'Compare to your best' }).click();
+	await expect(reveal.getByText('Prior best for this schematic')).toBeVisible();
 }
 
 export async function fillScannerCraftBench(page: Page): Promise<void> {

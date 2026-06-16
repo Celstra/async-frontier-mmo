@@ -1,6 +1,7 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { BLOOM_ONE_ID, BLOOM_ONE_SEED_RESOURCES } from '../seed/bloomOneSeed.js';
+import { WORKSHOP_BENCH_BLOOM_ID } from '../seed/workshopBenchSeed.js';
 import { resourceInstances } from '../schema/resourceInstances.js';
 
 export class ResourceInstanceStatsImmutableError extends Error {
@@ -145,7 +146,12 @@ export async function listSpawnableResourceInstances(db: DbExecutor) {
 	return db
 		.select()
 		.from(resourceInstances)
-		.where(isNull(resourceInstances.extinctAt))
+		.where(
+			and(
+				isNull(resourceInstances.extinctAt),
+				ne(resourceInstances.bloomId, WORKSHOP_BENCH_BLOOM_ID)
+			)
+		)
 		.orderBy(resourceInstances.family, resourceInstances.displayName);
 }
 

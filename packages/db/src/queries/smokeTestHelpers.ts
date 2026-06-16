@@ -18,10 +18,19 @@ import { settlementOrders } from '../schema/settlementOrders.js';
 import { thumperEventWindows } from '../schema/thumperEventWindows.js';
 import { thumperRunResults } from '../schema/thumperRunResults.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
+import { pilotWorkshopState } from '../schema/pilotWorkshopState.js';
+import { workshopCrates } from '../schema/workshopCrates.js';
+import { workshopReclaims } from '../schema/workshopReclaims.js';
 import { ensureSessionPilot } from './pilots.js';
 import { grantResourceToPilot } from './resourceGrants.js';
 import { ensureBloomOneResourceInstances, getResourceInstanceByBloomSlug } from './resourceInstances.js';
 import { clearPilotTutorialState, setPilotTutorialStep } from './tutorialState.js';
+import { createWorkshopCrateTx } from './workshopCrates.js';
+import {
+	ensurePilotWorkshopStateTx,
+	ensureWorkshopBenchResourceInstances,
+	ensureWorkshopStarterGrantForPilot
+} from './workshopSlice.js';
 
 /** Fabricator-unlocked pilot with enough scanner materials for one browser craft smoke run. */
 export async function seedScannerCraftPilotForSmoke(db: Db, pilotId: string): Promise<void> {
@@ -60,6 +69,24 @@ export async function seedScannerCraftPilotForSmoke(db: Db, pilotId: string): Pr
 	}
 }
 
+/** Workshop-first pilot with bench starter grant for browser smoke. */
+export async function seedWorkshopCraftPilotForSmoke(db: Db, pilotId: string): Promise<void> {
+	await ensureSessionPilot(db, pilotId);
+	await ensureWorkshopBenchResourceInstances(db);
+	await ensureWorkshopStarterGrantForPilot(db, pilotId);
+}
+
+/** Mint one timer crate for workshop open-crate smoke paths. */
+export async function mintWorkshopTimerCrateForSmoke(db: Db, pilotId: string): Promise<void> {
+	await ensurePilotWorkshopStateTx(db, pilotId);
+	await createWorkshopCrateTx(db, { pilotId, reason: 'timer' });
+}
+
+/** Remove workshop slice rows plus shared smoke pilot cleanup. */
+export async function cleanupWorkshopCraftPilotForSmoke(db: Db, pilotId: string): Promise<void> {
+	await deleteAllSmokePilotData(db, pilotId);
+}
+
 /**
  * Delete every row owned by a smoke pilot before removing the pilot row.
  * Keeps browser smoke teardown from chasing one FK at a time.
@@ -80,6 +107,9 @@ export async function deleteAllSmokePilotData(db: Db, pilotId: string): Promise<
 	}
 
 	await db.delete(craftingAttempts).where(eq(craftingAttempts.pilotId, pilotId));
+	await db.delete(workshopReclaims).where(eq(workshopReclaims.pilotId, pilotId));
+	await db.delete(workshopCrates).where(eq(workshopCrates.pilotId, pilotId));
+	await db.delete(pilotWorkshopState).where(eq(pilotWorkshopState.pilotId, pilotId));
 	await db
 		.update(pilots)
 		.set({

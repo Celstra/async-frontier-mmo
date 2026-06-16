@@ -3,6 +3,7 @@ import {
 	getPlaytestEventOnce,
 	recordPlaytestEvent,
 	recordPlaytestEventOnce,
+	recordSupplyCrateAvailableOnce,
 	type PlaytestEventPayload
 } from '@async-frontier-mmo/db';
 import type { getGameDb } from './gameDb.js';
@@ -275,4 +276,62 @@ export async function trackOverdriveCritScrapSeen(
 	payload: PlaytestEventPayload
 ): Promise<void> {
 	await repeat(db, pilotId, 'overdrive_crit_scrap_seen', payload);
+}
+
+export async function trackItemFavorited(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'item_favorited', payload);
+}
+
+export async function trackItemUnfavorited(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'item_unfavorited', payload);
+}
+
+export async function trackItemReclaimPreviewed(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'item_reclaim_previewed', payload);
+}
+
+export async function trackItemReclaimed(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'item_reclaimed', payload);
+}
+
+export async function trackSupplyCrateAvailable(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	const crateId = typeof payload.crateId === 'string' ? payload.crateId : null;
+	const reason = typeof payload.reason === 'string' ? payload.reason : 'unknown';
+	const sequence = typeof payload.sequence === 'number' ? payload.sequence : 0;
+	if (!crateId) {
+		return;
+	}
+
+	await recordSupplyCrateAvailableOnce(db, {
+		pilotId,
+		payload: { crateId, reason, sequence }
+	});
+}
+
+export async function trackSupplyCrateOpened(
+	db: Db,
+	pilotId: string,
+	payload: PlaytestEventPayload
+): Promise<void> {
+	await repeat(db, pilotId, 'supply_crate_opened', payload);
 }

@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import {
 	buildCraftResultExplanation,
+	isWorkshopActiveSchematic,
 	largestScrapSocket,
 	previewCraftProperties,
 	resolveCraft,
@@ -21,6 +22,7 @@ import { items, type CraftSlotProvenance } from '../schema/items.js';
 import { getResourceInstanceById } from './resourceInstances.js';
 import { getResourceStackForPilotInstance } from './resourceGrants.js';
 import { consumeResourceFromPilotTx, InsufficientResourceError } from './resourceConsumes.js';
+import { recordWorkshopCraftCompletionTx } from './workshopCrates.js';
 
 export class CraftValidationError extends Error {
 	constructor(message: string) {
@@ -386,6 +388,10 @@ export async function craftSchematicForPilot(
 					...(experimentScrapUnits > 0 ? { experiment_scrap_units: experimentScrapUnits } : {})
 				}
 			});
+
+			if (isWorkshopActiveSchematic(input.schematic.id)) {
+				await recordWorkshopCraftCompletionTx(tx, input.pilotId);
+			}
 
 			const [completedAttempt] = await tx
 				.select()

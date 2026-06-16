@@ -10,8 +10,10 @@ import { createDb } from '../client.js';
 import { craftingAttempts } from '../schema/craftingAttempts.js';
 import { economyLedger } from '../schema/economyLedger.js';
 import { items } from '../schema/items.js';
+import { pilotWorkshopState } from '../schema/pilotWorkshopState.js';
 import { pilots } from '../schema/pilots.js';
 import { resourceStacks } from '../schema/resourceStacks.js';
+import { workshopCrates } from '../schema/workshopCrates.js';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
 import { craftSchematicForPilot, craftSurveyScannerForPilot } from './crafting.js';
 import { listEconomyLedgerEntriesForPilot } from './economyLedger.js';
@@ -376,6 +378,8 @@ describeDb('transactional scanner craft', () => {
 			kethConsumes.reduce((sum, entry) => sum + -(entry.quantityDelta ?? 0), 0)
 		).toBe(160);
 
+		await db.delete(workshopCrates).where(eq(workshopCrates.pilotId, hullPilotId));
+		await db.delete(pilotWorkshopState).where(eq(pilotWorkshopState.pilotId, hullPilotId));
 		await db.delete(craftingAttempts).where(eq(craftingAttempts.pilotId, hullPilotId));
 		await db.delete(items).where(eq(items.pilotId, hullPilotId));
 		await db.delete(economyLedger).where(eq(economyLedger.pilotId, hullPilotId));

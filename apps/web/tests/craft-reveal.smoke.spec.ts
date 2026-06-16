@@ -1,16 +1,20 @@
 import { expect, test } from '@playwright/test';
 import { newSmokePilotId, seedPilotCookie } from './helpers/pilotContext';
 import {
-	cleanupScannerCraftPilotForSmoke,
-	seedScannerCraftPilotForSmoke
+	cleanupWorkshopCraftPilotForSmoke,
+	seedWorkshopCraftPilotForSmoke
 } from './helpers/smokeDb';
 import {
-	craftScannerWithExperiment,
-	expectCraftResultReveal,
-	fillScannerCraftBench
+	craftAnotherFromReveal,
+	craftDrillHeadWithExperiment,
+	expectWorkshopCraftResultReveal,
+	fillDrillHeadCraftBench,
+	openCompareToBestFromReveal
 } from './helpers/workshopCraftFlow';
 
 test.describe('craft result reveal smoke', () => {
+	test.setTimeout(90_000);
+
 	test.beforeAll(() => {
 		if (!process.env.DATABASE_URL) {
 			throw new Error(
@@ -25,32 +29,37 @@ test.describe('craft result reveal smoke', () => {
 		baseURL
 	}) => {
 		const pilotId = newSmokePilotId();
-		await seedScannerCraftPilotForSmoke(pilotId);
+		await seedWorkshopCraftPilotForSmoke(pilotId);
 		await seedPilotCookie(context, pilotId, baseURL);
 
 		try {
-			await page.goto('/workshop?station=fabricator&schematic=survey_scanner_mk_i');
-			await expect(page.getByRole('heading', { name: /assemble survey scanner/i })).toBeVisible({
+			await page.goto('/workshop?station=fabricator&schematic=basic_drill_head');
+			await expect(page.locator('.workshop-bench[data-workshop-ready="true"]')).toBeVisible({
 				timeout: 15_000
 			});
 			await expect(page.getByText("Can't craft yet")).toHaveCount(0);
 
-			await fillScannerCraftBench(page);
-			await craftScannerWithExperiment(page);
-			await expectCraftResultReveal(page);
+			await fillDrillHeadCraftBench(page);
+			await craftDrillHeadWithExperiment(page);
+			await expectWorkshopCraftResultReveal(page);
+			await craftAnotherFromReveal(page);
 
-			await page.getByRole('button', { name: 'Compare for RIG' }).click();
-			await expect(page.getByText('RIG install preview')).toBeVisible();
-			await expect(page.getByRole('button', { name: /Install Survey Scanner/i })).toBeVisible();
+			await fillDrillHeadCraftBench(page);
+			await craftDrillHeadWithExperiment(page);
+			await expectWorkshopCraftResultReveal(page, { compareToBest: true });
+			await expect(
+				page.locator('.craft-reveal').getByRole('button', { name: 'Compare to your best' })
+			).toBeVisible();
 
-			await page.getByRole('button', { name: 'Keep current' }).click();
-			await expect(page.getByText('RIG install preview')).toHaveCount(0);
+			await openCompareToBestFromReveal(page);
+			await expect(page.getByRole('button', { name: /Install /i })).toHaveCount(0);
+			await page.getByRole('button', { name: 'Close comparison' }).click();
 
-			await page.getByRole('button', { name: 'Craft another' }).click();
+			await craftAnotherFromReveal(page);
 			await expect(page.getByText('Fabricator sealed')).toHaveCount(0);
-			await expect(page.getByRole('heading', { name: /craft mode/i })).toBeVisible();
+			await expect(page.getByRole('button', { name: /Experiment \(2 pulses\)/i })).toBeVisible();
 		} finally {
-			await cleanupScannerCraftPilotForSmoke(pilotId);
+			await cleanupWorkshopCraftPilotForSmoke(pilotId);
 		}
 	});
 });

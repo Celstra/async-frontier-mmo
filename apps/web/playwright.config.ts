@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { loadSmokeEnvFiles } from './scripts/smoke-env.mjs';
+
+loadSmokeEnvFiles();
 
 const devPort = process.env.PLAYWRIGHT_DEV_PORT ?? '5173';
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${devPort}`;
@@ -34,25 +37,37 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'] },
 			testIgnore: [
 				'**/first-session-path.smoke.spec.ts',
-				'**/craft-reveal.smoke.spec.ts'
+				'**/craft-reveal.smoke.spec.ts',
+				'**/workshop-craft-telemetry.smoke.spec.ts',
+				'**/workshop-acceptance-path.smoke.spec.ts'
 			]
 		},
-		{
-			name: 'chromium-path',
-			use: { ...devices['Desktop Chrome'] },
-			testMatch: '**/first-session-path.smoke.spec.ts'
-		},
+	{
+		name: 'chromium-path',
+		use: { ...devices['Desktop Chrome'] },
+		testMatch: '**/workshop-acceptance-path.smoke.spec.ts'
+	},
 		{
 			name: 'chromium-craft-reveal',
 			use: { ...devices['Desktop Chrome'] },
 			testMatch: '**/craft-reveal.smoke.spec.ts'
 		},
 		{
+			name: 'chromium-workshop-db',
+			use: { ...devices['Desktop Chrome'] },
+			testMatch: [
+				'**/workshop-craft-telemetry.smoke.spec.ts',
+				'**/workshop-acceptance-path.smoke.spec.ts'
+			]
+		},
+		{
 			name: 'mobile',
 			use: { ...devices['Pixel 7'] },
 			testIgnore: [
 				'**/first-session-path.smoke.spec.ts',
-				'**/craft-reveal.smoke.spec.ts'
+				'**/craft-reveal.smoke.spec.ts',
+				'**/workshop-craft-telemetry.smoke.spec.ts',
+				'**/workshop-acceptance-path.smoke.spec.ts'
 			]
 		}
 	]

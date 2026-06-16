@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "playtest_events_supply_crate_available_crate_idx" ON "playtest_events" USING btree ("pilot_id", ((payload->>'crateId'))) WHERE "event_name" = 'supply_crate_available' AND (payload->>'crateId') IS NOT NULL;
