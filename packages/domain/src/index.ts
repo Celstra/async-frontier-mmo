@@ -73,9 +73,11 @@ export {
 	experimentPulseOutcomeLabel,
 	experimentPushDisplayLabel,
 	experimentPushProbabilityText,
+	describeExperimentPulseOutlook,
 	resolveExperimentationPulses,
 	schematicMaterialRollup,
 	type ExperimentPulse,
+	type ExperimentPulseOutlook,
 	type ExperimentPulseOutcome,
 	type ExperimentPulseResult,
 	type ExperimentPushSize
@@ -125,6 +127,7 @@ export {
 	WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL,
 	WORKSHOP_CRATE_UNITS_PER_FAMILY,
 	WORKSHOP_EMERGENCY_CRATE_UNITS_PER_FAMILY,
+	WORKSHOP_MAX_PENDING_TIMER_CRATES,
 	WORKSHOP_RECLAIM_RATE,
 	WORKSHOP_RECLAIM_ROUND_DOWN_TO,
 	WORKSHOP_TIMER_CRATE_MINUTES

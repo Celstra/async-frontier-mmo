@@ -76,6 +76,7 @@ test.describe('workshop slice acceptance path', () => {
 			await page.reload();
 			await page.goto('/workshop?schematic=basic_drill_head');
 			await expect(page.locator('.craft-history__kept')).toBeVisible({ timeout: 10_000 });
+			await page.getByLabel('Workshop supply crates').getByTestId('supply-drop-banner').click();
 			await expect(page.getByLabel('Workshop supply crates').getByText('Next timed crate')).toBeVisible();
 
 			for (const path of ['/field', '/rig', '/settlement']) {

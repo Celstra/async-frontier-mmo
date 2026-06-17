@@ -519,6 +519,32 @@ describeDb('workshop slice persistence', () => {
 		await cleanupPilot(db, catchUpPilotId);
 	});
 
+	it('timer sync does not stack unopened timer crates while intervals elapse', async () => {
+		const afkPilotId = `${testPilotId}-timer-afk`;
+		await db.insert(pilots).values({ id: afkPilotId }).onConflictDoNothing();
+		await ensureWorkshopStarterGrantForPilot(db, afkPilotId);
+
+		const dueAt = new Date(Date.now() - WORKSHOP_TIMER_CRATE_MINUTES * 60_000);
+		await db
+			.update(pilotWorkshopState)
+			.set({ nextTimedCrateAt: dueAt, updatedAt: new Date() })
+			.where(eq(pilotWorkshopState.pilotId, afkPilotId));
+
+		await syncWorkshopSupplyCratesForPilot(db, afkPilotId);
+		await syncWorkshopSupplyCratesForPilot(db, afkPilotId);
+		await syncWorkshopSupplyCratesForPilot(db, afkPilotId);
+
+		const timerCrates = (await listWorkshopCratesForPilot(db, afkPilotId, 'available')).filter(
+			(crate) => crate.reason === 'timer'
+		);
+		expect(timerCrates).toHaveLength(1);
+
+		const state = await getPilotWorkshopState(db, afkPilotId);
+		expect(state?.nextTimedCrateAt!.getTime()).toBeGreaterThan(Date.now());
+
+		await cleanupPilot(db, afkPilotId);
+	});
+
 	it('concurrent timer sync does not duplicate catch-up crates', async () => {
 		const timerRacePilotId = `${testPilotId}-timer-race`;
 		await db.insert(pilots).values({ id: timerRacePilotId }).onConflictDoNothing();

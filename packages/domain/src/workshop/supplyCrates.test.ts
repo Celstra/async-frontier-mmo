@@ -3,6 +3,7 @@ import {
 	WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL,
 	WORKSHOP_CRATE_UNITS_PER_FAMILY,
 	WORKSHOP_EMERGENCY_CRATE_UNITS_PER_FAMILY,
+	WORKSHOP_MAX_PENDING_TIMER_CRATES,
 	WORKSHOP_TIMER_CRATE_MINUTES
 } from './constants.js';
 import {
@@ -17,6 +18,7 @@ import {
 describe('workshop supply crates', () => {
 	it('exposes reviewed timer, craft-count, and payload constants', () => {
 		expect(WORKSHOP_TIMER_CRATE_MINUTES).toBe(10);
+		expect(WORKSHOP_MAX_PENDING_TIMER_CRATES).toBe(1);
 		expect(WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL).toBe(4);
 		expect(WORKSHOP_CRATE_UNITS_PER_FAMILY).toBe(75);
 		expect(WORKSHOP_EMERGENCY_CRATE_UNITS_PER_FAMILY).toBe(30);

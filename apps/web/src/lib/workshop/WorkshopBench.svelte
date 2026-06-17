@@ -4,23 +4,20 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import {
 		previewCraftProperties,
-		getPropertyOutputBand,
 		type SchematicDefinition,
 		type SchematicSlotFill,
 		type SchematicReadinessAnalysis,
 		type SchematicSlotReadiness,
 		type TuningAllocation,
-		type CraftPropertyPreview,
 		TUNING_POINTS_TOTAL,
 		canFillSlotWithStack,
 		type CraftMode,
 		type ExperimentPulse,
 		type ExperimentPushSize
 	} from '@async-frontier-mmo/domain';
-	import SchematicDiagram from './SchematicDiagram.svelte';
-	import SlotSelector from './SlotSelector.svelte';
+	import ResourceSlotPickerSheet from './ResourceSlotPickerSheet.svelte';
 	import TuningPanel from './TuningPanel.svelte';
-	import PropertyPreview from './PropertyPreview.svelte';
+	import ExperimentPulsePanel from './ExperimentPulsePanel.svelte';
 	import CraftResultReveal from './CraftResultReveal.svelte';
 	import type { WorkshopCraftOutcome } from '$lib/server/craftOutcome';
 
@@ -46,6 +43,8 @@
 		craftOutcome?: WorkshopCraftOutcome | null;
 		schematicReadiness: SchematicReadinessAnalysis;
 		onCelebrateDismiss?: () => void;
+		slotSelections?: Record<string, string>;
+		activeSlotId?: string | null;
 	}
 
 	let {
@@ -54,7 +53,9 @@
 		defaultSelections = {},
 		craftOutcome,
 		schematicReadiness,
-		onCelebrateDismiss
+		onCelebrateDismiss,
+		slotSelections = $bindable({}),
+		activeSlotId = $bindable(null)
 	}: Props = $props();
 
 	function readinessForSlot(slotId: string): SchematicSlotReadiness | undefined {
@@ -62,7 +63,6 @@
 	}
 
 	// Client state - all pure client-side, no page reloads
-	let slotSelections = $state<Record<string, string>>({});
 	let tuning = $state<TuningAllocation>({});
 	let craftMode = $state<CraftMode>('safe_craft');
 	let idempotencyKey = $state(generateIdempotencyKey());
@@ -70,19 +70,6 @@
 	let benchReady = $state(false);
 	let lockedCraftReveal = $state<WorkshopCraftOutcome | null>(null);
 	let lastCraftedKey = $state<string | null>(null);
-
-	// Track resource changes for delta animation
-	let previousSlotFills = $state<SchematicSlotFill[] | null>(null);
-
-	const EXPERIMENT_PUSH_OPTIONS: ReadonlyArray<{
-		id: ExperimentPushSize;
-		label: string;
-		detail: string;
-	}> = [
-		{ id: 'careful', label: 'Careful', detail: '+1 band · 90% success' },
-		{ id: 'standard', label: 'Standard', detail: '+2 bands · 65% success' },
-		{ id: 'overdrive', label: 'Overdrive', detail: '+3 bands · 40% success · scrap on crit' }
-	];
 
 	function defaultExperimentPulses(definition: SchematicDefinition): ExperimentPulse[] {
 		const first = definition.properties[0];
@@ -247,17 +234,9 @@
 
 	const slotFills = $derived(buildSlotFills());
 
-	// Live preview from domain - instant, no server round-trip
-	const livePreview: CraftPropertyPreview | null = $derived(
+	const craftPreview = $derived(
 		slotFills ? previewCraftProperties(schematic, slotFills, tuning) : null
 	);
-
-	// Track when slot fills change for delta animation
-	$effect(() => {
-		if (slotFills) {
-			previousSlotFills = slotFills;
-		}
-	});
 
 	// Drop slot picks that no longer have enough quantity — but not while the craft reveal is frozen.
 	$effect(() => {
@@ -303,6 +282,7 @@
 		if (lockedCraftReveal) return;
 		const previousId = slotSelections[slotId];
 		slotSelections = { ...slotSelections, [slotId]: instanceId };
+		activeSlotId = slotId;
 		const stack = inventory.find((row) => row.resourceInstanceId === instanceId);
 		if (!stack) return;
 
@@ -370,10 +350,6 @@
 </script>
 
 <div class="workshop-bench panel" data-workshop-ready={benchReady ? 'true' : undefined}>
-	<SchematicDiagram
-		title={schematic.displayName}
-		slots={schematic.slots.map((slot) => ({ id: slot.id, displayName: slot.displayName }))}
-	/>
 	{#if lockedCraftReveal}
 		<CraftResultReveal
 			{schematic}
@@ -405,44 +381,16 @@
 			<input type="hidden" name="schematicId" value={schematic.id} />
 			<input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 
-			<!-- Resource Slot Selection -->
-			<section class="slots-section">
-				<h3>Choose Resources</h3>
-				<p class="section-help">
-					Each stack shows its full stat profile. Fill every slot, then use the property preview below
-					to judge the outcome before you craft.
-				</p>
-
-				{#each schematic.slots as slot (slot.id)}
-					{@const stacks = stacksForFamily(slot.requiredFamily)}
-					{@const slotReadiness = readinessForSlot(slot.id)}
-				<SlotSelector
-					{schematic}
-					{slot}
-					{stacks}
-					allSlotSelections={slotSelections}
-					selectedInstanceId={slotSelections[slot.id] ?? null}
-					onSelect={(id) => handleSlotSelect(slot.id, id)}
-					{slotReadiness}
+			<!-- Resource slots (filled via assembly diagram + pop-out picker) -->
+			{#each schematic.slots as slot (slot.id)}
+				<input
+					type="hidden"
+					name="slot_{slot.id}"
+					value={slotSelections[slot.id] ?? ''}
 				/>
-					<input
-						type="hidden"
-						name="slot_{slot.id}"
-						value={slotSelections[slot.id] ?? ''}
-					/>
-				{/each}
-			</section>
+			{/each}
 
-			<!-- Live Property Preview -->
-			{#if livePreview}
-				<PropertyPreview
-					preview={livePreview}
-					{previousSlotFills}
-					{tuning}
-				/>
-			{/if}
-
-			<!-- Tuning Panel -->
+			<!-- Property preview + tuning allocation -->
 			<TuningPanel
 				{schematic}
 				{slotFills}
@@ -490,46 +438,13 @@
 			</section>
 
 			{#if craftMode === 'careful_experiment'}
-				<section class="experiment-pulses">
-					<h3>Experiment pulses</h3>
-					{#each experimentPulses as pulse, index (index)}
-						<div class="pulse-row">
-							<p class="pulse-row__title">Pulse {index + 1}</p>
-							<div
-								class="property-options"
-								role="group"
-								aria-label="Property line for pulse {index + 1}"
-							>
-								{#each schematic.properties as property (property.id)}
-									<button
-										type="button"
-										class="property-btn"
-										class:selected={pulse.propertyId === property.id}
-										aria-pressed={pulse.propertyId === property.id}
-										onclick={() => setPulseProperty(index, property.id)}
-									>
-										{property.displayName}
-									</button>
-								{/each}
-							</div>
-							<div class="push-options" role="group" aria-label="Push size for pulse {index + 1}">
-								{#each EXPERIMENT_PUSH_OPTIONS as option (option.id)}
-									<button
-										type="button"
-										class="push-btn"
-										class:selected={pulse.push === option.id}
-										onclick={() => setPulsePush(index, option.id)}
-									>
-										<span class="push-btn__label">{option.label}</span>
-										<span class="push-btn__detail">{option.detail}</span>
-									</button>
-								{/each}
-							</div>
-							<input type="hidden" name="pulse_{index}_property" value={pulse.propertyId} />
-							<input type="hidden" name="pulse_{index}_push" value={pulse.push} />
-						</div>
-					{/each}
-				</section>
+				<ExperimentPulsePanel
+					{schematic}
+					pulses={experimentPulses}
+					preview={craftPreview}
+					onPropertyChange={setPulseProperty}
+					onPushChange={setPulsePush}
+				/>
 			{/if}
 
 			<button
@@ -548,6 +463,24 @@
 				{/if}
 			</button>
 		</form>
+	{/if}
+
+	{#if activeSlotId && !lockedCraftReveal}
+		{@const activeSlot = schematic.slots.find((slot) => slot.id === activeSlotId)}
+		{#if activeSlot}
+			<ResourceSlotPickerSheet
+				{schematic}
+				slot={activeSlot}
+				stacks={stacksForFamily(activeSlot.requiredFamily)}
+				allSlotSelections={slotSelections}
+				selectedInstanceId={slotSelections[activeSlot.id] ?? null}
+				slotReadiness={readinessForSlot(activeSlot.id)}
+				onSelect={(id) => handleSlotSelect(activeSlot.id, id)}
+				onClose={() => {
+					activeSlotId = null;
+				}}
+			/>
+		{/if}
 	{/if}
 </div>
 
@@ -590,21 +523,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-	}
-
-	.slots-section {
-		margin-bottom: 0.5rem;
-	}
-
-	.slots-section h3 {
-		margin: 0 0 0.25rem 0;
-		font-size: 1.1rem;
-	}
-
-	.section-help {
-		margin: 0 0 0.75rem 0;
-		font-size: 0.85rem;
-		color: var(--text-muted);
 	}
 
 	/* Craft Mode Section */
@@ -669,94 +587,6 @@
 		font-size: 0.75rem;
 		color: var(--text-muted);
 		font-style: italic;
-	}
-
-	.experiment-pulses {
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px solid var(--border-subtle);
-	}
-
-	.experiment-pulses h3 {
-		margin: 0 0 0.75rem;
-		font-size: 1rem;
-	}
-
-	.pulse-row {
-		display: flex;
-		flex-direction: column;
-		gap: 0.65rem;
-		margin-bottom: 1rem;
-		padding: 0.875rem;
-		border: 1px solid var(--border-subtle);
-		border-radius: 6px;
-		background: var(--bg-inset);
-	}
-
-	.pulse-row__title {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--phosphor);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-	}
-
-	.property-options {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.property-btn {
-		padding: 0.65rem 0.75rem;
-		border: 2px solid var(--border-subtle);
-		border-radius: 6px;
-		background: var(--bg-panel);
-		color: var(--text-primary);
-		cursor: pointer;
-		text-align: left;
-		font-family: inherit;
-		font-size: 0.9rem;
-	}
-
-	.property-btn.selected {
-		border-color: var(--phosphor);
-		background: var(--phosphor-glow);
-	}
-
-	.push-options {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.push-btn {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		padding: 0.75rem;
-		border: 2px solid var(--border-subtle);
-		border-radius: 6px;
-		background: var(--bg-panel);
-		color: var(--text-primary);
-		cursor: pointer;
-		text-align: left;
-		font-family: inherit;
-	}
-
-	.push-btn.selected {
-		border-color: var(--phosphor);
-		background: var(--phosphor-glow);
-	}
-
-	.push-btn__label {
-		font-weight: 600;
-		font-size: 0.9rem;
-	}
-
-	.push-btn__detail {
-		font-size: 0.8rem;
-		color: var(--text-secondary);
 	}
 
 	.craft-submit-btn {

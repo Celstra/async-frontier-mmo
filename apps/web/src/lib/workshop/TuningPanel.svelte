@@ -1,20 +1,5 @@
 <script lang="ts">
-	import { previewCraftProperties, getPropertyOutputBand, TUNING_POINTS_TOTAL, type SchematicDefinition, type SchematicSlotFill, type TuningAllocation, type CraftPropertyPreview } from '@async-frontier-mmo/domain';
-
-	interface InventoryStack {
-		resourceInstanceId: string;
-		resourceSlug: string;
-		displayName: string;
-		family: string;
-		quantity: number;
-		stats: {
-			OQ: number;
-			conductivity: number;
-			hardness: number;
-			heat_resistance: number;
-			malleability: number;
-		};
-	}
+	import { previewCraftProperties, TUNING_POINTS_TOTAL, type SchematicDefinition, type SchematicSlotFill, type TuningAllocation, type CraftPropertyPreview } from '@async-frontier-mmo/domain';
 
 	interface Props {
 		schematic: SchematicDefinition;
@@ -83,7 +68,7 @@
 
 <div class="tuning-panel">
 	<div class="tuning-header">
-		<h3>Tuning Allocation</h3>
+		<h3>Property preview & tuning</h3>
 		<div class="points-indicator" class:complete={remainingPoints === 0}>
 			<span class="points-count">{remainingPoints}</span>
 			<span class="points-label">point{remainingPoints === 1 ? '' : 's'} remaining</span>
@@ -91,7 +76,8 @@
 	</div>
 
 	<p class="tuning-help">
-		You have a pool of {TUNING_POINTS_TOTAL} tuning points — use +/− to place them where you want. Each point boosts that property by 5% of its base. Spend the full pool before crafting.
+		Base scores come from your resource picks. Spend your pool of {TUNING_POINTS_TOTAL} tuning points
+		with +/− — each point boosts that property by 5%. Assign the full pool before crafting.
 	</p>
 
 	<div class="property-lines">

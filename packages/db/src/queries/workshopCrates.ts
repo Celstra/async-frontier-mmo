@@ -4,6 +4,7 @@ import {
 	canCraftAnyWorkshopThumperPart,
 	WORKSHOP_CRAFT_COUNT_CRATE_INTERVAL,
 	WORKSHOP_CRATE_UNITS_PER_FAMILY,
+	WORKSHOP_MAX_PENDING_TIMER_CRATES,
 	WORKSHOP_TIMER_CRATE_MINUTES,
 	type ResourceFamily,
 	type WorkshopSupplyCrateReason
@@ -161,18 +162,38 @@ export async function createEmergencyWorkshopCrateTx(db: DbExecutor, pilotId: st
 
 /**
  * Mint one timer crate when due — at most one per sync pass.
- * Matches "every N minutes while you are in the workshop": the client polls
- * while the tab is visible; AFK wall-clock catch-up does not stack crates.
+ * Matches "every N minutes while the workshop tab is visible": the client syncs on
+ * countdown expiry; AFK wall-clock catch-up does not stack crates on reload.
+ * If an unopened timer crate is already waiting, advance the schedule without minting.
  */
 export async function refreshTimedWorkshopCratesTx(db: DbExecutor, pilotId: string, now = new Date()) {
 	const lockedState = await lockPilotWorkshopStateForUpdateTx(db, pilotId, now);
 	const nextTimedCrateAt = lockedState.nextTimedCrateAt;
+	const timerIntervalMs = WORKSHOP_TIMER_CRATE_MINUTES * 60_000;
 
 	if (!nextTimedCrateAt || now < nextTimedCrateAt) {
 		return null;
 	}
 
-	const timerIntervalMs = WORKSHOP_TIMER_CRATE_MINUTES * 60_000;
+	const advancedNextTimedCrateAt = new Date(
+		Math.max(now.getTime() + timerIntervalMs, nextTimedCrateAt.getTime() + timerIntervalMs)
+	);
+
+	const pendingTimerCrates = (await listWorkshopCratesForPilot(db, pilotId, 'available')).filter(
+		(crate) => crate.reason === 'timer'
+	);
+	if (pendingTimerCrates.length >= WORKSHOP_MAX_PENDING_TIMER_CRATES) {
+		await db
+			.update(pilotWorkshopState)
+			.set({
+				nextTimedCrateAt: advancedNextTimedCrateAt,
+				updatedAt: now
+			})
+			.where(eq(pilotWorkshopState.pilotId, pilotId));
+
+		return null;
+	}
+
 	const crate = await insertWorkshopCrateWithLockedStateTx(db, {
 		pilotId,
 		reason: 'timer',
@@ -180,10 +201,6 @@ export async function refreshTimedWorkshopCratesTx(db: DbExecutor, pilotId: stri
 		unitsPerFamily: WORKSHOP_CRATE_UNITS_PER_FAMILY,
 		lockedState
 	});
-
-	const advancedNextTimedCrateAt = new Date(
-		Math.max(now.getTime() + timerIntervalMs, nextTimedCrateAt.getTime() + timerIntervalMs)
-	);
 
 	await db
 		.update(pilotWorkshopState)

@@ -43,16 +43,12 @@ test.describe('workshop-first browser smoke', () => {
 		}
 	});
 
-	test('workshop ASCII blocks stay within viewport width', async ({ page }) => {
+	test('workshop fabricator art stays within viewport width', async ({ page }) => {
 		await page.goto('/workshop');
-		const asciiBlocks = page.locator('pre.fabricator-art');
-		await expect(asciiBlocks.first()).toBeVisible({ timeout: 10_000 });
-		const count = await asciiBlocks.count();
-		for (let index = 0; index < count; index += 1) {
-			const block = asciiBlocks.nth(index);
-			const fits = await block.evaluate((node) => node.scrollWidth <= node.clientWidth + 1);
-			expect(fits).toBe(true);
-		}
+		const fabricator = page.getByTestId('fabricator-bay');
+		await expect(fabricator).toBeVisible({ timeout: 10_000 });
+		const fits = await fabricator.evaluate((node) => node.scrollWidth <= node.clientWidth + 1);
+		expect(fits).toBe(true);
 	});
 
 	test('workshop lists only the three thumper-part schematics', async ({ page }) => {
@@ -118,10 +114,12 @@ test.describe('workshop-first browser smoke', () => {
 	test('workshop supply panel shows timed crate state across reload', async ({ page }) => {
 		await page.goto('/workshop');
 		const panel = page.getByLabel('Workshop supply crates');
-		await expect(panel).toBeVisible();
+		await expect(panel.getByTestId('supply-drop-banner')).toBeVisible();
+		await panel.getByTestId('supply-drop-banner').click();
 		await expect(panel.getByText('Next timed crate')).toBeVisible();
-		await expect(panel.getByText(/Every 10 minutes while this workshop tab is active/)).toBeVisible();
+		await expect(panel.getByText(/Every 10 minutes while this tab is visible/)).toBeVisible();
 		await page.reload();
+		await panel.getByTestId('supply-drop-banner').click();
 		await expect(panel.getByText('Next timed crate')).toBeVisible();
 	});
 });

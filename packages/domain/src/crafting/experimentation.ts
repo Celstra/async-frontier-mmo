@@ -65,6 +65,90 @@ export function experimentPushProbabilityText(push: ExperimentPushSize): string 
 	}
 }
 
+export type ExperimentPulseOutlook = {
+	propertyId: string;
+	displayName: string;
+	push: ExperimentPushSize;
+	currentBand: PropertyOutputBand;
+	currentScore: number;
+	ceilingBand: PropertyOutputBand;
+	successRatePercent: number;
+	critRatePercent: number;
+	wasteRatePercent: number;
+	success: {
+		band: PropertyOutputBand;
+		score: number;
+		improvesBand: boolean;
+	};
+	waste: {
+		band: PropertyOutputBand;
+		score: number;
+	};
+	crit:
+		| {
+				kind: 'band_loss';
+				band: PropertyOutputBand;
+				score: number;
+		  }
+		| {
+				kind: 'scrap';
+				scrapUnits: number;
+		  };
+};
+
+/** Deterministic preview of what each experiment pulse outcome could do (no RNG). */
+export function describeExperimentPulseOutlook(input: {
+	schematic: SchematicDefinition;
+	line: PropertyPreviewLine;
+	push: ExperimentPushSize;
+}): ExperimentPulseOutlook {
+	const spec = PULSE_SPECS[input.push];
+	const currentBand = input.line.tunedBand;
+	const currentIndex = bandIndex(currentBand);
+	const capIndex = bandIndex(input.line.ceilingBand);
+
+	const successIndex = Math.min(currentIndex + spec.bandDelta, capIndex);
+	const successBand = bandFromIndex(successIndex);
+	const successScore = Math.max(input.line.tunedScore, scoreForBand(successBand));
+
+	const crit: ExperimentPulseOutlook['crit'] =
+		input.push === 'overdrive'
+			? {
+					kind: 'scrap',
+					scrapUnits: largestScrapSocket(input.schematic).scrapUnits
+				}
+			: (() => {
+					const critBand = bandFromIndex(Math.max(1, currentIndex - 1));
+					return {
+						kind: 'band_loss' as const,
+						band: critBand,
+						score: scoreForBand(critBand)
+					};
+				})();
+
+	return {
+		propertyId: input.line.propertyId,
+		displayName: input.line.displayName,
+		push: input.push,
+		currentBand,
+		currentScore: input.line.tunedScore,
+		ceilingBand: input.line.ceilingBand,
+		successRatePercent: Math.round(spec.successRate * 100),
+		critRatePercent: Math.round(spec.critRate * 100),
+		wasteRatePercent: Math.round((1 - spec.successRate - spec.critRate) * 100),
+		success: {
+			band: successBand,
+			score: successScore,
+			improvesBand: successIndex > currentIndex
+		},
+		waste: {
+			band: currentBand,
+			score: input.line.tunedScore
+		},
+		crit
+	};
+}
+
 const PROPERTY_BAND_ORDER: PropertyOutputBand[] = [
 	'poor',
 	'basic',

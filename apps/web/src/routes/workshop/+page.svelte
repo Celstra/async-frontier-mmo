@@ -3,7 +3,7 @@
 	import WorkshopBench from '$lib/workshop/WorkshopBench.svelte';
 	import CraftResultHistory from '$lib/workshop/CraftResultHistory.svelte';
 	import SupplyCratesPanel from '$lib/workshop/SupplyCratesPanel.svelte';
-	import { FABRICATOR_ONLINE } from '$lib/ascii';
+	import FabricatorBayArt from '$lib/workshop/FabricatorBayArt.svelte';
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -15,6 +15,32 @@
 	);
 
 	const highlightItemId = $derived(craftOutcome?.item.id ?? null);
+
+	let slotSelections = $state<Record<string, string>>({});
+	let activeSlotId = $state<string | null>(null);
+	let trackedSchematicId = $state<string | null>(null);
+
+	$effect(() => {
+		const schematicId = data.selectedSchematicId;
+		if (schematicId !== trackedSchematicId) {
+			activeSlotId = null;
+			trackedSchematicId = schematicId;
+		}
+	});
+
+	const assemblyProps = $derived(
+		data.schematicDefinition && data.schematic
+			? {
+					schematic: data.schematicDefinition,
+					inventory: data.inventory,
+					slotSelections,
+					activeSlotId,
+					onSlotClick: (slotId: string) => {
+						activeSlotId = slotId;
+					}
+				}
+			: null
+	);
 
 	async function syncWorkshopSupply(): Promise<void> {
 		await invalidate('workshop:supply');
@@ -52,14 +78,15 @@
 		{/if}
 
 		<div class="workshop-layout workshop-layout--fabricator">
-			<pre class="fabricator-art fabricator-art--header" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
+			<FabricatorBayArt />
 			<aside class="workshop-sidebar">
+				<SupplyCratesPanel supply={data.supply} onTimerDue={syncWorkshopSupply} />
 				<SchematicList
 					schematics={data.schematics}
 					selectedSchematicId={data.selectedSchematicId}
 					station="fabricator"
+					assembly={assemblyProps}
 				/>
-				<SupplyCratesPanel supply={data.supply} onTimerDue={syncWorkshopSupply} />
 			</aside>
 
 			<div class="workshop-main">
@@ -75,6 +102,8 @@
 						defaultSelections={data.slotSelections}
 						{craftOutcome}
 						schematicReadiness={data.schematicReadiness}
+						bind:slotSelections
+						bind:activeSlotId
 					/>
 				{:else}
 					<h2 class="workshop-main__title">Fabricator bench</h2>
@@ -125,21 +154,6 @@
 	.workshop-layout--fabricator {
 		display: grid;
 		gap: 1rem;
-	}
-
-	.fabricator-art {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: clamp(0.55rem, 2vw, var(--font-size-xs));
-		line-height: 1.3;
-		color: var(--phosphor);
-		white-space: pre-wrap;
-		overflow-x: hidden;
-		max-width: 100%;
-	}
-
-	.fabricator-art--header {
-		margin-bottom: 0.25rem;
 	}
 
 	@media (min-width: 900px) {

@@ -64,6 +64,8 @@ export const THUMPER_DAMAGED = `\
 // FABRICATOR ONLINE — settlement milestone takeover (~13 lines x 34 cols)
 // Industrial gantry powering up around block-letter centerpiece.
 // ---------------------------------------------------------------------------
+export const FABRICATOR_POWER_READOUT = '[POWER: ████████████ 100%]';
+
 export const FABRICATOR_ONLINE = `\
   ╔══[GANTRY ARM A]══════════╗
   ║  ╔════════════════════╗  ║
@@ -77,7 +79,7 @@ export const FABRICATOR_ONLINE = `\
   ║   ║//║          ║\\║   ║
   ║   ║//╠══════════╣\\║   ║
   ╚═══╩══╩══════════╩══╩═════╝
-  [POWER: ████████████ 100%]`;
+  ${FABRICATOR_POWER_READOUT}`;
 
 // ---------------------------------------------------------------------------
 // SETTLEMENT CAMP — settlement screen header glyph (~7 lines x 37 cols)

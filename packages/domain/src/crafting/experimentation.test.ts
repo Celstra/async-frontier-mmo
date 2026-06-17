@@ -3,6 +3,7 @@ import { REINFORCED_HULL_PLATE } from './schematics/reinforcedHullPlate.js';
 import {
 	largestScrapSocket,
 	largestSocketScrapUnits,
+	describeExperimentPulseOutlook,
 	resolveExperimentationPulses,
 	schematicMaterialRollup,
 	type ExperimentPulse
@@ -135,5 +136,47 @@ describe('experimentation pulses', () => {
 		});
 
 		expect(second).toEqual(first);
+	});
+
+	it('describes pulse outlook bands and odds without rolling RNG', () => {
+		const preview = previewCraftProperties(REINFORCED_HULL_PLATE, hullFills(), {
+			max_condition: 2,
+			damage_reduction: 1,
+			repairability: 0
+		});
+		const line = preview.lines.find((row) => row.propertyId === 'max_condition')!;
+
+		const outlook = describeExperimentPulseOutlook({
+			schematic: REINFORCED_HULL_PLATE,
+			line,
+			push: 'standard'
+		});
+
+		expect(outlook.successRatePercent).toBe(65);
+		expect(outlook.critRatePercent).toBe(10);
+		expect(outlook.wasteRatePercent).toBe(25);
+		expect(outlook.success.score).toBeGreaterThanOrEqual(outlook.currentScore);
+		expect(outlook.crit).toEqual({
+			kind: 'band_loss',
+			band: expect.any(String),
+			score: expect.any(Number)
+		});
+	});
+
+	it('describes overdrive crit as largest-socket scrap', () => {
+		const preview = previewCraftProperties(REINFORCED_HULL_PLATE, hullFills(), {
+			max_condition: 2,
+			damage_reduction: 1,
+			repairability: 0
+		});
+		const line = preview.lines.find((row) => row.propertyId === 'damage_reduction')!;
+
+		const outlook = describeExperimentPulseOutlook({
+			schematic: REINFORCED_HULL_PLATE,
+			line,
+			push: 'overdrive'
+		});
+
+		expect(outlook.crit).toEqual({ kind: 'scrap', scrapUnits: 60 });
 	});
 });

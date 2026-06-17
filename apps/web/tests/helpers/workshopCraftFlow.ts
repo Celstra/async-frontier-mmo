@@ -17,9 +17,14 @@ async function waitForWorkbenchReady(page: Page): Promise<void> {
 	await expect(page.locator('.workshop-bench[data-workshop-ready]')).toBeVisible({
 		timeout: 15_000
 	});
-	await expect(page.locator('.workshop-bench .slot-selector').first()).toBeVisible({
-		timeout: 15_000
-	});
+}
+
+async function openAssemblySlot(page: Page, slotId: string): Promise<void> {
+	const slotButton = page.getByTestId(`assembly-slot-${slotId}`);
+	await expect(slotButton).toBeVisible({ timeout: 10_000 });
+	await slotButton.click();
+	await expect(page.getByTestId('resource-slot-picker')).toBeVisible({ timeout: 10_000 });
+	await expect(page.locator('.slot-selector').first()).toBeVisible({ timeout: 10_000 });
 }
 
 async function selectStackForSlot(
@@ -28,6 +33,8 @@ async function selectStackForSlot(
 	slotHeading: string,
 	resourceSlug: string
 ): Promise<void> {
+	await openAssemblySlot(page, slotId);
+
 	const slot = page.locator('.slot-selector').filter({
 		has: page.getByRole('heading', { name: slotHeading, exact: true })
 	});
@@ -160,8 +167,17 @@ export async function favoritePrototypeFromReveal(page: Page): Promise<void> {
 	await page.waitForLoadState('networkidle');
 }
 
+export async function expandSupplyDropPanel(page: Page): Promise<void> {
+	const panel = page.getByLabel('Workshop supply crates');
+	const toggle = panel.getByTestId('supply-drop-banner');
+	if ((await toggle.getAttribute('aria-expanded')) === 'false') {
+		await toggle.click();
+	}
+}
+
 export async function openFirstAvailableCrate(page: Page): Promise<void> {
 	const panel = page.getByLabel('Workshop supply crates');
+	await expandSupplyDropPanel(page);
 	await panel.getByRole('button', { name: 'Open crate' }).first().click();
 	await page.waitForLoadState('networkidle');
 }

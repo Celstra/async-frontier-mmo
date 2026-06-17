@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { FABRICATOR_ONLINE } from '$lib/ascii';
+	import FabricatorBayArt from '$lib/workshop/FabricatorBayArt.svelte';
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key.length === 1 || event.key === 'Enter' || event.key === ' ') {
@@ -14,7 +14,7 @@
 
 <div class="takeover" role="dialog" aria-modal="true" aria-labelledby="fabricator-title">
 	<div class="takeover__panel">
-		<pre class="takeover__art" aria-hidden="true">{FABRICATOR_ONLINE}</pre>
+		<FabricatorBayArt compact />
 		<h2 id="fabricator-title" class="takeover__title">FABRICATOR ONLINE</h2>
 		<p class="takeover__copy">The foreman’s rig schematic unlocks in WORKSHOP. Press any key to continue.</p>
 		<form id="fabricator-dismiss" method="POST" action="?/dismissFabricator" use:enhance>
@@ -43,14 +43,6 @@
 		border: 1px solid var(--phosphor-dim);
 		box-shadow: 0 0 40px var(--phosphor-glow);
 		border-radius: var(--radius-md);
-	}
-
-	.takeover__art {
-		margin: 0 0 1rem;
-		font-family: var(--font-mono);
-		font-size: var(--font-size-xs);
-		color: var(--phosphor);
-		line-height: 1.2;
 	}
 
 	.takeover__title {
