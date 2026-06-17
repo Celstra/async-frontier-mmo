@@ -18,6 +18,7 @@
 
 	let slotSelections = $state<Record<string, string>>({});
 	let activeSlotId = $state<string | null>(null);
+	let resourcePickerReturnFocus = $state<HTMLElement | null>(null);
 	let trackedSchematicId = $state<string | null>(null);
 
 	$effect(() => {
@@ -35,7 +36,8 @@
 					inventory: data.inventory,
 					slotSelections,
 					activeSlotId,
-					onSlotClick: (slotId: string) => {
+					onSlotClick: (slotId: string, trigger: HTMLElement) => {
+						resourcePickerReturnFocus = trigger;
 						activeSlotId = slotId;
 					}
 				}
@@ -78,16 +80,18 @@
 		{/if}
 
 		<div class="workshop-layout workshop-layout--fabricator">
-			<FabricatorBayArt />
-			<aside class="workshop-sidebar">
-				<SupplyCratesPanel supply={data.supply} onTimerDue={syncWorkshopSupply} />
-				<SchematicList
-					schematics={data.schematics}
-					selectedSchematicId={data.selectedSchematicId}
-					station="fabricator"
-					assembly={assemblyProps}
-				/>
-			</aside>
+			<div class="workshop-rail">
+				<FabricatorBayArt />
+				<aside class="workshop-sidebar">
+					<SupplyCratesPanel supply={data.supply} onTimerDue={syncWorkshopSupply} />
+					<SchematicList
+						schematics={data.schematics}
+						selectedSchematicId={data.selectedSchematicId}
+						station="fabricator"
+						assembly={assemblyProps}
+					/>
+				</aside>
+			</div>
 
 			<div class="workshop-main">
 				{#if data.schematic && data.schematicDefinition}
@@ -104,6 +108,7 @@
 						schematicReadiness={data.schematicReadiness}
 						bind:slotSelections
 						bind:activeSlotId
+						returnFocus={resourcePickerReturnFocus}
 					/>
 				{:else}
 					<h2 class="workshop-main__title">Fabricator bench</h2>
@@ -156,9 +161,14 @@
 		gap: 1rem;
 	}
 
+	.workshop-rail {
+		display: grid;
+		gap: 1rem;
+	}
+
 	@media (min-width: 900px) {
-		.workshop-layout {
-			grid-template-columns: minmax(14rem, 18rem) 1fr;
+		.workshop-layout--fabricator {
+			grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
 			align-items: start;
 		}
 	}

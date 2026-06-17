@@ -43,8 +43,9 @@ async function selectStackForSlot(
 	const card = slot.locator(`[data-testid="workshop-stack-${slotId}-${resourceSlug}"]`);
 	await expect(card).toBeEnabled({ timeout: 10_000 });
 	await card.click();
-	await expect(card).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByTestId('resource-slot-picker')).toHaveCount(0, { timeout: 10_000 });
 	await expect(page.locator(`input[name="slot_${slotId}"]`)).not.toHaveValue('');
+	await expect(page.getByTestId(`assembly-slot-${slotId}`)).toHaveAttribute('aria-pressed', 'false');
 }
 
 export async function fillDrillHeadCraftBench(page: Page): Promise<void> {

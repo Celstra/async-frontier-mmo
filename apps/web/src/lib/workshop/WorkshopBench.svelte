@@ -45,6 +45,7 @@
 		onCelebrateDismiss?: () => void;
 		slotSelections?: Record<string, string>;
 		activeSlotId?: string | null;
+		returnFocus?: HTMLElement | null;
 	}
 
 	let {
@@ -55,7 +56,8 @@
 		schematicReadiness,
 		onCelebrateDismiss,
 		slotSelections = $bindable({}),
-		activeSlotId = $bindable(null)
+		activeSlotId = $bindable(null),
+		returnFocus = null
 	}: Props = $props();
 
 	function readinessForSlot(slotId: string): SchematicSlotReadiness | undefined {
@@ -479,6 +481,7 @@
 				onClose={() => {
 					activeSlotId = null;
 				}}
+				{returnFocus}
 			/>
 		{/if}
 	{/if}

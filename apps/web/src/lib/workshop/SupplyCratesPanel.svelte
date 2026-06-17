@@ -23,8 +23,35 @@
 	const hasWaitingCrate = $derived(readyCount > 0);
 
 	function crateIdempotencyKey(crateId: string): string {
-		return idempotencyKeys[crateId] ?? `${Date.now()}-${crateId}`;
+		return idempotencyKeys[crateId] ?? '';
 	}
+
+	$effect.pre(() => {
+		const crateIds = new Set(supply.availableCrates.map((crate) => crate.id));
+		let next = idempotencyKeys;
+		let changed = false;
+
+		for (const crateId of crateIds) {
+			if (!next[crateId]) {
+				next = { ...next, [crateId]: `${Date.now()}-${crateId}` };
+				changed = true;
+			}
+		}
+
+		for (const crateId of Object.keys(next)) {
+			if (!crateIds.has(crateId)) {
+				if (!changed) {
+					next = { ...next };
+				}
+				delete next[crateId];
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			idempotencyKeys = next;
+		}
+	});
 
 	function remainingMs(targetIso: string | null, nowMs: number | null): number | null {
 		if (!targetIso || nowMs === null) return null;
@@ -194,10 +221,6 @@
 								use:enhance={() => {
 									openingCrateId = crate.id;
 									openError = null;
-									idempotencyKeys = {
-										...idempotencyKeys,
-										[crate.id]: crateIdempotencyKey(crate.id)
-									};
 									return async ({ result, update }) => {
 										await update({ reset: false });
 										openingCrateId = null;

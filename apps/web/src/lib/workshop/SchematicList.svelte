@@ -20,7 +20,7 @@
 		inventory: InventoryStack[];
 		slotSelections: Record<string, string>;
 		activeSlotId: string | null;
-		onSlotClick: (slotId: string) => void;
+		onSlotClick: (slotId: string, trigger: HTMLElement) => void;
 	}
 
 	interface Props {

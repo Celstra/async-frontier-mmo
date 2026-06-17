@@ -9,7 +9,7 @@ import {
 	type ExperimentPulse
 } from './experimentation.js';
 import { previewCraftProperties } from './schematicEngine.js';
-import type { CraftPropertyPreview, SchematicSlotFill } from './types.js';
+import type { CraftPropertyPreview, PropertyPreviewLine, SchematicSlotFill } from './types.js';
 
 function hullFills(): SchematicSlotFill[] {
 	return [
@@ -178,5 +178,36 @@ describe('experimentation pulses', () => {
 		});
 
 		expect(outlook.crit).toEqual({ kind: 'scrap', scrapUnits: 60 });
+	});
+
+	it('marks band ceiling when success cannot advance further', () => {
+		const cappedLine: PropertyPreviewLine = {
+			propertyId: 'max_condition',
+			displayName: 'Max Condition',
+			baseScore: 72,
+			tunedScore: 72,
+			resourceCeiling: 75,
+			tunedBand: 'strong',
+			ceilingBand: 'strong'
+		};
+
+		expect(cappedLine.tunedBand).toBe(cappedLine.ceilingBand);
+
+		const careful = describeExperimentPulseOutlook({
+			schematic: REINFORCED_HULL_PLATE,
+			line: cappedLine,
+			push: 'careful'
+		});
+		const overdrive = describeExperimentPulseOutlook({
+			schematic: REINFORCED_HULL_PLATE,
+			line: cappedLine,
+			push: 'overdrive'
+		});
+
+		expect(careful.atBandCeiling).toBe(true);
+		expect(careful.success.bandsGainedOnSuccess).toBe(0);
+		expect(overdrive.success.band).toBe(careful.success.band);
+		expect(overdrive.successRatePercent).toBeLessThan(careful.successRatePercent);
+		expect(overdrive.critRatePercent).toBeGreaterThan(careful.critRatePercent);
 	});
 });

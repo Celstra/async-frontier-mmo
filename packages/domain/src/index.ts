@@ -82,7 +82,11 @@ export {
 	type ExperimentPulseResult,
 	type ExperimentPushSize
 } from './crafting/experimentation.js';
-export { getPropertyOutputBand } from './crafting/propertyBand.js';
+export {
+	getPropertyOutputBand,
+	PROPERTY_OUTPUT_BAND_ORDER,
+	propertyBandIndex
+} from './crafting/propertyBand.js';
 export {
 	applyNormalRepair,
 	applyRoutineUse,

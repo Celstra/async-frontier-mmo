@@ -30,6 +30,7 @@
 		allSlotSelections: Record<string, string>;
 		selectedInstanceId: string | null;
 		slotReadiness?: SchematicSlotReadiness;
+		returnFocus?: HTMLElement | null;
 		onSelect: (instanceId: string) => void;
 		onClose: () => void;
 	}
@@ -41,6 +42,7 @@
 		allSlotSelections,
 		selectedInstanceId,
 		slotReadiness,
+		returnFocus = null,
 		onSelect,
 		onClose
 	}: Props = $props();
@@ -48,22 +50,57 @@
 	const containerImage = $derived(familyContainerImage(slot.requiredFamily));
 	const titleId = $derived(`resource-picker-${slot.id}`);
 
+	let panelEl = $state<HTMLDivElement | null>(null);
+	let closeButtonEl = $state<HTMLButtonElement | null>(null);
+
+	function focusableElements(container: HTMLElement): HTMLElement[] {
+		return Array.from(
+			container.querySelectorAll<HTMLElement>(
+				'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+			)
+		);
+	}
+
+	function closePicker(): void {
+		const restoreTarget = returnFocus;
+		onClose();
+		queueMicrotask(() => restoreTarget?.focus());
+	}
+
 	function handleBackdropClick(event: MouseEvent) {
 		if (event.target === event.currentTarget) {
-			onClose();
+			closePicker();
 		}
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
 			event.preventDefault();
-			onClose();
+			closePicker();
+		}
+	}
+
+	function handlePanelKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Tab' || !panelEl) return;
+
+		const focusable = focusableElements(panelEl);
+		if (focusable.length === 0) return;
+
+		const first = focusable[0];
+		const last = focusable[focusable.length - 1];
+
+		if (event.shiftKey && document.activeElement === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && document.activeElement === last) {
+			event.preventDefault();
+			first.focus();
 		}
 	}
 
 	function handleSelect(instanceId: string) {
 		onSelect(instanceId);
-		onClose();
+		closePicker();
 	}
 
 	$effect(() => {
@@ -72,6 +109,20 @@
 		return () => {
 			document.body.style.overflow = previousOverflow;
 		};
+	});
+
+	$effect(() => {
+		const panel = panelEl;
+		if (!panel) return;
+
+		queueMicrotask(() => {
+			const focusable = focusableElements(panel);
+			(focusable[0] ?? closeButtonEl)?.focus();
+		});
+
+		const onKeyDown = (event: KeyboardEvent) => handlePanelKeydown(event);
+		panel.addEventListener('keydown', onKeyDown);
+		return () => panel.removeEventListener('keydown', onKeyDown);
 	});
 </script>
 
@@ -85,6 +136,7 @@
 	onclick={handleBackdropClick}
 >
 	<div
+		bind:this={panelEl}
 		class="resource-picker__panel panel"
 		role="dialog"
 		aria-modal="true"
@@ -111,7 +163,14 @@
 					</p>
 				</div>
 			</div>
-			<button type="button" class="resource-picker__close" onclick={onClose}>Close</button>
+			<button
+				type="button"
+				class="resource-picker__close"
+				bind:this={closeButtonEl}
+				onclick={closePicker}
+			>
+				Close
+			</button>
 		</header>
 
 		<p class="resource-picker__help">

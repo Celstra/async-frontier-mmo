@@ -20,7 +20,7 @@
 		slotSelections: Record<string, string>;
 		activeSlotId: string | null;
 		inventory: InventoryStack[];
-		onSlotClick: (slotId: string) => void;
+		onSlotClick: (slotId: string, trigger: HTMLElement) => void;
 	}
 
 	let { schematic, slotSelections, activeSlotId, inventory, onSlotClick }: Props = $props();
@@ -229,7 +229,7 @@
 					aria-label="{slot.displayName}: {selectedStack
 						? selectedStack.displayName
 						: `Empty — needs ${familyDisplayLabel(slot.requiredFamily)}`}"
-					onclick={() => onSlotClick(slot.id)}
+					onclick={(event) => onSlotClick(slot.id, event.currentTarget as HTMLButtonElement)}
 				>
 					{#if containerImage}
 						<img

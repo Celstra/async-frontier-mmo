@@ -41,7 +41,10 @@ test.describe('workshop slice acceptance path', () => {
 			);
 
 			await page.goto('/workshop?schematic=basic_drill_head');
-			await expect(page.getByText('Keth Iron')).toBeVisible({ timeout: 10_000 });
+			await expect(page.locator('.workshop-bench[data-workshop-ready]')).toBeVisible({
+				timeout: 15_000
+			});
+			await expect(page.getByTestId('assembly-slot-cutting_bit')).toBeVisible();
 			await fillDrillHeadCraftBench(page);
 			await craftDrillHeadWithExperiment(page);
 			await expectWorkshopCraftResultReveal(page);

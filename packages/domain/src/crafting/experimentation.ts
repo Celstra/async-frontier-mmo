@@ -72,6 +72,12 @@ export type ExperimentPulseOutlook = {
 	currentBand: PropertyOutputBand;
 	currentScore: number;
 	ceilingBand: PropertyOutputBand;
+	/** True when tuned band already equals the resource-defined ceiling. */
+	atBandCeiling: boolean;
+	/** Bands this push tries to add before hitting the resource ceiling. */
+	bandsAttempted: number;
+	/** Bands still available below the resource ceiling. */
+	headroomBands: number;
 	successRatePercent: number;
 	critRatePercent: number;
 	wasteRatePercent: number;
@@ -79,6 +85,8 @@ export type ExperimentPulseOutlook = {
 		band: PropertyOutputBand;
 		score: number;
 		improvesBand: boolean;
+		bandsAttempted: number;
+		bandsGainedOnSuccess: number;
 	};
 	waste: {
 		band: PropertyOutputBand;
@@ -110,6 +118,9 @@ export function describeExperimentPulseOutlook(input: {
 	const successIndex = Math.min(currentIndex + spec.bandDelta, capIndex);
 	const successBand = bandFromIndex(successIndex);
 	const successScore = Math.max(input.line.tunedScore, scoreForBand(successBand));
+	const bandsGainedOnSuccess = Math.max(0, successIndex - currentIndex);
+	const atBandCeiling = currentIndex >= capIndex;
+	const headroomBands = Math.max(0, capIndex - currentIndex);
 
 	const crit: ExperimentPulseOutlook['crit'] =
 		input.push === 'overdrive'
@@ -133,13 +144,18 @@ export function describeExperimentPulseOutlook(input: {
 		currentBand,
 		currentScore: input.line.tunedScore,
 		ceilingBand: input.line.ceilingBand,
+		atBandCeiling,
+		bandsAttempted: spec.bandDelta,
+		headroomBands,
 		successRatePercent: Math.round(spec.successRate * 100),
 		critRatePercent: Math.round(spec.critRate * 100),
 		wasteRatePercent: Math.round((1 - spec.successRate - spec.critRate) * 100),
 		success: {
 			band: successBand,
 			score: successScore,
-			improvesBand: successIndex > currentIndex
+			improvesBand: bandsGainedOnSuccess > 0,
+			bandsAttempted: spec.bandDelta,
+			bandsGainedOnSuccess
 		},
 		waste: {
 			band: currentBand,
