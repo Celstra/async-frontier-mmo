@@ -74,7 +74,7 @@ function buildHighlights(input: {
 		const currentClarity = input.comparison.current?.propertyScores.survey_clarity;
 		if (
 			clarityLine &&
-			(currentClarity === undefined || clarityLine.finalScore > currentClarity)
+			(currentClarity === undefined || Math.round(clarityLine.finalScore) > Math.round(currentClarity))
 		) {
 			highlights.push('New best scanner');
 		}
@@ -84,18 +84,20 @@ function buildHighlights(input: {
 		input.comparison &&
 		input.comparison.candidate.itemId !== input.comparison.current?.itemId
 	) {
-		const candidateTotal = Object.values(input.comparison.candidate.propertyScores).reduce(
-			(sum, score) => sum + score,
+		const candidateTotal = input.schematic.properties.reduce(
+			(sum, property) =>
+				sum + Math.round(input.comparison?.candidate.propertyScores[property.id] ?? 0),
 			0
 		);
-		const currentTotal = input.comparison.current
-			? Object.values(input.comparison.current.propertyScores).reduce(
-					(sum, score) => sum + score,
-					0
-				)
-			: 0;
+		const currentTotal = input.schematic.properties.reduce(
+			(sum, property) =>
+				sum + Math.round(input.comparison?.current?.propertyScores[property.id] ?? 0),
+			0
+		);
 		if (candidateTotal > currentTotal) {
 			highlights.push('Beats prior best');
+		} else if (candidateTotal === currentTotal) {
+			highlights.push('Matches prior best');
 		}
 	}
 

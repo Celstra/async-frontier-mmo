@@ -198,6 +198,50 @@ export async function trackNoCraftableResourcesState(db: Db, pilotId: string): P
 	await repeat(db, pilotId, 'no_craftable_resources_state');
 }
 
+export async function trackMissionPanelSeen(db: Db, pilotId: string): Promise<void> {
+	await once(db, pilotId, 'mission_panel_seen');
+}
+
+export async function trackFirstSocketCtaClicked(
+	db: Db,
+	pilotId: string,
+	payload: { schematicId: string; slotId: string }
+): Promise<void> {
+	await repeat(db, pilotId, 'first_socket_cta_clicked', payload);
+}
+
+export async function trackSlotHintSeen(
+	db: Db,
+	pilotId: string,
+	payload: { schematicId: string; slotId: string }
+): Promise<void> {
+	await repeat(db, pilotId, 'slot_hint_seen', payload);
+}
+
+export async function trackSafeToExperimentNudgeSeen(
+	db: Db,
+	pilotId: string,
+	payload: { schematicId: string; itemId: string }
+): Promise<void> {
+	await repeat(db, pilotId, 'safe_to_experiment_nudge_seen', payload);
+}
+
+export async function trackExperimentAfterSafeCraft(
+	db: Db,
+	pilotId: string,
+	payload: { schematicId: string; itemId?: string }
+): Promise<void> {
+	await repeat(db, pilotId, 'experiment_after_safe_craft', payload);
+}
+
+export async function trackCratePanelOpenedBeforeFirstCraft(
+	db: Db,
+	pilotId: string,
+	payload: { crateId: string }
+): Promise<void> {
+	await repeat(db, pilotId, 'crate_panel_opened_before_first_craft', payload);
+}
+
 export {
 	trackCraftResultAbandoned,
 	trackCraftResultCraftAnotherClicked,

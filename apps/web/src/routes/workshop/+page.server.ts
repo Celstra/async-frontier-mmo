@@ -2,6 +2,7 @@ import {
 	assertWorkshopBenchCraftInputs,
 	craftSchematicForPilot,
 	ensureWorkshopStarterGrantForPilot,
+	listCompletedWorkshopSchematicIdsForPilot,
 	openWorkshopCrateForPilot,
 	reclaimWorkshopItemForPilot,
 	setItemFavoriteForPilot,
@@ -27,17 +28,23 @@ import {
 	trackCraftResultRevealSeen,
 	trackCraftStarted,
 	trackCraftCompleted,
+	trackCratePanelOpenedBeforeFirstCraft,
+	trackExperimentAfterSafeCraft,
 	trackExperimentPulseConfigured,
+	trackFirstSocketCtaClicked,
 	trackItemFavorited,
 	trackItemReclaimPreviewed,
 	trackItemReclaimed,
 	trackItemUnfavorited,
+	trackMissionPanelSeen,
 	trackNoCraftableResourcesState,
 	trackOverdriveCritScrapSeen,
 	trackResourceSlotFilled,
 	trackResourceSlotReplaced,
 	trackResultCompared,
+	trackSafeToExperimentNudgeSeen,
 	trackSchematicSelected,
+	trackSlotHintSeen,
 	trackStarterResourcesViewed,
 	trackSupplyCrateAvailable,
 	trackSupplyCrateOpened,
@@ -270,6 +277,61 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
+	workshopUxTelemetry: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+
+		const formData = await event.request.formData();
+		const telemetryEvent = formData.get('telemetryEvent');
+		const payloadRaw = formData.get('payload');
+
+		let payload: Record<string, unknown> = {};
+		if (typeof payloadRaw === 'string' && payloadRaw.length > 0) {
+			try {
+				payload = JSON.parse(payloadRaw) as Record<string, unknown>;
+			} catch {
+				return fail(400, { message: 'Invalid workshop UX telemetry payload' });
+			}
+		}
+
+		if (telemetryEvent === 'mission_panel_seen') {
+			await trackMissionPanelSeen(db, pilotId);
+		} else if (telemetryEvent === 'first_socket_cta_clicked') {
+			const schematicId = payload.schematicId;
+			const slotId = payload.slotId;
+			if (typeof schematicId !== 'string' || typeof slotId !== 'string') {
+				return fail(400, { message: 'Invalid socket CTA telemetry' });
+			}
+			await trackFirstSocketCtaClicked(db, pilotId, { schematicId, slotId });
+		} else if (telemetryEvent === 'slot_hint_seen') {
+			const schematicId = payload.schematicId;
+			const slotId = payload.slotId;
+			if (typeof schematicId !== 'string' || typeof slotId !== 'string') {
+				return fail(400, { message: 'Invalid slot hint telemetry' });
+			}
+			await trackSlotHintSeen(db, pilotId, { schematicId, slotId });
+		} else if (telemetryEvent === 'safe_to_experiment_nudge_seen') {
+			const schematicId = payload.schematicId;
+			const itemId = payload.itemId;
+			if (typeof schematicId !== 'string' || typeof itemId !== 'string') {
+				return fail(400, { message: 'Invalid experiment nudge telemetry' });
+			}
+			await trackSafeToExperimentNudgeSeen(db, pilotId, { schematicId, itemId });
+		} else if (telemetryEvent === 'experiment_after_safe_craft') {
+			const schematicId = payload.schematicId;
+			if (typeof schematicId !== 'string') {
+				return fail(400, { message: 'Invalid experiment-after-safe telemetry' });
+			}
+			const itemId = typeof payload.itemId === 'string' ? payload.itemId : undefined;
+			await trackExperimentAfterSafeCraft(db, pilotId, { schematicId, itemId });
+		} else {
+			return fail(400, { message: 'Unknown workshop UX telemetry event' });
+		}
+
+		return { ok: true };
+	},
+
 	benchTelemetry: async (event) => {
 		const db = getGameDb();
 		const pilotId = resolvePilotId(event);
@@ -489,6 +551,11 @@ export const actions: Actions = {
 		}
 		if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
 			return fail(400, { message: 'Missing crate idempotency key' });
+		}
+
+		const craftedSchematicIds = await listCompletedWorkshopSchematicIdsForPilot(db, pilotId);
+		if (craftedSchematicIds.length === 0) {
+			await trackCratePanelOpenedBeforeFirstCraft(db, pilotId, { crateId });
 		}
 
 		try {

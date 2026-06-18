@@ -80,6 +80,13 @@ export const PLAYTEST_COMPREHENSION_EVENTS = [
 	'repeat_same_schematic',
 	'crafted_each_thumper_part',
 	'no_craftable_resources_state',
+	/** HZD workshop-first UX comprehension (Decision 024). */
+	'mission_panel_seen',
+	'first_socket_cta_clicked',
+	'slot_hint_seen',
+	'safe_to_experiment_nudge_seen',
+	'experiment_after_safe_craft',
+	'crate_panel_opened_before_first_craft',
 	/** One-time state — first post-async 15m deploy on scavenged/patched hull (not a funnel metric). */
 	'first_async_deploy_used'
 ] as const;

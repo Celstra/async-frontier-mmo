@@ -6,10 +6,12 @@ import {
 } from './helpers/smokeDb';
 import {
 	craftAnotherFromReveal,
+	craftDrillHeadSafe,
 	craftDrillHeadWithExperiment,
 	expectWorkshopCraftResultReveal,
 	fillDrillHeadCraftBench,
-	openCompareToBestFromReveal
+	openCompareToBestFromReveal,
+	tryExperimentNextFromReveal
 } from './helpers/workshopCraftFlow';
 
 test.describe('craft result reveal smoke', () => {
@@ -46,10 +48,8 @@ test.describe('craft result reveal smoke', () => {
 
 			await fillDrillHeadCraftBench(page);
 			await craftDrillHeadWithExperiment(page);
-			await expectWorkshopCraftResultReveal(page, { compareToBest: true });
-			await expect(
-				page.locator('.craft-reveal').getByRole('button', { name: 'Compare to your best' })
-			).toBeVisible();
+			await expectWorkshopCraftResultReveal(page, { hasComparison: true });
+			await expect(page.locator('.craft-reveal').getByTestId('craft-compare-btn')).toBeVisible();
 
 			await openCompareToBestFromReveal(page);
 			await expect(page.getByRole('button', { name: /Install /i })).toHaveCount(0);
@@ -58,8 +58,14 @@ test.describe('craft result reveal smoke', () => {
 			await craftAnotherFromReveal(page);
 			await expect(page.getByText('Fabricator sealed')).toHaveCount(0);
 			await expect(page.getByRole('button', { name: /Experiment \(2 pulses\)/i })).toBeVisible();
+
+			await fillDrillHeadCraftBench(page);
+			await craftDrillHeadSafe(page);
+			await expectWorkshopCraftResultReveal(page, { safeCraft: true });
+			await tryExperimentNextFromReveal(page);
 		} finally {
 			await cleanupWorkshopCraftPilotForSmoke(pilotId);
 		}
 	});
+
 });

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 	import {
 		experimentPulseOutcomeLabel,
 		experimentPushDisplayLabel,
@@ -11,12 +10,25 @@
 		type ExperimentPulseResult,
 		type SchematicDefinition
 	} from '@async-frontier-mmo/domain';
+	import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
 	import type { WorkshopCraftOutcome } from '$lib/server/craftOutcome';
+	import {
+		buildResultLearningNotes,
+		isSafeCraftExplanation
+	} from './resultLearningNotes';
+	import { buildExperimentRevealSummary } from './experimentRevealSummary';
+	import { postWorkshopUxTelemetry } from './postWorkshopUxTelemetry';
+	import {
+		buildComparisonSummary,
+		comparisonPanelTitle,
+		parseComparisonLine
+	} from './craftComparisonDisplay';
 
 	interface Props {
 		schematic: SchematicDefinition;
 		craftOutcome: WorkshopCraftOutcome;
 		onCraftAnother: () => void;
+		onTryExperimentNext?: () => void;
 		onFavoriteChanged?: (favorited: boolean) => void;
 		onReclaimed?: () => void;
 	}
@@ -25,6 +37,7 @@
 		schematic,
 		craftOutcome,
 		onCraftAnother,
+		onTryExperimentNext,
 		onFavoriteChanged,
 		onReclaimed
 	}: Props = $props();
@@ -37,12 +50,23 @@
 	let installError = $state<string | null>(null);
 	let reclaimError = $state<string | null>(null);
 	let pulseTelemetrySent = $state(false);
+	let experimentNudgeTelemetrySent = $state(false);
 	let reclaimIdempotencyKey = $state(`${Date.now()}-reclaim`);
 
 	const explanation: CraftResultExplanation = $derived(craftOutcome.explanation);
+	const learningNotes = $derived(buildResultLearningNotes(schematic, explanation));
+	const experimentSummary = $derived(buildExperimentRevealSummary(explanation, propertyDisplayName));
+	const showExperimentNudge = $derived(
+		isSafeCraftExplanation(explanation) && Boolean(onTryExperimentNext)
+	);
 	const comparison: CraftInstallComparison | null = $derived(craftOutcome.comparisonTarget);
 	const canCompare = $derived(comparison !== null);
 	const favorited = $derived(craftOutcome.item.favorited);
+	const comparisonDeltas = $derived(
+		comparison?.lines.map((line) => parseComparisonLine(line)) ?? []
+	);
+	const comparisonSummary = $derived(buildComparisonSummary(comparisonDeltas));
+	const comparisonTitle = $derived(comparisonPanelTitle(comparisonDeltas));
 
 	function propertyDisplayName(propertyId: string): string {
 		return schematic.properties.find((line) => line.id === propertyId)?.displayName ?? propertyId;
@@ -111,6 +135,23 @@
 		onCraftAnother();
 	}
 
+	function handleTryExperimentNext() {
+		void postWorkshopUxTelemetry('experiment_after_safe_craft', {
+			schematicId: schematic.id,
+			itemId: craftOutcome.item.id
+		});
+		onTryExperimentNext?.();
+	}
+
+	$effect(() => {
+		if (experimentNudgeTelemetrySent || !showExperimentNudge) return;
+		experimentNudgeTelemetrySent = true;
+		void postWorkshopUxTelemetry('safe_to_experiment_nudge_seen', {
+			schematicId: schematic.id,
+			itemId: craftOutcome.item.id
+		});
+	});
+
 	$effect(() => {
 		if (pulseTelemetrySent) return;
 		const pulses = explanation.experimentPulseResults;
@@ -145,6 +186,46 @@
 		<p class="craft-reveal__eyebrow">Fabricator sealed</p>
 		<h3 class="craft-reveal__title">Schematic: {schematic.displayName}</h3>
 	</header>
+
+	<section class="craft-reveal__learning" data-testid="result-learning-notes">
+		{#if learningNotes.fallbackOnly}
+			<p class="craft-reveal__learning-fallback">{learningNotes.tryNext}</p>
+		{:else}
+			<div class="craft-reveal__learning-block">
+				<h4>What helped</h4>
+				<p>{learningNotes.whatHelped}</p>
+			</div>
+			<div class="craft-reveal__learning-block">
+				<h4>What limited it</h4>
+				<p>{learningNotes.whatLimited}</p>
+			</div>
+			<div class="craft-reveal__learning-block">
+				<h4>Try next</h4>
+				<p>{learningNotes.tryNext}</p>
+			</div>
+		{/if}
+	</section>
+
+	{#if experimentSummary}
+		<section
+			class="craft-reveal__experiment-summary"
+			class:craft-reveal__experiment-summary--flat={experimentSummary.matchedSafeCraft}
+			data-testid="experiment-reveal-summary"
+		>
+			<h4>What experiment did</h4>
+			<p class="craft-reveal__experiment-summary-headline">{experimentSummary.headline}</p>
+			<p class="craft-reveal__experiment-summary-detail">{experimentSummary.detail}</p>
+		</section>
+	{/if}
+
+	{#if showExperimentNudge}
+		<section class="craft-reveal__experiment-nudge" data-testid="safe-craft-experiment-nudge">
+			<p>
+				Prototype logged. Now try the same schematic with Experiment (2 pulses) to see if you can
+				beat it.
+			</p>
+		</section>
+	{/if}
 
 	<section class="craft-reveal__stage">
 		<h4>Resources loaded</h4>
@@ -200,7 +281,13 @@
 					<p class="pulse-result__bands">
 						Result: {formatBand(pulse.bandBefore)} -> {formatBand(pulse.bandAfter)}
 					</p>
-					<p class="pulse-result__status">{experimentPulseOutcomeLabel(pulse.outcome)}</p>
+					<p class="pulse-result__status">
+						{#if pulse.outcome === 'success' && pulse.bandBefore === pulse.bandAfter}
+							SUCCESS — already at material cap (no band gain)
+						{:else}
+							{experimentPulseOutcomeLabel(pulse.outcome)}
+						{/if}
+					</p>
 					{#if pulse.scrapUnits > 0}
 						<p class="pulse-result__scrap">
 							Material loss: {pulse.scrapUnits}u consumed from largest socket
@@ -344,21 +431,46 @@
 		</section>
 	{:else if showInstallPreview && comparison}
 		<section class="craft-reveal__install-preview">
-			<h4>{WORKSHOP_SLICE_PLAYTEST ? 'Compare to your best' : 'RIG install preview'}</h4>
+			<h4>{WORKSHOP_SLICE_PLAYTEST ? comparisonTitle : 'RIG install preview'}</h4>
 			{#if WORKSHOP_SLICE_PLAYTEST}
 				<p class="craft-reveal__install-slot">Prior best for this schematic</p>
 			{:else}
 				<p class="craft-reveal__install-slot">{comparison.slotLabel}</p>
 			{/if}
-			<p>
-				Current:
-				{comparison.current?.displayName ?? 'No prior craft'}
+			{#if comparisonSummary}
+				<p class="craft-reveal__comparison-summary" data-testid="craft-comparison-summary">
+					{comparisonSummary}
+				</p>
+			{/if}
+			<p class="craft-reveal__comparison-names">
+				<span>Prior best: {comparison.current?.displayName ?? 'No prior craft'}</span>
+				<span>This craft: {comparison.candidate.displayName}</span>
 			</p>
-			<p>New: {comparison.candidate.displayName}</p>
 			<ul class="craft-reveal__delta-list">
-				{#each comparison.lines as line}
-					<li>
-						{line.label}: {line.before} -> {line.after}
+				{#each comparisonDeltas as line (line.label)}
+					<li
+						class="craft-reveal__delta"
+						class:craft-reveal__delta--improved={line.direction === 'improved'}
+						class:craft-reveal__delta--unchanged={line.direction === 'unchanged'}
+						class:craft-reveal__delta--worse={line.direction === 'worse'}
+					>
+						<span class="craft-reveal__delta-label">{line.label}</span>
+						<div class="craft-reveal__delta-values">
+							<span class="craft-reveal__delta-before">Was: {line.before}</span>
+							<span class="craft-reveal__delta-arrow" aria-hidden="true">→</span>
+							<span class="craft-reveal__delta-after">Now: {line.after}</span>
+							{#if line.scoreDelta !== null && line.scoreDelta > 0}
+								<span class="craft-reveal__delta-badge">+{line.scoreDelta}</span>
+							{:else if line.scoreDelta !== null && line.scoreDelta < 0}
+								<span class="craft-reveal__delta-badge craft-reveal__delta-badge--worse">
+									{line.scoreDelta}
+								</span>
+							{:else if line.scoreDelta === 0}
+								<span class="craft-reveal__delta-badge craft-reveal__delta-badge--steady">
+									No change
+								</span>
+							{/if}
+						</div>
 					</li>
 				{/each}
 			</ul>
@@ -411,8 +523,23 @@
 	{:else}
 		<div class="craft-reveal__actions">
 			{#if canCompare}
-				<button type="button" class="craft-reveal__primary-btn" onclick={openInstallPreview}>
-					{WORKSHOP_SLICE_PLAYTEST ? 'Compare to your best' : 'Compare for RIG'}
+				<button
+					type="button"
+					class="craft-reveal__primary-btn"
+					data-testid="craft-compare-btn"
+					onclick={openInstallPreview}
+				>
+					{WORKSHOP_SLICE_PLAYTEST ? comparisonTitle : 'Compare for RIG'}
+				</button>
+			{/if}
+			{#if showExperimentNudge}
+				<button
+					type="button"
+					class="craft-reveal__primary-btn"
+					data-testid="try-experiment-next-btn"
+					onclick={handleTryExperimentNext}
+				>
+					Try Experiment next
 				</button>
 			{/if}
 			<button type="button" class="craft-reveal__secondary-btn" onclick={handleCraftAnother}>
@@ -475,6 +602,87 @@
 		color: var(--text-bright);
 	}
 
+	.craft-reveal__learning {
+		margin-bottom: 1rem;
+		padding: 0.85rem 0.9rem;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-sm);
+		background: var(--bg-panel);
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.craft-reveal__learning-block h4 {
+		margin: 0 0 0.3rem;
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--accent-warning);
+	}
+
+	.craft-reveal__learning-block p,
+	.craft-reveal__learning-fallback {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		line-height: 1.45;
+		color: var(--text-primary);
+	}
+
+	.craft-reveal__experiment-nudge {
+		margin: 0 0 1rem;
+		padding: 0.75rem 0.85rem;
+		border: 1px solid var(--phosphor-dim);
+		border-radius: var(--radius-sm);
+		background: var(--phosphor-glow);
+	}
+
+	.craft-reveal__experiment-nudge p {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		line-height: 1.45;
+		color: var(--text-bright);
+	}
+
+	.craft-reveal__experiment-summary {
+		margin: 0 0 1rem;
+		padding: 0.85rem 0.9rem;
+		border: 1px solid var(--phosphor);
+		border-radius: var(--radius-sm);
+		background: var(--phosphor-glow);
+	}
+
+	.craft-reveal__experiment-summary--flat {
+		border-color: var(--accent-warning);
+		background: rgba(255, 176, 32, 0.1);
+	}
+
+	.craft-reveal__experiment-summary h4 {
+		margin: 0 0 0.35rem;
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--phosphor);
+	}
+
+	.craft-reveal__experiment-summary--flat h4 {
+		color: var(--accent-warning);
+	}
+
+	.craft-reveal__experiment-summary-headline {
+		margin: 0 0 0.45rem;
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		line-height: 1.45;
+		color: var(--text-bright);
+	}
+
+	.craft-reveal__experiment-summary-detail {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		line-height: 1.45;
+		color: var(--text-primary);
+	}
+
 	.craft-reveal__stage {
 		margin-bottom: 1rem;
 		padding: 0.75rem;
@@ -497,10 +705,102 @@
 	.craft-reveal__property-results,
 	.craft-reveal__delta-list {
 		margin: 0;
-		padding-left: 1.1rem;
+		padding: 0;
+		list-style: none;
 		color: var(--text-secondary);
 		font-size: 0.9rem;
 		line-height: 1.45;
+		display: grid;
+		gap: 0.55rem;
+	}
+
+	.craft-reveal__comparison-summary {
+		margin: 0 0 0.65rem;
+		padding: 0.6rem 0.7rem;
+		border: 1px solid var(--phosphor-dim);
+		border-radius: var(--radius-sm);
+		background: var(--phosphor-glow);
+		color: var(--text-bright);
+		font-size: var(--font-size-sm);
+		line-height: 1.45;
+	}
+
+	.craft-reveal__comparison-names {
+		display: grid;
+		gap: 0.2rem;
+		margin: 0 0 0.75rem;
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+
+	.craft-reveal__delta {
+		padding: 0.55rem 0.65rem;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		background: var(--bg-inset);
+	}
+
+	.craft-reveal__delta--improved {
+		border-color: var(--phosphor-dim);
+		background: rgba(61, 255, 122, 0.08);
+	}
+
+	.craft-reveal__delta--unchanged {
+		opacity: 0.82;
+	}
+
+	.craft-reveal__delta--worse {
+		border-color: var(--accent-danger-dim);
+		background: rgba(255, 68, 68, 0.06);
+	}
+
+	.craft-reveal__delta-label {
+		display: block;
+		margin-bottom: 0.25rem;
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--phosphor);
+	}
+
+	.craft-reveal__delta-values {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem 0.5rem;
+	}
+
+	.craft-reveal__delta-before,
+	.craft-reveal__delta-after {
+		font-size: var(--font-size-sm);
+		color: var(--text-primary);
+	}
+
+	.craft-reveal__delta-arrow {
+		color: var(--text-muted);
+	}
+
+	.craft-reveal__delta-badge {
+		padding: 0.1rem 0.4rem;
+		border-radius: var(--radius-sm);
+		background: var(--phosphor-glow);
+		color: var(--phosphor);
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+	.craft-reveal__delta-badge--steady {
+		background: var(--bg-panel);
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.craft-reveal__delta-badge--worse {
+		background: rgba(255, 68, 68, 0.12);
+		color: var(--accent-danger);
 	}
 
 	.craft-reveal__consumed-tag {

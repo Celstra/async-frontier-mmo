@@ -8,6 +8,10 @@
 	} from '@async-frontier-mmo/domain';
 	import { familyDisplayLabel } from '$lib/displayLabels';
 	import { WORKSHOP_SLICE_PLAYTEST } from '$lib/decision024';
+	import {
+		buildSlotFitContext,
+		buildStackSlotFitHintLines
+	} from './slotFitHints';
 
 	const MVP_STATS = [
 		'OQ',
@@ -51,6 +55,8 @@
 		onSelect,
 		slotReadiness
 	}: Props = $props();
+
+	const slotFitContext = $derived(buildSlotFitContext(schematic, slot.id));
 
 	function chooseStack(stack: InventoryStack) {
 		if (!hasEnoughQuantity(stack)) {
@@ -133,6 +139,7 @@
 			{#each stacks as stack}
 				{@const hasEnough = hasEnoughQuantity(stack)}
 				{@const isSelected = selectedInstanceId === stack.resourceInstanceId}
+				{@const fitHints = buildStackSlotFitHintLines(slotFitContext, stack.stats)}
 				<button
 					type="button"
 					class="stack-card"
@@ -161,6 +168,20 @@
 								Not enough quantity — need {slot.inputQuantity} in one craft
 							{/if}
 						</p>
+					{/if}
+
+					{#if fitHints.length > 0}
+						<ul class="stack-fit-hints" data-testid="stack-fit-hints">
+							{#each fitHints as hint (hint.stat)}
+								<li class="stack-fit-hints__line">
+									<span class="stack-fit-hints__stat">{hint.statLabel}:</span>
+									<span class="stack-fit-hints__tier stack-fit-hints__tier--{hint.qualitativeLabel.toLowerCase()}">
+										{hint.qualitativeLabel}
+									</span>
+									<span class="stack-fit-hints__detail">— {hint.detail}</span>
+								</li>
+							{/each}
+						</ul>
 					{/if}
 
 					<div class="stat-row">
@@ -306,6 +327,50 @@
 		color: var(--accent-danger);
 		margin: 0 0 0.5rem 0;
 		font-style: italic;
+	}
+
+	.stack-fit-hints {
+		list-style: none;
+		margin: 0 0 0.55rem;
+		padding: 0.5rem 0.55rem;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		background: var(--bg-inset);
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.stack-fit-hints__line {
+		font-size: 0.78rem;
+		line-height: 1.4;
+		color: var(--text-secondary);
+	}
+
+	.stack-fit-hints__stat {
+		color: var(--text-primary);
+		font-weight: 600;
+	}
+
+	.stack-fit-hints__tier {
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.stack-fit-hints__tier--strong {
+		color: var(--phosphor);
+	}
+
+	.stack-fit-hints__tier--fair {
+		color: var(--accent-warning);
+	}
+
+	.stack-fit-hints__tier--low {
+		color: var(--text-muted);
+	}
+
+	.stack-fit-hints__detail {
+		color: var(--text-secondary);
 	}
 
 	.stat-row {

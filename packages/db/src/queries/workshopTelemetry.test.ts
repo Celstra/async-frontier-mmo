@@ -18,6 +18,7 @@ import {
 } from './playtestTelemetry.js';
 import {
 	countCompletedCraftsForSchematic,
+	hasAnyCompletedWorkshopCraft,
 	hasCraftedEachWorkshopThumperPart,
 	listCompletedWorkshopSchematicIdsForPilot
 } from './workshopTelemetry.js';
@@ -72,6 +73,29 @@ describeDb('workshop telemetry helpers', () => {
 		expect(await listCompletedWorkshopSchematicIdsForPilot(db, testPilotId)).toHaveLength(
 			WORKSHOP_ACTIVE_SCHEMATIC_IDS.length
 		);
+	});
+
+	it('keeps workshop crate unlock after completed crafts even with no active prototypes', async () => {
+		const unlockPilotId = `${testPilotId}-unlock`;
+		await db.insert(pilots).values({ id: unlockPilotId }).onConflictDoNothing();
+		expect(await hasAnyCompletedWorkshopCraft(db, unlockPilotId)).toBe(false);
+
+		await db.insert(craftingAttempts).values({
+			pilotId: unlockPilotId,
+			idempotencyKey: 'unlock-craft',
+			schematicId: REINFORCED_HULL_PLATE.id,
+			schematicVersion: 1,
+			craftMode: 'safe_craft',
+			tuning: {},
+			slotSelections: [],
+			preview: {},
+			resultExplanation: {},
+			status: 'completed'
+		});
+		expect(await hasAnyCompletedWorkshopCraft(db, unlockPilotId)).toBe(true);
+
+		await db.delete(craftingAttempts).where(eq(craftingAttempts.pilotId, unlockPilotId));
+		await db.delete(pilots).where(eq(pilots.id, unlockPilotId));
 	});
 
 	it('counts repeat crafts for the same schematic', async () => {
@@ -263,5 +287,52 @@ describeDb('workshop telemetry helpers', () => {
 			reason: 'timer',
 			payload: [{ resourceSlug: 'sorrel_bench', quantity: 5 }]
 		});
+	});
+
+	it('records HZD workshop-first comprehension events', async () => {
+		await seedPilot();
+
+		const missionFirst = await recordPlaytestEventOnce(db, {
+			pilotId: testPilotId,
+			eventName: 'mission_panel_seen'
+		});
+		const missionSecond = await recordPlaytestEventOnce(db, {
+			pilotId: testPilotId,
+			eventName: 'mission_panel_seen'
+		});
+		expect(missionFirst).toBe(true);
+		expect(missionSecond).toBe(false);
+
+		await recordPlaytestEvent(db, {
+			pilotId: testPilotId,
+			eventName: 'first_socket_cta_clicked',
+			payload: { schematicId: BASIC_DRILL_HEAD.id, slotId: 'cutting_bit' }
+		});
+		await recordPlaytestEvent(db, {
+			pilotId: testPilotId,
+			eventName: 'slot_hint_seen',
+			payload: { schematicId: BASIC_DRILL_HEAD.id, slotId: 'cutting_bit' }
+		});
+		await recordPlaytestEvent(db, {
+			pilotId: testPilotId,
+			eventName: 'safe_to_experiment_nudge_seen',
+			payload: { schematicId: BASIC_DRILL_HEAD.id, itemId: 'item-safe-1' }
+		});
+		await recordPlaytestEvent(db, {
+			pilotId: testPilotId,
+			eventName: 'experiment_after_safe_craft',
+			payload: { schematicId: BASIC_DRILL_HEAD.id, itemId: 'item-safe-1' }
+		});
+		await recordPlaytestEvent(db, {
+			pilotId: testPilotId,
+			eventName: 'crate_panel_opened_before_first_craft',
+			payload: { crateId: 'crate-early' }
+		});
+
+		const events = await listPlaytestEventsForPilot(db, testPilotId);
+		expect(events.filter((event) => event.eventName === 'first_socket_cta_clicked')).toHaveLength(1);
+		expect(
+			events.filter((event) => event.eventName === 'crate_panel_opened_before_first_craft')
+		).toHaveLength(1);
 	});
 });

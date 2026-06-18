@@ -242,6 +242,7 @@ export {
 export {
 	countCompletedCraftsForSchematic,
 	hasCraftedEachWorkshopThumperPart,
+	hasAnyCompletedWorkshopCraft,
 	listCompletedWorkshopSchematicIdsForPilot
 } from './queries/workshopTelemetry.js';
 export { playtestEvents } from './schema/playtestEvents.js';

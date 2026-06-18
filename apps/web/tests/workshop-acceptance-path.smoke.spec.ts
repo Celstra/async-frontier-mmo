@@ -36,6 +36,8 @@ test.describe('workshop slice acceptance path', () => {
 		try {
 			await page.goto('/workshop');
 			await expect(page.getByText('WORKSHOP — Fabricator bay')).toBeVisible();
+			await expect(page.getByTestId('supply-crates-locked')).toBeVisible();
+			await expect(page.getByTestId('supply-drop-banner')).toHaveCount(0);
 			await expect(page.getByRole('navigation', { name: 'Workshop schematics' }).getByRole('link')).toHaveCount(
 				3
 			);
@@ -44,13 +46,24 @@ test.describe('workshop slice acceptance path', () => {
 			await expect(page.locator('.workshop-bench[data-workshop-ready]')).toBeVisible({
 				timeout: 15_000
 			});
-			await expect(page.getByTestId('assembly-slot-cutting_bit')).toBeVisible();
+			await expect(page.getByTestId('empty-socket-cta-button')).toBeVisible();
+			await expect(page.getByTestId('empty-socket-cta-button')).toContainText('Cutting Bit');
+			await expect(page.getByTestId('empty-socket-cta-button')).toContainText('socket 1 of 3');
+			await expect(page.getByTestId('assembly-slot-cutting_bit')).toHaveClass(/assembly-slot--next/);
+			await page.getByTestId('assembly-slot-cutting_bit').click();
+			await expect(page.getByTestId('slot-fit-picker-hint')).toContainText('Hardness');
+			await expect(page.getByTestId('slot-fit-picker-hint')).toContainText('Extraction Rate');
+			await expect(page.getByTestId('slot-fit-picker-hint')).not.toContainText(/best|optimal|recommended/i);
+			await page.getByRole('button', { name: 'Close' }).click();
 			await fillDrillHeadCraftBench(page);
 			await craftDrillHeadWithExperiment(page);
 			await expectWorkshopCraftResultReveal(page);
 			await expect(page.locator('.craft-reveal__made-from')).toBeVisible();
 			await favoritePrototypeFromReveal(page);
 			await expect(page.locator('.craft-history__kept')).toBeVisible();
+			await page.goto('/workshop');
+			await expect(page.getByTestId('supply-drop-banner')).toBeVisible();
+			await expect(page.getByTestId('supply-crates-locked')).toHaveCount(0);
 
 			await page.goto('/workshop?schematic=efficient_pump');
 			await fillEfficientPumpCraftBench(page);
@@ -65,6 +78,9 @@ test.describe('workshop slice acceptance path', () => {
 			await expect(page.locator('.craft-history__item')).toHaveCount(1);
 			await reclaimPrototypeFromReveal(page);
 			await expect(page.locator('.craft-history__item')).toHaveCount(0);
+			await page.goto('/workshop');
+			await expect(page.getByTestId('supply-drop-banner')).toBeVisible();
+			await expect(page.getByTestId('supply-crates-locked')).toHaveCount(0);
 
 			await page.goto('/workshop?schematic=basic_drill_head');
 			await expect(page.locator('.craft-history__kept')).toBeVisible();

@@ -21,6 +21,10 @@
 
 	const readyCount = $derived(supply.availableCrates.length);
 	const hasWaitingCrate = $derived(readyCount > 0);
+	const shouldAutoExpandPanel = $derived(
+		supply.availableCrates.some((crate) => crate.reason === 'emergency') ||
+			(!supply.canCraftAnyThumperPart && hasWaitingCrate)
+	);
 
 	function crateIdempotencyKey(crateId: string): string {
 		return idempotencyKeys[crateId] ?? '';
@@ -91,7 +95,7 @@
 	}
 
 	$effect(() => {
-		if (hasWaitingCrate) {
+		if (shouldAutoExpandPanel) {
 			expanded = true;
 		}
 	});

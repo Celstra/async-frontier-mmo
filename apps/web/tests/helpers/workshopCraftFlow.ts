@@ -73,19 +73,47 @@ export async function craftDrillHeadWithExperiment(page: Page): Promise<void> {
 	await page.waitForLoadState('networkidle');
 }
 
+export async function craftDrillHeadSafe(page: Page): Promise<void> {
+	const submit = page.getByRole('button', { name: /Craft Basic Drill Head/i });
+	await expect(submit).toBeEnabled({ timeout: 10_000 });
+	await submit.click();
+	await page.waitForLoadState('networkidle');
+}
+
+export async function tryExperimentNextFromReveal(page: Page): Promise<void> {
+	await page.getByTestId('try-experiment-next-btn').click();
+	await expect(page.locator('.craft-reveal')).toHaveCount(0, { timeout: 10_000 });
+	await expect(page.getByRole('button', { name: /experiment \(2 pulses\)/i })).toHaveClass(/selected/);
+
+	const submit = page.locator('.craft-form').getByRole('button', { name: /^Craft / });
+	await expect(submit).toBeEnabled({ timeout: 10_000 });
+	await submit.click();
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.craft-reveal')).toBeVisible({ timeout: 15_000 });
+	await expect(page.getByTestId('experiment-reveal-summary')).toBeVisible();
+}
+
 export async function expectWorkshopCraftResultReveal(
 	page: Page,
-	options: { compareToBest?: boolean } = {}
+	options: { hasComparison?: boolean; safeCraft?: boolean } = {}
 ): Promise<void> {
 	const reveal = page.locator('.craft-reveal');
 	await expect(reveal.getByText('Fabricator sealed')).toBeVisible({ timeout: 15_000 });
-	await expect(reveal.getByText('Prototype complete')).toBeVisible();
-	await expect(reveal.getByText('Pulse 1')).toBeVisible();
-	await expect(reveal.getByText('Pulse 2')).toBeVisible();
-	if (options.compareToBest) {
-		await expect(reveal.getByRole('button', { name: 'Compare to your best' })).toBeVisible();
+	await expect(reveal.getByTestId('result-learning-notes')).toBeVisible();
+	if (options.safeCraft) {
+		await expect(reveal.getByTestId('safe-craft-experiment-nudge')).toBeVisible();
+		await expect(reveal.getByTestId('try-experiment-next-btn')).toBeVisible();
+		await expect(reveal.getByText('Pulse 1')).toHaveCount(0);
 	} else {
-		await expect(reveal.getByRole('button', { name: 'Compare to your best' })).toHaveCount(0);
+		await expect(reveal.getByText('Prototype complete')).toBeVisible();
+		await expect(reveal.getByTestId('experiment-reveal-summary')).toBeVisible();
+		await expect(reveal.locator('.pulse-result__title').filter({ hasText: /^Pulse 1/ })).toBeVisible();
+		await expect(reveal.locator('.pulse-result__title').filter({ hasText: /^Pulse 2/ })).toBeVisible();
+	}
+	if (options.hasComparison === true) {
+		await expect(reveal.getByTestId('craft-compare-btn')).toBeVisible();
+	} else if (options.hasComparison === false) {
+		await expect(reveal.getByTestId('craft-compare-btn')).toHaveCount(0);
 	}
 	await expect(reveal.getByRole('button', { name: 'Keep prototype' })).toBeVisible();
 	await expect(reveal.getByRole('button', { name: 'Reclaim materials' })).toBeVisible();
@@ -193,8 +221,9 @@ export async function reclaimPrototypeFromReveal(page: Page): Promise<void> {
 
 export async function openCompareToBestFromReveal(page: Page): Promise<void> {
 	const reveal = page.locator('.craft-reveal');
-	await reveal.getByRole('button', { name: 'Compare to your best' }).click();
+	await reveal.getByTestId('craft-compare-btn').click();
 	await expect(reveal.getByText('Prior best for this schematic')).toBeVisible();
+	await expect(reveal.getByTestId('craft-comparison-summary')).toBeVisible();
 }
 
 export async function fillScannerCraftBench(page: Page): Promise<void> {
@@ -227,8 +256,8 @@ export async function expectCraftResultReveal(page: Page): Promise<void> {
 	await expect(reveal.getByText('Fabricator sealed')).toBeVisible({ timeout: 15_000 });
 	await expect(reveal.getByText('Prototype complete')).toBeVisible();
 	await expect(reveal.locator('.craft-reveal__made-from')).toContainText('Veyrith Copper');
-	await expect(reveal.getByText('Pulse 1')).toBeVisible();
-	await expect(reveal.getByText('Pulse 2')).toBeVisible();
+	await expect(reveal.locator('.pulse-result__title').filter({ hasText: /^Pulse 1/ })).toBeVisible();
+	await expect(reveal.locator('.pulse-result__title').filter({ hasText: /^Pulse 2/ })).toBeVisible();
 	await expect(reveal.getByRole('button', { name: 'Compare for RIG' })).toBeVisible();
 	await expect(page.getByText(/item crafted — equip it/i)).toHaveCount(0);
 }

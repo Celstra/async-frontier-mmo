@@ -4,8 +4,13 @@
 	import CraftResultHistory from '$lib/workshop/CraftResultHistory.svelte';
 	import SupplyCratesPanel from '$lib/workshop/SupplyCratesPanel.svelte';
 	import FabricatorBayArt from '$lib/workshop/FabricatorBayArt.svelte';
+	import WorkshopMissionPanel from '$lib/workshop/WorkshopMissionPanel.svelte';
+	import WorkshopStepStrip from '$lib/workshop/WorkshopStepStrip.svelte';
+	import type { WorkshopMissionStep } from '$lib/workshop/workshopMission';
+	import { findNextEmptySchematicSlot } from '$lib/workshop/workshopSlotFlow';
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { postWorkshopUxTelemetry } from '$lib/workshop/postWorkshopUxTelemetry';
 	import type { PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: import('./$types').ActionData } = $props();
@@ -20,6 +25,13 @@
 	let activeSlotId = $state<string | null>(null);
 	let resourcePickerReturnFocus = $state<HTMLElement | null>(null);
 	let trackedSchematicId = $state<string | null>(null);
+	let benchMissionStep = $state<WorkshopMissionStep>('load_slots');
+
+	const activeMissionStep = $derived(
+		data.schematic && data.schematicDefinition ? benchMissionStep : 'pick_schematic'
+	);
+
+	const hasCraftedAnyWorkshopPrototype = $derived(data.hasCraftedAnyWorkshopPrototype);
 
 	$effect(() => {
 		const schematicId = data.selectedSchematicId;
@@ -36,6 +48,12 @@
 					inventory: data.inventory,
 					slotSelections,
 					activeSlotId,
+					nextEmptySlotId:
+						findNextEmptySchematicSlot(
+							data.schematicDefinition,
+							slotSelections,
+							data.inventory
+						)?.id ?? null,
 					onSlotClick: (slotId: string, trigger: HTMLElement) => {
 						resourcePickerReturnFocus = trigger;
 						activeSlotId = slotId;
@@ -49,6 +67,8 @@
 	}
 
 	onMount(() => {
+		void postWorkshopUxTelemetry('mission_panel_seen');
+
 		const syncWhileActive = () => {
 			if (document.visibilityState !== 'visible') {
 				return;
@@ -75,6 +95,9 @@
 	<header class="screen__header workshop-header">WORKSHOP — Fabricator bay</header>
 
 	<div class="screen__body">
+		<WorkshopMissionPanel activeStep={activeMissionStep} />
+		<WorkshopStepStrip activeStep={activeMissionStep} />
+
 		{#if form?.message && !craftOutcome}
 			<p class="flash flash--error" role="alert">{form.message}</p>
 		{/if}
@@ -83,7 +106,13 @@
 			<div class="workshop-rail">
 				<FabricatorBayArt />
 				<aside class="workshop-sidebar">
-					<SupplyCratesPanel supply={data.supply} onTimerDue={syncWorkshopSupply} />
+					{#if hasCraftedAnyWorkshopPrototype}
+						<SupplyCratesPanel supply={data.supply} onTimerDue={syncWorkshopSupply} />
+					{:else}
+						<p class="supply-locked-hint" data-testid="supply-crates-locked">
+							Supply crates unlock after your first prototype.
+						</p>
+					{/if}
 					<SchematicList
 						schematics={data.schematics}
 						selectedSchematicId={data.selectedSchematicId}
@@ -108,13 +137,14 @@
 						schematicReadiness={data.schematicReadiness}
 						bind:slotSelections
 						bind:activeSlotId
+						bind:missionStep={benchMissionStep}
 						returnFocus={resourcePickerReturnFocus}
 					/>
 				{:else}
 					<h2 class="workshop-main__title">Fabricator bench</h2>
 					<p class="workshop-framing">
-						Pick one of the three thumper-part schematics. Bench stock was granted on your first
-						visit — compare crafts, experiment, and reclaim when you need more material.
+						Select <strong>Basic Drill Head</strong> in the schematic list to begin the workshop
+						test. Bench stock was granted on your first visit.
 					</p>
 				{/if}
 			</div>
@@ -136,6 +166,11 @@
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
 		line-height: 1.45;
+	}
+
+	.workshop-framing strong {
+		color: var(--accent-warning);
+		font-weight: 700;
 	}
 
 	.workshop-layout {
@@ -166,15 +201,28 @@
 		gap: 1rem;
 	}
 
-	@media (min-width: 900px) {
-		.workshop-layout--fabricator {
-			grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
-			align-items: start;
-		}
-	}
-
 	.workshop-sidebar {
 		display: grid;
 		gap: 1rem;
+	}
+
+	.supply-locked-hint {
+		margin: 0;
+		padding: 0.55rem 0.65rem;
+		border: 1px dashed var(--border-subtle);
+		border-radius: var(--radius-md);
+		background: var(--bg-inset);
+		color: var(--text-muted);
+		font-size: var(--font-size-xs);
+		line-height: 1.45;
+	}
+
+	:global(#workshop-step-pick-schematic),
+	:global(#workshop-step-load-slots),
+	:global(#workshop-step-tune),
+	:global(#workshop-step-craft),
+	:global(#craft-result),
+	:global(#workshop-step-compare-history) {
+		scroll-margin-top: 0.75rem;
 	}
 </style>

@@ -1,5 +1,6 @@
 import {
 	getPilotWorkshopState,
+	hasAnyCompletedWorkshopCraft,
 	listPilotWorkshopBenchStacksWithInstances,
 	listWorkshopCraftedItemsForPilot,
 	listWorkshopCratesForPilot
@@ -121,6 +122,8 @@ export type WorkshopScreenData = {
 	materialRollup: string | null;
 	craftHistoryBySchematic: Record<string, WorkshopSchematicCraftHistory>;
 	selectedCraftHistory: WorkshopSchematicCraftHistory | null;
+	/** Sticky unlock — true after any completed craft attempt, even if prototypes were reclaimed. */
+	hasCraftedAnyWorkshopPrototype: boolean;
 	supply: WorkshopSupplyState;
 };
 
@@ -521,6 +524,7 @@ export async function loadWorkshopScreen(
 				};
 
 	const craftHistoryBySchematic = await loadCraftHistoryBySchematic(db, pilotId);
+	const hasCraftedAnyWorkshopPrototype = await hasAnyCompletedWorkshopCraft(db, pilotId);
 	const selectedCraftHistory = schematicDefinition
 		? (craftHistoryBySchematic[schematicDefinition.id] ?? null)
 		: null;
@@ -560,6 +564,7 @@ export async function loadWorkshopScreen(
 		materialRollup: schematicDefinition ? schematicMaterialRollup(schematicDefinition) : null,
 		craftHistoryBySchematic,
 		selectedCraftHistory,
+		hasCraftedAnyWorkshopPrototype,
 		supply
 	};
 }

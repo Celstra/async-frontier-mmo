@@ -2,6 +2,9 @@
 
 export type AssemblySlotPlacement = 'top' | 'left' | 'right';
 
+/** Outer edge for the "Next" badge — opposite the connector side that faces the part. */
+export type AssemblyNextBadgeEdge = 'top' | 'left' | 'right';
+
 export type AssemblySlotLayout = {
 	/** Normalized 0–1 center on the part artwork. */
 	anchor: { x: number; y: number };
@@ -55,6 +58,29 @@ export function assemblySlotLayout(
 			placement: DEFAULT_PLACEMENTS[fallbackIndex] ?? 'top'
 		}
 	);
+}
+
+export function assemblySlotPlacementLabel(placement: AssemblySlotPlacement): string {
+	switch (placement) {
+		case 'top':
+			return 'top socket on the assembly diagram';
+		case 'left':
+			return 'left socket on the assembly diagram';
+		case 'right':
+			return 'right socket on the assembly diagram';
+	}
+}
+
+/** Place the Next badge on the outer edge so it does not cover the wire to the part. */
+export function assemblyNextBadgeEdge(placement: AssemblySlotPlacement): AssemblyNextBadgeEdge {
+	switch (placement) {
+		case 'top':
+			return 'top';
+		case 'left':
+			return 'left';
+		case 'right':
+			return 'right';
+	}
 }
 
 export function schematicPartImage(schematicId: string): string | null {

@@ -4,10 +4,12 @@
 	import AssemblyBoard from './AssemblyBoard.svelte';
 
 	const SCHEMATIC_DISPLAY_ORDER = [
-		'efficient_pump',
 		'basic_drill_head',
+		'efficient_pump',
 		'reinforced_hull_plate'
 	] as const;
+
+	const START_HERE_SCHEMATIC_ID = 'basic_drill_head';
 
 	interface InventoryStack {
 		resourceInstanceId: string;
@@ -21,6 +23,7 @@
 		slotSelections: Record<string, string>;
 		activeSlotId: string | null;
 		onSlotClick: (slotId: string, trigger: HTMLElement) => void;
+		nextEmptySlotId?: string | null;
 	}
 
 	interface Props {
@@ -56,7 +59,11 @@
 	}
 </script>
 
-<nav class="schematic-list panel" aria-label="Workshop schematics">
+<nav
+	class="schematic-list panel"
+	aria-label="Workshop schematics"
+	id="workshop-step-pick-schematic"
+>
 	<p class="schematic-list__label">Schematics</p>
 	<ul class="schematic-list__items">
 		{#each orderedSchematics as row (row.id)}
@@ -71,6 +78,11 @@
 					onclick={(event) => handleSchematicClick(event, row.id)}
 				>
 					<span class="schematic-row__name">{row.displayName}</span>
+					{#if row.id === START_HERE_SCHEMATIC_ID}
+						<span class="schematic-row__start-here">
+							Start here — build one Drill Head. It only needs three bench choices.
+						</span>
+					{/if}
 					<span
 						class="schematic-row__state"
 						class:schematic-row__state--ready={row.craftableNow}
@@ -84,6 +96,7 @@
 						schematic={assembly.schematic}
 						slotSelections={assembly.slotSelections}
 						activeSlotId={assembly.activeSlotId}
+						nextEmptySlotId={assembly.nextEmptySlotId ?? null}
 						inventory={assembly.inventory}
 						onSlotClick={assembly.onSlotClick}
 					/>
@@ -100,6 +113,10 @@
 		color: var(--text-secondary);
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
+	}
+
+	.schematic-list {
+		scroll-margin-top: 0.75rem;
 	}
 
 	.schematic-list__items {
@@ -141,6 +158,12 @@
 	.schematic-row__name {
 		flex: 1;
 		min-width: 0;
+	}
+
+	.schematic-row__start-here {
+		color: var(--accent-warning);
+		font-size: var(--font-size-xs);
+		line-height: 1.4;
 	}
 
 	.schematic-row__state {

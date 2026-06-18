@@ -66,7 +66,7 @@
 	}
 </script>
 
-<div class="tuning-panel">
+<div class="tuning-panel" id="workshop-step-tune">
 	<div class="tuning-header">
 		<h3>Property preview & tuning</h3>
 		<div class="points-indicator" class:complete={remainingPoints === 0}>

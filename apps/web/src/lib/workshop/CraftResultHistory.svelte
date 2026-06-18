@@ -34,7 +34,11 @@
 </script>
 
 {#if history && history.crafts.length > 0}
-	<section class="craft-history" aria-label="Craft history for {history.displayName}">
+	<section
+		class="craft-history"
+		id="workshop-step-compare-history"
+		aria-label="Craft history for {history.displayName}"
+	>
 		<header class="craft-history__header">
 			<h3 class="craft-history__title">Craft history</h3>
 			<p class="craft-history__subtitle">{history.displayName}</p>

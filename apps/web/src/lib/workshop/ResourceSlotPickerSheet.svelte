@@ -7,6 +7,8 @@
 	import { familyDisplayLabel } from '$lib/displayLabels';
 	import { familyContainerImage } from './schematicArt';
 	import SlotSelector from './SlotSelector.svelte';
+	import { buildSlotFitContext, buildSlotPickerHint } from './slotFitHints';
+	import { postWorkshopUxTelemetry } from './postWorkshopUxTelemetry';
 
 	interface InventoryStack {
 		resourceInstanceId: string;
@@ -49,6 +51,8 @@
 
 	const containerImage = $derived(familyContainerImage(slot.requiredFamily));
 	const titleId = $derived(`resource-picker-${slot.id}`);
+	const slotFitContext = $derived(buildSlotFitContext(schematic, slot.id));
+	const slotPickerHint = $derived(buildSlotPickerHint(slotFitContext));
 
 	let panelEl = $state<HTMLDivElement | null>(null);
 	let closeButtonEl = $state<HTMLButtonElement | null>(null);
@@ -124,6 +128,17 @@
 		panel.addEventListener('keydown', onKeyDown);
 		return () => panel.removeEventListener('keydown', onKeyDown);
 	});
+
+	let slotHintTelemetrySent = $state(false);
+
+	$effect(() => {
+		if (slotHintTelemetrySent || !slotPickerHint) return;
+		slotHintTelemetrySent = true;
+		void postWorkshopUxTelemetry('slot_hint_seen', {
+			schematicId: schematic.id,
+			slotId: slot.id
+		});
+	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -173,8 +188,8 @@
 			</button>
 		</header>
 
-		<p class="resource-picker__help">
-			Each stack shows its full stat profile. Pick one to fill this assembly slot.
+		<p class="resource-picker__help" data-testid="slot-fit-picker-hint">
+			{slotPickerHint}
 		</p>
 
 		<div class="resource-picker__body">

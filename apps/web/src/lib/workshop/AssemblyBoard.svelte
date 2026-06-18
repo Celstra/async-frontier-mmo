@@ -4,6 +4,7 @@
 	import { familyDisplayLabel } from '$lib/displayLabels';
 	import {
 		assemblySlotLayout,
+		assemblyNextBadgeEdge,
 		familyContainerImage,
 		schematicPartImage,
 		type AssemblySlotPlacement
@@ -19,11 +20,19 @@
 		schematic: SchematicDefinition;
 		slotSelections: Record<string, string>;
 		activeSlotId: string | null;
+		nextEmptySlotId?: string | null;
 		inventory: InventoryStack[];
 		onSlotClick: (slotId: string, trigger: HTMLElement) => void;
 	}
 
-	let { schematic, slotSelections, activeSlotId, inventory, onSlotClick }: Props = $props();
+	let {
+		schematic,
+		slotSelections,
+		activeSlotId,
+		nextEmptySlotId = null,
+		inventory,
+		onSlotClick
+	}: Props = $props();
 
 	const partImage = $derived(schematicPartImage(schematic.id));
 
@@ -138,7 +147,10 @@
 	});
 </script>
 
-<div class="assembly-board" aria-label="{schematic.displayName} assembly diagram">
+<div
+	class="assembly-board"
+	aria-label="{schematic.displayName} assembly diagram"
+>
 	<div class="assembly-board__stage" bind:this={stageEl}>
 		{#if wireSize.w > 0 && wireSize.h > 0}
 			<svg
@@ -153,6 +165,8 @@
 						class="assembly-wire"
 						class:assembly-wire--active={activeSlotId === connector.slotId}
 						class:assembly-wire--filled={Boolean(slotSelections[connector.slotId])}
+						class:assembly-wire--next={nextEmptySlotId === connector.slotId &&
+							!slotSelections[connector.slotId]}
 						x1={connector.from.x}
 						y1={connector.from.y}
 						x2={connector.to.x}
@@ -162,6 +176,8 @@
 						class="assembly-terminal"
 						class:assembly-terminal--active={activeSlotId === connector.slotId}
 						class:assembly-terminal--filled={Boolean(slotSelections[connector.slotId])}
+						class:assembly-terminal--next={nextEmptySlotId === connector.slotId &&
+							!slotSelections[connector.slotId]}
 						cx={connector.to.x}
 						cy={connector.to.y}
 						r="2.5"
@@ -204,6 +220,7 @@
 						class="assembly-hotspot"
 						class:assembly-hotspot--filled={Boolean(slotSelections[slot.id])}
 						class:assembly-hotspot--active={activeSlotId === slot.id}
+						class:assembly-hotspot--next={nextEmptySlotId === slot.id && !slotSelections[slot.id]}
 						cx={layout.anchor.x * 100}
 						cy={layout.anchor.y * 100}
 						r={layout.radius * 100}
@@ -216,21 +233,34 @@
 		{#each schematic.slots as slot, index (slot.id)}
 			{@const selectedId = slotSelections[slot.id]}
 			{@const selectedStack = stackForSelection(selectedId)}
+			{@const isNextEmpty = nextEmptySlotId === slot.id && !selectedStack}
 			{@const containerImage = familyContainerImage(slot.requiredFamily)}
 			{@const layout = assemblySlotLayout(schematic.id, slot.id, index)}
+			{@const nextBadgeEdge = assemblyNextBadgeEdge(layout.placement)}
 			<div class="assembly-board__connector assembly-board__connector--{layout.placement}">
 				<button
 					type="button"
 					class="assembly-slot"
 					class:assembly-slot--active={activeSlotId === slot.id}
+					class:assembly-slot--next={isNextEmpty}
 					class:assembly-slot--filled={Boolean(selectedStack)}
+					id="assembly-slot-{slot.id}"
 					data-testid="assembly-slot-{slot.id}"
 					aria-pressed={activeSlotId === slot.id}
-					aria-label="{slot.displayName}: {selectedStack
+					aria-label="{isNextEmpty ? 'Next to load: ' : ''}{slot.displayName}{isNextEmpty
+						? ` — socket ${index + 1} of ${schematic.slots.length}`
+						: ''}: {selectedStack
 						? selectedStack.displayName
 						: `Empty — needs ${familyDisplayLabel(slot.requiredFamily)}`}"
 					onclick={(event) => onSlotClick(slot.id, event.currentTarget as HTMLButtonElement)}
 				>
+					{#if isNextEmpty}
+						<span
+							class="assembly-slot__next-badge assembly-slot__next-badge--{nextBadgeEdge}"
+						>
+							Next
+						</span>
+					{/if}
 					{#if containerImage}
 						<img
 							class="assembly-slot__crate"
@@ -298,6 +328,12 @@
 		stroke-dasharray: none;
 	}
 
+	.assembly-wire--next {
+		stroke: var(--accent-warning);
+		stroke-width: 2;
+		stroke-dasharray: 5 3;
+	}
+
 	.assembly-terminal {
 		fill: var(--phosphor-dim);
 	}
@@ -305,6 +341,16 @@
 	.assembly-terminal--filled,
 	.assembly-terminal--active {
 		fill: var(--phosphor);
+	}
+
+	.assembly-terminal--next {
+		fill: var(--accent-warning);
+	}
+
+	.assembly-hotspot--next {
+		stroke: var(--accent-warning);
+		stroke-width: 0.6;
+		fill: color-mix(in srgb, var(--accent-warning) 35%, transparent);
 	}
 
 	.assembly-board__part-wrap {
@@ -372,19 +418,23 @@
 	.assembly-board__connector--top {
 		grid-column: 2;
 		grid-row: 1;
+		padding-top: 0.85rem;
 	}
 
 	.assembly-board__connector--left {
 		grid-column: 1;
 		grid-row: 2;
+		padding-left: 0.85rem;
 	}
 
 	.assembly-board__connector--right {
 		grid-column: 3;
 		grid-row: 2;
+		padding-right: 0.85rem;
 	}
 
 	.assembly-slot {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -407,6 +457,53 @@
 	.assembly-slot--active {
 		border-color: var(--phosphor);
 		box-shadow: 0 0 0 1px color-mix(in srgb, var(--phosphor) 35%, transparent);
+	}
+
+	.assembly-slot--next {
+		border-color: var(--accent-warning);
+		box-shadow:
+			0 0 0 1px color-mix(in srgb, var(--accent-warning) 45%, transparent),
+			0 0 14px rgba(255, 176, 32, 0.2);
+	}
+
+	.assembly-slot--next.assembly-slot--active {
+		border-color: var(--phosphor);
+		box-shadow: 0 0 0 1px color-mix(in srgb, var(--phosphor) 35%, transparent);
+	}
+
+	.assembly-slot__next-badge {
+		position: absolute;
+		z-index: 3;
+		padding: 0.1rem 0.4rem;
+		border: 1px solid var(--accent-warning);
+		border-radius: var(--radius-sm);
+		background: rgba(255, 176, 32, 0.18);
+		color: var(--accent-warning);
+		font-size: 0.58rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+
+	.assembly-slot__next-badge--top {
+		top: 0;
+		left: 50%;
+		transform: translate(-50%, calc(-100% - 0.22rem));
+	}
+
+	.assembly-slot__next-badge--left {
+		left: 0;
+		top: 50%;
+		transform: translate(calc(-100% - 0.22rem), -50%);
+	}
+
+	.assembly-slot__next-badge--right {
+		right: 0;
+		top: 50%;
+		left: auto;
+		transform: translate(calc(100% + 0.22rem), -50%);
 	}
 
 	.assembly-slot--filled {

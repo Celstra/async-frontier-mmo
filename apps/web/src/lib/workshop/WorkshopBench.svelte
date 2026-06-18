@@ -19,7 +19,10 @@
 	import TuningPanel from './TuningPanel.svelte';
 	import ExperimentPulsePanel from './ExperimentPulsePanel.svelte';
 	import CraftResultReveal from './CraftResultReveal.svelte';
+	import EmptySocketCta from './EmptySocketCta.svelte';
 	import type { WorkshopCraftOutcome } from '$lib/server/craftOutcome';
+	import type { WorkshopMissionStep } from './workshopMission';
+	import { findNextEmptySchematicSlot } from './workshopSlotFlow';
 
 	interface InventoryStack {
 		resourceInstanceId: string;
@@ -46,6 +49,7 @@
 		slotSelections?: Record<string, string>;
 		activeSlotId?: string | null;
 		returnFocus?: HTMLElement | null;
+		missionStep?: WorkshopMissionStep;
 	}
 
 	let {
@@ -57,7 +61,8 @@
 		onCelebrateDismiss,
 		slotSelections = $bindable({}),
 		activeSlotId = $bindable(null),
-		returnFocus = null
+		returnFocus = null,
+		missionStep = $bindable<WorkshopMissionStep>('load_slots')
 	}: Props = $props();
 
 	function readinessForSlot(slotId: string): SchematicSlotReadiness | undefined {
@@ -87,9 +92,9 @@
 
 	let experimentPulses = $state<ExperimentPulse[]>([]);
 	let boundSchematicId = $state<string | null>(null);
+	let benchPickerReturnFocus = $state<HTMLElement | null>(null);
 
 	type BenchDraft = {
-		slotSelections: Record<string, string>;
 		tuning: TuningAllocation;
 		craftMode: CraftMode;
 		experimentPulses: ExperimentPulse[];
@@ -132,7 +137,7 @@
 
 		boundSchematicId = schematic.id;
 		const draft = readBenchDraft(schematic.id);
-		slotSelections = draft?.slotSelections ?? { ...defaultSelections };
+		slotSelections = { ...defaultSelections };
 		tuning = draft?.tuning ?? {};
 		craftMode = draft?.craftMode ?? 'safe_craft';
 		experimentPulses = draft?.experimentPulses ?? defaultExperimentPulses(schematic);
@@ -147,7 +152,6 @@
 		}
 
 		writeBenchDraft(schematic.id, {
-			slotSelections,
 			tuning,
 			craftMode,
 			experimentPulses
@@ -235,6 +239,18 @@
 	}
 
 	const slotFills = $derived(buildSlotFills());
+
+	const nextEmptySlot = $derived(
+		findNextEmptySchematicSlot(schematic, slotSelections, inventory)
+	);
+
+	const pickerReturnFocus = $derived(benchPickerReturnFocus ?? returnFocus);
+
+	function openSlotPicker(slotId: string, trigger: HTMLElement): void {
+		if (lockedCraftReveal) return;
+		benchPickerReturnFocus = trigger;
+		activeSlotId = slotId;
+	}
 
 	const craftPreview = $derived(
 		slotFills ? previewCraftProperties(schematic, slotFills, tuning) : null
@@ -334,7 +350,24 @@
 		lockedCraftReveal = null;
 		// Keep lastCraftedKey so stale action data cannot reopen the dismissed reveal.
 		tuning = {};
+		craftMode = 'safe_craft';
+		experimentPulses = defaultExperimentPulses(schematic);
 		clearBenchDraft(schematic.id);
+		onCelebrateDismiss?.();
+	}
+
+	function tryExperimentNext() {
+		idempotencyKey = generateIdempotencyKey();
+		lockedCraftReveal = null;
+		craftMode = 'careful_experiment';
+		if (experimentPulses.length === 0) {
+			experimentPulses = defaultExperimentPulses(schematic);
+		}
+		writeBenchDraft(schematic.id, {
+			tuning,
+			craftMode,
+			experimentPulses
+		});
 		onCelebrateDismiss?.();
 	}
 
@@ -345,6 +378,18 @@
 			crafting = false;
 		};
 	};
+
+	$effect(() => {
+		if (lockedCraftReveal) {
+			missionStep = 'compare_reclaim';
+		} else if (!slotFills) {
+			missionStep = 'load_slots';
+		} else if (getTotalTuningPoints() !== TUNING_POINTS_TOTAL) {
+			missionStep = 'tune';
+		} else {
+			missionStep = 'craft';
+		}
+	});
 
 	onMount(() => {
 		benchReady = true;
@@ -357,6 +402,7 @@
 			{schematic}
 			craftOutcome={lockedCraftReveal}
 			onCraftAnother={craftAnother}
+			onTryExperimentNext={tryExperimentNext}
 			onFavoriteChanged={(nextFavorited) => {
 				if (!lockedCraftReveal) return;
 				lockedCraftReveal = {
@@ -392,6 +438,8 @@
 				/>
 			{/each}
 
+			<EmptySocketCta {schematic} {nextEmptySlot} onOpenSlot={openSlotPicker} />
+
 			<!-- Property preview + tuning allocation -->
 			<TuningPanel
 				{schematic}
@@ -409,7 +457,7 @@
 			{/each}
 
 			<!-- Craft Mode Selection -->
-			<section class="craft-mode-section">
+			<section class="craft-mode-section" id="workshop-step-craft">
 				<h3>Craft Mode</h3>
 				<div class="mode-options">
 					<button
@@ -480,8 +528,9 @@
 				onSelect={(id) => handleSlotSelect(activeSlot.id, id)}
 				onClose={() => {
 					activeSlotId = null;
+					benchPickerReturnFocus = null;
 				}}
-				{returnFocus}
+				returnFocus={pickerReturnFocus}
 			/>
 		{/if}
 	{/if}

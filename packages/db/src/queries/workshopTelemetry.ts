@@ -48,3 +48,22 @@ export async function hasCraftedEachWorkshopThumperPart(
 	const completed = await listCompletedWorkshopSchematicIdsForPilot(db, pilotId);
 	return WORKSHOP_ACTIVE_SCHEMATIC_IDS.every((schematicId) => completed.includes(schematicId));
 }
+
+/** True when the pilot has any completed workshop craft attempt, including reclaimed prototypes. */
+export async function hasAnyCompletedWorkshopCraft(
+	db: DbExecutor,
+	pilotId: string
+): Promise<boolean> {
+	const [row] = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(craftingAttempts)
+		.where(
+			and(
+				eq(craftingAttempts.pilotId, pilotId),
+				eq(craftingAttempts.status, 'completed'),
+				inArray(craftingAttempts.schematicId, [...WORKSHOP_ACTIVE_SCHEMATIC_IDS])
+			)
+		);
+
+	return (row?.count ?? 0) > 0;
+}

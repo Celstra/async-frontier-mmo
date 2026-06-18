@@ -97,7 +97,7 @@ test.describe('workshop-first browser smoke', () => {
 		await craftAnotherFromReveal(page);
 		await fillDrillHeadCraftBench(page);
 		await craftDrillHeadWithExperiment(page);
-		await expect(page.locator('.craft-reveal').getByRole('button', { name: 'Compare to your best' })).toBeVisible();
+		await expect(page.locator('.craft-reveal').getByTestId('craft-compare-btn')).toBeVisible();
 		await openCompareToBestFromReveal(page);
 		await expect(page.getByRole('button', { name: /Install /i })).toHaveCount(0);
 	});
@@ -111,10 +111,16 @@ test.describe('workshop-first browser smoke', () => {
 		await expect(page.locator('.craft-history__item')).toHaveCount(0);
 	});
 
-	test('workshop supply panel shows timed crate state across reload', async ({ page }) => {
-		await page.goto('/workshop');
+	test('workshop supply panel shows timed crate state after first craft', async ({ page }) => {
+		await page.goto('/workshop?schematic=basic_drill_head');
+		await expect(page.getByTestId('supply-crates-locked')).toBeVisible();
+		await fillDrillHeadCraftBench(page);
+		await craftDrillHeadWithExperiment(page);
+		await keepPrototypeFromReveal(page);
+
 		const panel = page.getByLabel('Workshop supply crates');
 		await expect(panel.getByTestId('supply-drop-banner')).toBeVisible();
+		await expect(panel.getByTestId('supply-drop-banner')).toHaveAttribute('aria-expanded', 'false');
 		await panel.getByTestId('supply-drop-banner').click();
 		await expect(panel.getByText('Next timed crate')).toBeVisible();
 		await expect(panel.getByText(/Every 10 minutes while this tab is visible/)).toBeVisible();
