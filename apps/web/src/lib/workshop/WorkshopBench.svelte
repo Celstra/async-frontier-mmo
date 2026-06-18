@@ -81,7 +81,7 @@
 		}
 		return [
 			{ propertyId: first.id, push: 'careful' },
-			{ propertyId: second.id, push: 'standard' }
+			{ propertyId: second.id, push: 'careful' }
 		];
 	}
 

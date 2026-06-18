@@ -54,6 +54,7 @@ export {
 	CAREFUL_EXPERIMENT_UNCHANGED_CHANCE,
 	computePropertyBaseScore,
 	computeTunedPropertyScore,
+	EXPERIMENT_RESOURCE_CEILING_MULTIPLIER,
 	getResourcePropertyCeiling,
 	previewCraftProperties,
 	PROPERTY_SCORE_CAP,

@@ -13,6 +13,7 @@ import type {
 
 export const TUNING_POINTS_TOTAL = 3;
 export const TUNING_BOOST_PER_POINT = 0.05;
+export const EXPERIMENT_RESOURCE_CEILING_MULTIPLIER = 1.25;
 export const CAREFUL_EXPERIMENT_BOOST = 0.03;
 export const CAREFUL_EXPERIMENT_BOOST_CHANCE = 0.75;
 export const CAREFUL_EXPERIMENT_UNCHANGED_CHANCE = 0.2;
@@ -41,9 +42,15 @@ function capPropertyScore(value: number): number {
 	return Math.min(PROPERTY_SCORE_CAP, roundScore(value));
 }
 
-/** Resource-defined ceiling: all 3 tuning points on one line (+15% relative), capped at 100. */
+/**
+ * Resource-defined experiment ceiling.
+ *
+ * Tuning can safely express up to +15% from the chosen resources. Experimentation
+ * can gamble into a small reserve above that, but still cannot escape the
+ * selected materials' potential.
+ */
 export function getResourcePropertyCeiling(baseScore: number): number {
-	return capPropertyScore(baseScore * (1 + TUNING_BOOST_PER_POINT * TUNING_POINTS_TOTAL));
+	return capPropertyScore(baseScore * EXPERIMENT_RESOURCE_CEILING_MULTIPLIER);
 }
 
 function averageOq(slotFills: SchematicSlotFill[]): number {

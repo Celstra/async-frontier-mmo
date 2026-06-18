@@ -28,6 +28,11 @@
 		{ id: 'standard', label: 'Standard' },
 		{ id: 'overdrive', label: 'Overdrive' }
 	];
+	const PUSH_HEADROOM_REQUIREMENT: Record<ExperimentPushSize, number> = {
+		careful: 1,
+		standard: 2,
+		overdrive: 3
+	};
 
 	function lineForProperty(propertyId: string) {
 		return preview?.lines.find((row) => row.propertyId === propertyId) ?? null;
@@ -41,6 +46,26 @@
 
 	function outlookForPulse(pulse: ExperimentPulse): ExperimentPulseOutlook | null {
 		return outlookFor(pulse.propertyId, pulse.push);
+	}
+	function isPushAvailable(
+		outlook: ExperimentPulseOutlook | null,
+		push: ExperimentPushSize
+	): boolean {
+		return Boolean(outlook && outlook.headroomBands >= PUSH_HEADROOM_REQUIREMENT[push]);
+	}
+	function pushUnavailableText(
+		outlook: ExperimentPulseOutlook | null,
+		push: ExperimentPushSize
+	): string {
+		if (!outlook || outlook.headroomBands <= 0) return 'At material cap';
+		return `Needs ${PUSH_HEADROOM_REQUIREMENT[push]} open bands`;
+	}
+	function safePushForPulse(pulse: ExperimentPulse): ExperimentPushSize {
+		const currentOutlook = outlookFor(pulse.propertyId, pulse.push);
+		if (isPushAvailable(currentOutlook, pulse.push)) return pulse.push;
+		const standardOutlook = outlookFor(pulse.propertyId, 'standard');
+		if (isPushAvailable(standardOutlook, 'standard')) return 'standard';
+		return 'careful';
 	}
 
 	const activePulse = $derived(pulses[activePulseIndex]);
@@ -202,18 +227,28 @@
 					{@const optionOutlook = activePulse
 						? outlookFor(activePulse.propertyId, option.id)
 						: null}
+					{@const pushAvailable = isPushAvailable(optionOutlook, option.id)}
 					<button
 						type="button"
 						class="push-bar__btn"
-						class:push-bar__btn--selected={activePulse?.push === option.id}
-						class:push-bar__btn--dim={optionOutlook?.atBandCeiling && option.id !== 'careful'}
-						class:push-bar__btn--risky={optionOutlook?.atBandCeiling && option.id === 'overdrive'}
+						class:push-bar__btn--selected={activePulse
+							? safePushForPulse(activePulse) === option.id
+							: false}
+						class:push-bar__btn--dim={!pushAvailable}
+						class:push-bar__btn--risky={option.id === 'overdrive'}
 						data-testid="experiment-push-{activePulseIndex}-{option.id}"
-						aria-pressed={activePulse?.push === option.id}
-						onclick={() => onPushChange(activePulseIndex, option.id)}
+						aria-pressed={activePulse ? safePushForPulse(activePulse) === option.id : false}
+						disabled={!pushAvailable}
+						onclick={() => {
+							if (pushAvailable) onPushChange(activePulseIndex, option.id);
+						}}
 					>
 						<span class="push-bar__btn-label">{option.label}</span>
-						<span class="push-bar__btn-odds">{experimentPushProbabilityText(option.id)}</span>
+						<span class="push-bar__btn-odds">
+							{pushAvailable
+								? experimentPushProbabilityText(option.id)
+								: pushUnavailableText(optionOutlook, option.id)}
+						</span>
 					</button>
 				{/each}
 			</div>
@@ -236,7 +271,7 @@
 
 	{#each pulses as pulse, index (index)}
 		<input type="hidden" name="pulse_{index}_property" value={pulse.propertyId} />
-		<input type="hidden" name="pulse_{index}_push" value={pulse.push} />
+		<input type="hidden" name="pulse_{index}_push" value={safePushForPulse(pulse)} />
 	{/each}
 </section>
 
@@ -523,8 +558,12 @@
 		opacity: 0.6;
 	}
 
+	.push-bar__btn:disabled {
+		cursor: not-allowed;
+	}
+
 	.push-bar__btn--risky {
-		opacity: 0.38;
+		border-color: color-mix(in srgb, var(--accent-danger) 55%, var(--border-subtle));
 	}
 
 	.push-bar__btn-label {

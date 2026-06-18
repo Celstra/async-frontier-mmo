@@ -4,6 +4,8 @@ import type { CompleteResourceStatMap } from '../resources/types.js';
 import { getPropertyOutputBand } from './propertyBand.js';
 import {
 	computeTunedPropertyScore,
+	EXPERIMENT_RESOURCE_CEILING_MULTIPLIER,
+	getResourcePropertyCeiling,
 	previewCraftProperties,
 	resolveCraft,
 	SchematicSlotValidationError,
@@ -178,5 +180,11 @@ describe('tuning math', () => {
 		expect(computeTunedPropertyScore(80, 0)).toBe(80);
 		expect(computeTunedPropertyScore(80, 3)).toBe(92);
 		expect(computeTunedPropertyScore(90, 3)).toBe(100);
+	});
+
+	it('keeps experiment resource ceiling above safe tuning max', () => {
+		expect(EXPERIMENT_RESOURCE_CEILING_MULTIPLIER).toBe(1.25);
+		expect(computeTunedPropertyScore(60, TUNING_POINTS_TOTAL)).toBe(69);
+		expect(getResourcePropertyCeiling(60)).toBe(75);
 	});
 });

@@ -210,4 +210,37 @@ describe('experimentation pulses', () => {
 		expect(overdrive.successRatePercent).toBeLessThan(careful.successRatePercent);
 		expect(overdrive.critRatePercent).toBeGreaterThan(careful.critRatePercent);
 	});
+
+	it('reports headroom bands for push-size gating', () => {
+		const oneBandLine: PropertyPreviewLine = {
+			propertyId: 'max_condition',
+			displayName: 'Max Condition',
+			baseScore: 60,
+			tunedScore: 62,
+			resourceCeiling: 77,
+			tunedBand: 'solid',
+			ceilingBand: 'strong'
+		};
+		const threeBandLine: PropertyPreviewLine = {
+			...oneBandLine,
+			resourceCeiling: 97,
+			ceilingBand: 'exceptional'
+		};
+
+		const standardOneBand = describeExperimentPulseOutlook({
+			schematic: REINFORCED_HULL_PLATE,
+			line: oneBandLine,
+			push: 'standard'
+		});
+		const overdriveThreeBands = describeExperimentPulseOutlook({
+			schematic: REINFORCED_HULL_PLATE,
+			line: threeBandLine,
+			push: 'overdrive'
+		});
+
+		expect(standardOneBand.headroomBands).toBe(1);
+		expect(standardOneBand.success.bandsGainedOnSuccess).toBe(1);
+		expect(overdriveThreeBands.headroomBands).toBe(3);
+		expect(overdriveThreeBands.success.bandsGainedOnSuccess).toBe(3);
+	});
 });
