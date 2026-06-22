@@ -157,6 +157,19 @@ export {
 	type CommandQueueRunReplayOutcome
 } from './queries/thumperCommandQueueRuns.js';
 export {
+	advanceCommandQueueBeatForPilot,
+	buildCommandQueueFieldView,
+	loadCommandQueueFieldViewForPilot,
+	parseCommandQueueRecallMarker,
+	recallCommandQueueRunForPilot,
+	submitCommandQueueSlotForPilot,
+	type AdvanceCommandQueueBeatOutcome,
+	type CommandQueueFieldView,
+	type CommandQueueSlotView,
+	type RecallCommandQueueRunOutcome,
+	type SubmitCommandQueueSlotOutcome
+} from './queries/thumperCommandQueueBeat.js';
+export {
 	mapStoredWindowsToResolutionSnapshots,
 	mapStoredWindowsToResponses,
 	resolveThumperRunForStoredWindows

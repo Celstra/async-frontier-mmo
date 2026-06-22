@@ -370,7 +370,8 @@ export async function claimOpenThumperRunForPilot(
 		if (isProjectLedCommandQueueRun(run.runMode)) {
 			const replay = await assertCommandQueueRunClaimable(tx, {
 				id: run.id,
-				runSeed: run.runSeed
+				runSeed: run.runSeed,
+				defenseActionLog: run.defenseActionLog
 			});
 			if (replay.status !== 'ended') {
 				return { status: 'not_claimable' };

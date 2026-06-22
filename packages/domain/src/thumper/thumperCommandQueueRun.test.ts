@@ -9,6 +9,8 @@ import {
 	canResolveNextBeat,
 	resolveNextBeat,
 	replayCommandQueueRun,
+	replayCommandQueueRunToProgress,
+	nextCommandQueueFillBeatIndex,
 	resolveCommandQueueRunResult,
 	recallCommandQueueRun,
 	finishCommandQueueRun,
@@ -303,5 +305,64 @@ describe('thumperCommandQueueRun', () => {
 		const result = resolveCommandQueueRunResult(state);
 		expect(result.recoveredQuantity).toBe(4);
 		expect(state.loose).toBe(0);
+	});
+
+	it('replays stored progress through resolved beats and refills the visible queue', () => {
+		const runSeed = 'progress-replay-seed';
+		const commands: ThumperCommand[] = [
+			'drill',
+			'bank',
+			'vent',
+			'drill',
+			'bank',
+			'brace',
+			'drill',
+			'vent',
+			'bank',
+			'drill',
+			'brace',
+			'vent',
+			'drill',
+			'bank',
+			'drill',
+			'vent',
+			'bank',
+			'drill',
+			'brace'
+		];
+		const commandsByBeatIndex = commands.map((command, beatIndex) => ({
+			beatIndex,
+			command
+		}));
+
+		const partial = replayCommandQueueRunToProgress({
+			runSeed,
+			commandsByBeatIndex,
+			resolvedBeatCount: 2
+		});
+		const baseline = createCommandQueueRunState();
+		fillInitialQueue(baseline, commands.slice(0, 2));
+		const events = generateCommandQueueEvents(runSeed);
+		resolveBeat(baseline, events);
+		expect(queueCommand(baseline, commands[2]!)).toEqual({ ok: true });
+		resolveBeat(baseline, events);
+
+		expect(partial.currentBeat).toBe(2);
+		expect(partial.queue).toEqual(['vent', 'drill']);
+		expect(partial.secured).toBe(baseline.secured);
+		expect(partial.loose).toBe(baseline.loose);
+		expect(partial.heat).toBe(baseline.heat);
+		expect(partial.hull).toBe(baseline.hull);
+	});
+
+	it('nextCommandQueueFillBeatIndex tracks the newest back slot', () => {
+		const state = createCommandQueueRunState();
+		expect(nextCommandQueueFillBeatIndex(state)).toBe(0);
+
+		queueCommand(state, 'drill');
+		expect(nextCommandQueueFillBeatIndex(state)).toBe(1);
+
+		queueCommand(state, 'bank');
+		expect(nextCommandQueueFillBeatIndex(state)).toBeNull();
 	});
 });

@@ -398,3 +398,87 @@ export function resolveCommandQueueRunResult(
 		surgeCount: state.surgeCount
 	};
 }
+
+/** Beat index for the next unfilled queue slot, or null when the queue is full or the run ended. */
+export function nextCommandQueueFillBeatIndex(state: CommandQueueRunState): number | null {
+	if (state.ended || state.recalled) {
+		return null;
+	}
+	if (state.queue.length >= state.queueLength) {
+		return null;
+	}
+	return state.currentBeat + state.queue.length;
+}
+
+function commandAtBeat(
+	commandsByBeatIndex: ReadonlyMap<number, ThumperCommand>,
+	beatIndex: number
+): ThumperCommand | undefined {
+	return commandsByBeatIndex.get(beatIndex);
+}
+
+/**
+ * Replays a command-queue run up to the number of beats already resolved in persistence.
+ * Unresolved stored commands refill visible queue slots for the FIELD view model.
+ */
+export function replayCommandQueueRunToProgress(input: {
+	runSeed: string;
+	commandsByBeatIndex: ReadonlyArray<{ beatIndex: number; command: ThumperCommand }>;
+	resolvedBeatCount: number;
+	events?: CommandQueueFieldEvent[];
+	queueLength?: number;
+}): CommandQueueRunState {
+	const queueLength = input.queueLength ?? STARTER_QUEUE_LENGTH;
+	const events = input.events ?? generateCommandQueueEvents(input.runSeed);
+	const commandsByBeatIndex = new Map(
+		input.commandsByBeatIndex.map((row) => [row.beatIndex, row.command])
+	);
+	const state = createCommandQueueRunState({ queueLength });
+
+	const refillQueueFromStoredCommands = () => {
+		while (state.queue.length < state.queueLength && !state.ended) {
+			const fillIndex = nextCommandQueueFillBeatIndex(state);
+			if (fillIndex === null) {
+				break;
+			}
+			const command = commandAtBeat(commandsByBeatIndex, fillIndex);
+			if (!command) {
+				break;
+			}
+			queueCommand(state, command);
+		}
+	};
+
+	refillQueueFromStoredCommands();
+
+	const beatsToResolve = Math.min(
+		Math.max(0, input.resolvedBeatCount),
+		state.totalBeats
+	);
+
+	for (let beat = 0; beat < beatsToResolve && !state.ended; beat += 1) {
+		if (!canResolveNextBeat(state)) {
+			break;
+		}
+		const resolution = resolveNextBeat(state, events[beat]!);
+		if (!resolution.ok) {
+			break;
+		}
+		if (!state.ended && beat < state.totalBeats - 1) {
+			refillQueueFromStoredCommands();
+		}
+	}
+
+	refillQueueFromStoredCommands();
+	return state;
+}
+
+export function scannerForecastQualityFromClarity(score: number): ScannerForecastQuality {
+	if (score >= 70) {
+		return 'good';
+	}
+	if (score >= 40) {
+		return 'basic';
+	}
+	return 'poor';
+}

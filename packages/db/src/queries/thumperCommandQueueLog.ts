@@ -29,7 +29,7 @@ export class ThumperCommandLogReplayError extends Error {
 	}
 }
 
-function parseThumperCommand(value: string): ThumperCommand | null {
+export function parseThumperCommandLogCommand(value: string): ThumperCommand | null {
 	return THUMPER_COMMANDS.includes(value as ThumperCommand)
 		? (value as ThumperCommand)
 		: null;
@@ -54,7 +54,7 @@ export async function getThumperRunCommandsForReplay(
 	const commands: ThumperCommand[] = [];
 
 	for (const row of rows) {
-		const command = parseThumperCommand(row.command);
+		const command = parseThumperCommandLogCommand(row.command);
 		if (!command) {
 			throw new ThumperCommandLogReplayError(
 				`Invalid command "${row.command}" at beat_index ${row.beatIndex}`,
@@ -88,7 +88,7 @@ export async function appendThumperRunCommandLogEntry(
 	return db.transaction((tx) => appendThumperRunCommandLogEntryTx(tx, input));
 }
 
-async function appendThumperRunCommandLogEntryTx(
+export async function appendThumperRunCommandLogEntryTx(
 	tx: DbExecutor,
 	input: {
 		runId: string;
@@ -97,7 +97,7 @@ async function appendThumperRunCommandLogEntryTx(
 		beatIndex?: number;
 	}
 ): Promise<AppendThumperRunCommandOutcome> {
-	if (!parseThumperCommand(input.command)) {
+	if (!parseThumperCommandLogCommand(input.command)) {
 		return { status: 'invalid_command' };
 	}
 
@@ -228,7 +228,7 @@ export async function updateThumperRunCommandLogCommand(
 		command: ThumperCommand;
 	}
 ): Promise<MutateThumperRunCommandOutcome> {
-	if (!parseThumperCommand(input.command)) {
+	if (!parseThumperCommandLogCommand(input.command)) {
 		return { status: 'not_found' };
 	}
 
