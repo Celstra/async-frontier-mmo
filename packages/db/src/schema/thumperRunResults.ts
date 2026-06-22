@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { thumperRuns } from './thumperRuns.js';
 
 export const thumperRunResults = pgTable('thumper_run_results', {
@@ -16,6 +16,8 @@ export const thumperRunResults = pgTable('thumper_run_results', {
 	/** Set when hull integrity forces an early auto-recall (Decision 022). */
 	recallReason: text('recall_reason'),
 	appliedWear: integer('applied_wear').notNull().default(0),
+	/** Per-slot condition/integrity losses applied at claim. */
+	partWearDeltas: jsonb('part_wear_deltas'),
 	explanation: text('explanation').notNull(),
 	resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull(),
 	acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true })

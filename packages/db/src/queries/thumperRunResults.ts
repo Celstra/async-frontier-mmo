@@ -15,6 +15,7 @@ export async function insertThumperRunResult(
 		resolutionType: string;
 		recallReason?: string | null;
 		appliedWear: number;
+		partWearDeltas?: Record<string, unknown> | null;
 		explanation: string;
 		resolvedAt: Date;
 	}
@@ -31,6 +32,7 @@ export async function insertThumperRunResult(
 			resolutionType: input.resolutionType,
 			recallReason: input.recallReason ?? null,
 			appliedWear: input.appliedWear,
+			partWearDeltas: input.partWearDeltas ?? null,
 			explanation: input.explanation,
 			resolvedAt: input.resolvedAt
 		})

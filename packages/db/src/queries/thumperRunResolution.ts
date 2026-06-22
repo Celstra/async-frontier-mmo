@@ -6,6 +6,8 @@ import {
 	hullTierFromIntegrity,
 	tutorialRunFromSeed,
 	TUTORIAL_RUN_1_YIELD_FLOOR,
+	isProjectLedDefenseRun,
+	isProjectLedCommandQueueRun,
 	type NamedResourceId,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
@@ -14,12 +16,15 @@ import {
 import type { DbExecutor } from '../client.js';
 import { getThumperEventWindowsForRun } from './thumperEventWindows.js';
 import { getThumperRunPartSnapshots, partModifiersFromRunSnapshots } from './thumperRunParts.js';
+import { resolveDefenseRunPayload } from './thumperDefenseRuns.js';
+import { resolveCommandQueueRunPayload } from './thumperCommandQueueRuns.js';
 
 type StoredRunRow = {
 	id: string;
 	targetResourceId: string;
 	runSeed: string;
 	isPushRun: boolean;
+	deployedAt: Date;
 	trueConcentrationPercent: number | null;
 	extractionTailMinutes: number;
 	durationSeconds?: number;
@@ -81,8 +86,9 @@ export async function resolveThumperRunForStoredWindows(
 	tx: DbExecutor,
 	run: StoredRunRow,
 	windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
-	options?: { recoveryFloor?: number }
+	options?: { recoveryFloor?: number; firstAsyncWaiverActive?: boolean; now?: Date }
 ) {
+	const claimNow = options?.now ?? new Date();
 	const responses = mapStoredWindowsToResponses(windows);
 	const eventWindows = mapStoredWindowsToResolutionSnapshots(windows);
 	const partSnapshots = await getThumperRunPartSnapshots(tx, run.id);
@@ -107,7 +113,8 @@ export async function resolveThumperRunForStoredWindows(
 		hullTier: hullTierFromIntegrity(runHullIntegrity),
 		hullIntegrityAtDeploy: runHullIntegrity,
 		plannedDurationSeconds,
-		extractionTailMinutes: run.extractionTailMinutes
+		extractionTailMinutes: run.extractionTailMinutes,
+		firstAsyncWaiverActive: options?.firstAsyncWaiverActive
 	};
 
 	if (tutorialRun !== null) {
@@ -123,6 +130,21 @@ export async function resolveThumperRunForStoredWindows(
 			responses,
 			tutorialDeterministic: true
 		});
+	}
+
+	if (isProjectLedCommandQueueRun((run as { runMode?: string | null }).runMode)) {
+		return resolveCommandQueueRunPayload(
+			tx,
+			run as Parameters<typeof resolveCommandQueueRunPayload>[1]
+		);
+	}
+
+	if (isProjectLedDefenseRun((run as { runMode?: string | null }).runMode)) {
+		return resolveDefenseRunPayload(
+			tx,
+			run as Parameters<typeof resolveDefenseRunPayload>[1],
+			claimNow
+		);
 	}
 
 	return resolveThumperRunResult({

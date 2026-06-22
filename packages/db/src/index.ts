@@ -117,10 +117,45 @@ export {
 export {
 	claimOpenThumperRunForPilot,
 	deployThumperRunWithEventWindows,
+	PilotSampleRequiredError,
+	ResourceInstanceNotFoundError,
+	PROJECT_LED_DEFENSE_RUN_MODE,
+	PROJECT_LED_COMMAND_QUEUE_RUN_MODE,
+	PROJECT_LED_WATCHED_RUN_MODE,
+	ResourceInstanceExpiredError,
+	ResourceInstanceInactiveBloomError,
 	type ClaimResourceReward,
 	type ClaimThumperRunOutcome,
+	type ProjectLedRunContext,
 	type ThumperRunResultPayload
 } from './queries/thumperRunWorkflow.js';
+export {
+	appendDefenseActionForPilot,
+	getDefenseActionLogForRun,
+	replayDefenseRunForStoredRun,
+	resolveDefenseRunPayload,
+	type AppendDefenseActionOutcome
+} from './queries/thumperDefenseRuns.js';
+export {
+	appendThumperRunCommandLogEntry,
+	getThumperRunCommandsForReplay,
+	listThumperRunCommandLogForRun,
+	markThumperRunCommandLogResolved,
+	replayThumperRunFromCommandLog,
+	updateThumperRunCommandLogCommand,
+	ThumperCommandLogReplayError,
+	type AppendThumperRunCommandOutcome,
+	type MarkThumperRunCommandResolvedOutcome,
+	type MutateThumperRunCommandOutcome,
+	type ThumperRunCommandLogRow
+} from './queries/thumperCommandQueueLog.js';
+export {
+	assertCommandQueueRunClaimable,
+	isCommandQueueRunEnded,
+	resolveCommandQueueRunPayload,
+	replayCommandQueueRunForStoredRun,
+	type CommandQueueRunReplayOutcome
+} from './queries/thumperCommandQueueRuns.js';
 export {
 	mapStoredWindowsToResolutionSnapshots,
 	mapStoredWindowsToResponses,
@@ -205,6 +240,7 @@ export { thumperEventWindows } from './schema/thumperEventWindows.js';
 export { thumperRunResults } from './schema/thumperRunResults.js';
 export { repairActions } from './schema/repairActions.js';
 export { thumperRunPartSnapshots } from './schema/thumperRunPartSnapshots.js';
+export { thumperRunCommandLog } from './schema/thumperRunCommandLog.js';
 export { thumperRuns } from './schema/thumperRuns.js';
 export { depositSpotYields } from './schema/depositSpotYields.js';
 export { pilotDepositSpotSamples } from './schema/pilotDepositSpotSamples.js';

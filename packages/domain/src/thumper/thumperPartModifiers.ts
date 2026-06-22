@@ -4,7 +4,7 @@ import {
 	MATCHING_ACTION_WEAR_PART_SLOT
 } from './eventWindowSeverity.js';
 import type { ThumperEventWindowResponse } from './resolveThumperRunResult.js';
-import type { ThumperEventActionId } from './types.js';
+import type { ThumperComplicationId, ThumperEventActionId } from './types.js';
 import type {
 	ThumperPartRunModifiers,
 	ThumperPartSlot,
@@ -62,8 +62,12 @@ export function computeThumperPartRunModifiers(
 	};
 }
 
-export type ThumperEventWindowWearInput = ThumperEventWindowResponse & {
-	matchingAction: ThumperEventActionId;
+export type ThumperEventWindowWearInput = {
+	windowIndex: number;
+	complication: ThumperComplicationId | string;
+	chosenResponse: ThumperEventWindowResponse['chosenResponse'] | string;
+	matchingAction: ThumperEventActionId | 'pressure_moment';
+	defenseActionWear?: Partial<Record<ThumperPartSlot, number>>;
 };
 
 export function computeRunPartWearDeltas(
@@ -81,6 +85,17 @@ export function computeRunPartWearDeltas(
 			continue;
 		}
 
+		if (response.defenseActionWear) {
+			for (const [slot, loss] of Object.entries(response.defenseActionWear) as Array<
+				[ThumperPartSlot, number | undefined]
+			>) {
+				if (loss && loss > 0) {
+					deltas[slot].conditionLoss += loss;
+				}
+			}
+			continue;
+		}
+
 		if (response.complication === 'pump_strain' && response.chosenResponse === 'hold') {
 			deltas.pump.conditionLoss += 4;
 		}
@@ -89,15 +104,17 @@ export function computeRunPartWearDeltas(
 			deltas.hull.integrityLoss = (deltas.hull.integrityLoss ?? 0) + 1;
 		}
 
-		if (response.complication === 'hull_damage' && response.chosenResponse === 'hold') {
-			deltas.hull.conditionLoss += 5;
-		}
+		// hull_damage + hold applies immediate wear during the event response — not again at claim.
 
 		if (
 			response.chosenResponse === response.matchingAction &&
-			response.chosenResponse !== 'field_repair'
+			response.chosenResponse !== 'field_repair' &&
+			response.chosenResponse in MATCHING_ACTION_WEAR_PART_SLOT
 		) {
-			const slot = MATCHING_ACTION_WEAR_PART_SLOT[response.chosenResponse];
+			const slot =
+				MATCHING_ACTION_WEAR_PART_SLOT[
+					response.chosenResponse as keyof typeof MATCHING_ACTION_WEAR_PART_SLOT
+				];
 			deltas[slot].conditionLoss += MATCHING_ACTION_WEAR_CONDITION;
 		}
 	}
@@ -132,4 +149,46 @@ export function applyWearToRunParts(
 			integrity: normalized.integrity
 		};
 	});
+}
+
+/** Actual condition/integrity lost after clamped durability math — not requested wear. */
+export function deriveAppliedWearDeltas(
+	beforeParts: ThumperPartSnapshot[],
+	afterParts: ThumperPartSnapshot[]
+): Record<ThumperPartSlot, ThumperPartWearDelta> {
+	const afterBySlot = Object.fromEntries(afterParts.map((part) => [part.slot, part])) as Record<
+		ThumperPartSlot,
+		ThumperPartSnapshot | undefined
+	>;
+
+	const deltas: Record<ThumperPartSlot, ThumperPartWearDelta> = {
+		drill: { conditionLoss: 0 },
+		pump: { conditionLoss: 0 },
+		hull: { conditionLoss: 0 }
+	};
+
+	for (const before of beforeParts) {
+		const after = afterBySlot[before.slot];
+		if (!after) {
+			continue;
+		}
+
+		const conditionLoss = Math.max(0, before.condition - after.condition);
+		const integrityLoss = Math.max(0, before.integrity - after.integrity);
+		deltas[before.slot] = {
+			conditionLoss,
+			...(integrityLoss > 0 ? { integrityLoss } : {})
+		};
+	}
+
+	return deltas;
+}
+
+export function totalAppliedWearFromDeltas(
+	deltas: Record<ThumperPartSlot, ThumperPartWearDelta>
+): number {
+	return Object.values(deltas).reduce(
+		(total, delta) => total + delta.conditionLoss + (delta.integrityLoss ?? 0),
+		0
+	);
 }

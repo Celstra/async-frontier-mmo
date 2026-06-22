@@ -1,0 +1,400 @@
+import { SeededRng } from './thumperDefenseRun.js';
+
+export const STARTER_QUEUE_LENGTH = 2;
+export const RUN_BEATS = 18;
+export const STARTING_HULL = 55;
+export const STARTING_HEAT = 3;
+export const HEAT_LIMIT = 10;
+
+export const THUMPER_COMMANDS = ['drill', 'bank', 'brace', 'vent'] as const;
+export type ThumperCommand = (typeof THUMPER_COMMANDS)[number];
+
+export const COMMAND_QUEUE_EVENT_KINDS = ['cargo', 'heat', 'hull', 'raid'] as const;
+export type CommandQueueEventKind = (typeof COMMAND_QUEUE_EVENT_KINDS)[number];
+
+export const SCANNER_FORECAST_QUALITIES = ['poor', 'basic', 'good'] as const;
+export type ScannerForecastQuality = (typeof SCANNER_FORECAST_QUALITIES)[number];
+
+export type CommandQueueFieldEvent = {
+	kind: CommandQueueEventKind;
+	amount: number;
+};
+
+export type ForecastToken = {
+	kind: CommandQueueEventKind | null;
+	amount: number | null;
+};
+
+export type QueuedCommand = {
+	beat: number;
+	command: ThumperCommand;
+};
+
+export type CommandQueueRunState = {
+	currentBeat: number;
+	totalBeats: number;
+	queueLength: number;
+	queue: ThumperCommand[];
+	secured: number;
+	loose: number;
+	hull: number;
+	heat: number;
+	guard: number;
+	lost: number;
+	surgeCount: number;
+	recallForfeitedLoose: number;
+	ended: boolean;
+	recalled: boolean;
+};
+
+export type CommandQueueRunResult = {
+	recoveredQuantity: number;
+	wasteQuantity: number;
+	forfeitedLoose: number;
+	explanation: string;
+	resolutionType: 'command_queue_completed' | 'command_queue_recalled';
+	recallReason: string | null;
+	hullRemaining: number;
+	heatRemaining: number;
+	surgeCount: number;
+};
+
+function forecastRevealRng(runSeed: string, beat: number, offset: number): SeededRng {
+	return new SeededRng(`${runSeed}:forecast:${beat}:${offset}`);
+}
+
+export function createCommandQueueRunState(input?: {
+	queueLength?: number;
+	totalBeats?: number;
+	startingHull?: number;
+	startingHeat?: number;
+	startingLoose?: number;
+}): CommandQueueRunState {
+	return {
+		currentBeat: 0,
+		totalBeats: input?.totalBeats ?? RUN_BEATS,
+		queueLength: input?.queueLength ?? STARTER_QUEUE_LENGTH,
+		queue: [],
+		secured: 0,
+		loose: input?.startingLoose ?? 0,
+		hull: input?.startingHull ?? STARTING_HULL,
+		heat: input?.startingHeat ?? STARTING_HEAT,
+		guard: 0,
+		lost: 0,
+		surgeCount: 0,
+		recallForfeitedLoose: 0,
+		ended: false,
+		recalled: false
+	};
+}
+
+export function generateCommandQueueEvents(
+	runSeed: string,
+	beats: number = RUN_BEATS
+): CommandQueueFieldEvent[] {
+	const rng = new SeededRng(`${runSeed}:events`);
+	const events: CommandQueueFieldEvent[] = [];
+	let heatBias = 0;
+
+	for (let beat = 0; beat < beats; beat += 1) {
+		let kind: CommandQueueEventKind;
+		const roll = rng.next();
+
+		if ([4, 9, 14].includes(beat) && rng.next() < 0.62) {
+			kind = rng.choice(['hull', 'raid', 'heat'] as const);
+		} else if (roll < 0.38) {
+			kind = 'cargo';
+		} else if (roll < 0.62) {
+			kind = 'heat';
+		} else if (roll < 0.82) {
+			kind = 'hull';
+		} else {
+			kind = 'raid';
+		}
+
+		let amount: number;
+		if (kind === 'cargo') {
+			amount = rng.nextInt(2, 4);
+			heatBias = Math.max(0, heatBias - 1);
+		} else if (kind === 'heat') {
+			amount = rng.nextInt(2 + heatBias, 4 + heatBias);
+			heatBias = Math.min(2, heatBias + 1);
+		} else {
+			amount = rng.nextInt(1, 3);
+		}
+
+		events.push({ kind, amount });
+	}
+
+	return events;
+}
+
+function revealEvent(
+	event: CommandQueueFieldEvent,
+	scannerQuality: ScannerForecastQuality,
+	distance: number,
+	rng: SeededRng
+): ForecastToken {
+	const kindChanceByScanner: Record<ScannerForecastQuality, Record<number, number>> = {
+		poor: { 0: 0.75, 1: 0.45, 2: 0.25, 3: 0.15 },
+		basic: { 0: 0.9, 1: 0.7, 2: 0.45, 3: 0.3 },
+		good: { 0: 1.0, 1: 0.9, 2: 0.72, 3: 0.55 }
+	};
+	const amountChanceByScanner: Record<ScannerForecastQuality, Record<number, number>> = {
+		poor: { 0: 0.2, 1: 0.08, 2: 0.0, 3: 0.0 },
+		basic: { 0: 0.55, 1: 0.3, 2: 0.12, 3: 0.05 },
+		good: { 0: 0.85, 1: 0.65, 2: 0.4, 3: 0.2 }
+	};
+
+	const kindChance = kindChanceByScanner[scannerQuality][distance] ?? 0.1;
+	const amountChance = amountChanceByScanner[scannerQuality][distance] ?? 0.0;
+
+	if (rng.next() > kindChance) {
+		return { kind: null, amount: null };
+	}
+	if (rng.next() > amountChance) {
+		return { kind: event.kind, amount: null };
+	}
+	return { kind: event.kind, amount: event.amount };
+}
+
+export function forecastCommandQueueEvents(input: {
+	runSeed: string;
+	events: CommandQueueFieldEvent[];
+	beat: number;
+	queueLength: number;
+	scannerQuality: ScannerForecastQuality;
+}): ForecastToken[] {
+	const tokens: ForecastToken[] = [];
+
+	for (let offset = 0; offset < input.queueLength; offset += 1) {
+		const index = input.beat + offset;
+		if (index >= input.events.length) {
+			tokens.push({ kind: null, amount: null });
+			continue;
+		}
+		tokens.push(
+			revealEvent(
+				input.events[index]!,
+				input.scannerQuality,
+				offset,
+				forecastRevealRng(input.runSeed, input.beat, offset)
+			)
+		);
+	}
+
+	return tokens;
+}
+
+export function queueCommand(
+	state: CommandQueueRunState,
+	command: ThumperCommand
+): { ok: true } | { ok: false; reason: string } {
+	if (state.ended) {
+		return { ok: false, reason: 'Run has ended' };
+	}
+	if (state.queue.length >= state.queueLength) {
+		return { ok: false, reason: 'Command queue is full' };
+	}
+
+	state.queue.push(command);
+	return { ok: true };
+}
+
+export function canResolveNextBeat(state: CommandQueueRunState): boolean {
+	return (
+		!state.ended &&
+		!state.recalled &&
+		state.queue.length === state.queueLength &&
+		state.currentBeat < state.totalBeats
+	);
+}
+
+function applyCommand(state: CommandQueueRunState, command: ThumperCommand): void {
+	if (command === 'drill') {
+		state.loose += 3;
+		state.heat += 2;
+		return;
+	}
+	if (command === 'bank') {
+		state.secured += state.loose;
+		state.loose = 0;
+		return;
+	}
+	if (command === 'brace') {
+		state.guard = 2;
+		return;
+	}
+	if (command === 'vent') {
+		state.heat = Math.max(0, state.heat - 3);
+		if (state.loose > 0) {
+			state.loose -= 1;
+			state.lost += 1;
+		}
+	}
+}
+
+function applyFieldEvent(state: CommandQueueRunState, event: CommandQueueFieldEvent): void {
+	if (event.kind === 'cargo') {
+		state.loose += event.amount;
+	} else if (event.kind === 'heat') {
+		state.heat += event.amount;
+	} else if (event.kind === 'hull' || event.kind === 'raid') {
+		if (state.guard > 0) {
+			state.guard -= 1;
+		} else if (event.kind === 'hull') {
+			state.hull -= event.amount;
+		} else {
+			const loss = Math.min(state.loose, event.amount);
+			state.loose -= loss;
+			state.lost += loss;
+			if (loss < event.amount) {
+				state.hull -= 1;
+			}
+		}
+	}
+
+	applyHeatSurgeIfNeeded(state);
+}
+
+function applyHeatSurgeIfNeeded(state: CommandQueueRunState): void {
+	if (state.heat < HEAT_LIMIT) {
+		return;
+	}
+
+	state.surgeCount += 1;
+	state.hull -= 2;
+	const loss = Math.min(state.loose, 2);
+	state.loose -= loss;
+	state.lost += loss;
+	state.heat = 5;
+}
+
+export function resolveNextBeat(
+	state: CommandQueueRunState,
+	event: CommandQueueFieldEvent
+): { ok: true; command: ThumperCommand } | { ok: false; reason: string } {
+	if (!canResolveNextBeat(state)) {
+		return { ok: false, reason: 'Next beat is not ready to resolve' };
+	}
+
+	const command = state.queue.shift()!;
+	applyCommand(state, command);
+	applyFieldEvent(state, event);
+	state.currentBeat += 1;
+
+	if (state.currentBeat >= state.totalBeats) {
+		finishCommandQueueRun(state);
+	}
+
+	return { ok: true, command };
+}
+
+export function finishCommandQueueRun(state: CommandQueueRunState): void {
+	if (state.ended) {
+		return;
+	}
+
+	const claimLoose = Math.floor(state.loose * 0.45);
+	state.secured += claimLoose;
+	state.lost += state.loose - claimLoose;
+	state.loose = 0;
+	state.ended = true;
+}
+
+function forfeitLooseCargoOnRecall(state: CommandQueueRunState): void {
+	if (state.loose <= 0) {
+		return;
+	}
+
+	state.recallForfeitedLoose = state.loose;
+	state.lost += state.loose;
+	state.loose = 0;
+}
+
+export function recallCommandQueueRun(
+	state: CommandQueueRunState
+): { ok: true } | { ok: false; reason: string } {
+	if (state.ended) {
+		return { ok: false, reason: 'Run has ended' };
+	}
+
+	forfeitLooseCargoOnRecall(state);
+	state.recalled = true;
+	state.ended = true;
+	return { ok: true };
+}
+
+export function replayCommandQueueRun(input: {
+	runSeed: string;
+	commands: ThumperCommand[];
+	events?: CommandQueueFieldEvent[];
+	queueLength?: number;
+}): CommandQueueRunState {
+	const queueLength = input.queueLength ?? STARTER_QUEUE_LENGTH;
+	const events = input.events ?? generateCommandQueueEvents(input.runSeed);
+	const state = createCommandQueueRunState({ queueLength });
+	const requiredCommands = queueLength + state.totalBeats - 1;
+	let commandIndex = 0;
+
+	const takeCommand = (): ThumperCommand => {
+		const command = input.commands[commandIndex];
+		if (!command) {
+			throw new Error(
+				`Expected at least ${requiredCommands} commands, received ${input.commands.length}`
+			);
+		}
+		commandIndex += 1;
+		return command;
+	};
+
+	for (let slot = 0; slot < queueLength; slot += 1) {
+		queueCommand(state, takeCommand());
+	}
+
+	for (let beat = 0; beat < state.totalBeats && !state.ended; beat += 1) {
+		resolveNextBeat(state, events[beat]!);
+		if (!state.ended && beat < state.totalBeats - 1) {
+			queueCommand(state, takeCommand());
+		}
+	}
+
+	return state;
+}
+
+export function resolveCommandQueueRunResult(
+	state: CommandQueueRunState
+): CommandQueueRunResult {
+	if (!state.ended) {
+		throw new Error('Command queue run has not ended');
+	}
+
+	const recoveredQuantity = Math.max(0, Math.floor(state.secured));
+	const wasteQuantity = Math.max(0, Math.floor(state.lost));
+	const forfeitedLoose = Math.max(0, Math.floor(state.recallForfeitedLoose));
+	const resolutionType = state.recalled
+		? 'command_queue_recalled'
+		: 'command_queue_completed';
+
+	const explanation = [
+		`Command queue run secured ${recoveredQuantity}u.`,
+		wasteQuantity > 0 ? `${wasteQuantity}u lost to field pressure.` : null,
+		forfeitedLoose > 0 ? `${forfeitedLoose}u forfeited loose cargo on recall.` : null,
+		state.surgeCount > 0 ? `${state.surgeCount} heat surge(s) fired.` : null,
+		state.recalled ? 'Run ended early on recall.' : 'Run completed after all beats.'
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return {
+		recoveredQuantity,
+		wasteQuantity,
+		forfeitedLoose,
+		explanation,
+		resolutionType,
+		recallReason: state.recalled ? 'Player recalled the thumper run.' : null,
+		hullRemaining: state.hull,
+		heatRemaining: state.heat,
+		surgeCount: state.surgeCount
+	};
+}

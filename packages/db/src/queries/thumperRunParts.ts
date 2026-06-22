@@ -2,9 +2,13 @@ import {
 	applyWearToRunParts,
 	computeRunPartWearDeltas,
 	computeThumperPartRunModifiers,
+	deriveAppliedWearDeltas,
+	totalAppliedWearFromDeltas,
 	type ThumperComplicationId,
 	type ThumperEventActionId,
+	type ThumperPartSlot,
 	type ThumperPartSnapshot,
+	type ThumperPartWearDelta,
 	type ThumperWindowChosenResponse
 } from '@async-frontier-mmo/domain';
 import { and, eq } from 'drizzle-orm';
@@ -99,13 +103,17 @@ export async function applyRunWearToPartItems(
 		responses: Array<{ windowIndex: number; complication: string; chosenResponse: string }>;
 		isPushRun: boolean;
 	}
-) {
+): Promise<{
+	afterWear: ThumperPartSnapshot[];
+	wearDeltas: Record<ThumperPartSlot, ThumperPartWearDelta>;
+	appliedWear: number;
+}> {
 	const storedWindows = await getThumperEventWindowsForRun(db, input.thumperRunId);
 	const matchingActionByWindow = new Map(
 		storedWindows.map((window) => [window.windowIndex, window.matchingAction])
 	);
 
-	const wearDeltas = computeRunPartWearDeltas(
+	const requestedWearDeltas = computeRunPartWearDeltas(
 		input.responses.map((response) => {
 			const matchingAction = matchingActionByWindow.get(response.windowIndex);
 			if (!matchingAction) {
@@ -137,7 +145,8 @@ export async function applyRunWearToPartItems(
 		});
 	}
 
-	const afterWear = applyWearToRunParts(currentSnapshots, wearDeltas);
+	const afterWear = applyWearToRunParts(currentSnapshots, requestedWearDeltas);
+	const appliedWearDeltas = deriveAppliedWearDeltas(currentSnapshots, afterWear);
 
 	for (const part of afterWear) {
 		const before = currentSnapshots.find((snapshot) => snapshot.itemId === part.itemId);
@@ -174,5 +183,76 @@ export async function applyRunWearToPartItems(
 		});
 	}
 
-	return afterWear;
+	return {
+		afterWear,
+		wearDeltas: appliedWearDeltas,
+		appliedWear: totalAppliedWearFromDeltas(appliedWearDeltas)
+	};
+}
+
+export async function applyDefenseWearToPartItems(
+	db: DbExecutor,
+	input: {
+		pilotId: string;
+		thumperRunId: string;
+		snapshots: ThumperPartSnapshot[];
+		endingCondition: Record<'drill' | 'pump' | 'hull', number>;
+	}
+): Promise<{
+	afterWear: ThumperPartSnapshot[];
+	wearDeltas: Record<ThumperPartSlot, ThumperPartWearDelta>;
+	appliedWear: number;
+}> {
+	const currentSnapshots: ThumperPartSnapshot[] = [];
+	for (const snapshot of input.snapshots) {
+		const [item] = await db.select().from(items).where(eq(items.id, snapshot.itemId)).limit(1);
+		if (!item) {
+			throw new Error(`Snapshotted thumper part item missing: ${snapshot.itemId}`);
+		}
+		currentSnapshots.push({
+			...snapshot,
+			condition: item.condition,
+			integrity: item.integrity
+		});
+	}
+
+	const afterWear = currentSnapshots.map((part) => ({
+		...part,
+		condition: Math.round(input.endingCondition[part.slot])
+	}));
+	const appliedWearDeltas = deriveAppliedWearDeltas(currentSnapshots, afterWear);
+
+	for (const part of afterWear) {
+		const before = currentSnapshots.find((snapshot) => snapshot.itemId === part.itemId);
+		if (!before || before.condition === part.condition) {
+			continue;
+		}
+
+		await db
+			.update(items)
+			.set({ condition: part.condition })
+			.where(eq(items.id, part.itemId));
+
+		await appendItemConditionChangedLedger(db, {
+			pilotId: input.pilotId,
+			targetItemId: part.itemId,
+			conditionBefore: before.condition,
+			conditionAfter: part.condition,
+			integrityBefore: before.integrity,
+			integrityAfter: part.integrity,
+			sourceType: 'thumper_run_claim',
+			sourceId: input.thumperRunId,
+			extraPayload: {
+				thumper_run_id: input.thumperRunId,
+				slot: part.slot,
+				context: 'defense_run_wear_on_claim'
+			}
+		});
+	}
+
+	return {
+		afterWear,
+		wearDeltas: appliedWearDeltas,
+		appliedWear: totalAppliedWearFromDeltas(appliedWearDeltas)
+	};
 }

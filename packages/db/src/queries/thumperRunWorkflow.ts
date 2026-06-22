@@ -1,21 +1,33 @@
 import {
 	isTutorialRunSeed,
 	rollEventWindowSeverity,
-	PROSPECTING_CYCLE_SCATTER_LINE
+	PROSPECTING_CYCLE_SCATTER_LINE,
+	isProjectLedDefenseRun,
+	isProjectLedCommandQueueRun,
+	isDefenseRunEnded,
+	type ThumperPartSlot,
+	type ThumperPartWearDelta
 } from '@async-frontier-mmo/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { getBloomRecord } from './bloomRotation.js';
 import {
 	assertDepositSpotDeployable,
 	drainDepositSpotOnClaim,
-	formatDepositSpotDrainAdjustment
+	formatDepositSpotDrainAdjustment,
+	getDepositSpotYieldState
 } from './depositSpotYields.js';
 
 export { DepositSpotExhaustedError, DepositSpotStaleError } from './depositSpotYields.js';
 import { appendEconomyLedgerEntry } from './economyLedger.js';
+import { getPilotDepositSample } from './prospecting.js';
 import { getThumperEventWindowsForRun, insertThumperEventWindows } from './thumperEventWindows.js';
-import { snapshotEquippedPartsForRun } from './thumperRunParts.js';
+import {
+	applyRunWearToPartItems,
+	applyDefenseWearToPartItems,
+	getThumperRunPartSnapshots,
+	snapshotEquippedPartsForRun
+} from './thumperRunParts.js';
 import { grantResourceToPilotTx } from './resourceGrants.js';
 import { getActiveBloomId, getResourceInstanceByBloomSlug, getResourceInstanceById, incrementResourceInstanceProspectingCycle } from './resourceInstances.js';
 import {
@@ -27,6 +39,72 @@ import {
 import { getThumperRunResultForRun, insertThumperRunResult } from './thumperRunResults.js';
 import { thumperRuns } from '../schema/thumperRuns.js';
 import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
+import { markPilotProjectMaterialSecured } from './projectTargets.js';
+import { replayDefenseRunForStoredRun } from './thumperDefenseRuns.js';
+import { assertCommandQueueRunClaimable } from './thumperCommandQueueRuns.js';
+
+export const PROJECT_LED_DEFENSE_RUN_MODE = 'project_led_defense' as const;
+export const PROJECT_LED_COMMAND_QUEUE_RUN_MODE = 'project_led_command_queue' as const;
+
+/** @deprecated Pressure-menu watched runs retired 2026-06-20. */
+export const PROJECT_LED_WATCHED_RUN_MODE = 'project_led_watched' as const;
+
+export type ProjectLedRunContext = {
+	runMode: typeof PROJECT_LED_DEFENSE_RUN_MODE | typeof PROJECT_LED_COMMAND_QUEUE_RUN_MODE;
+	schematicId: string;
+	targetSlotId: string;
+	targetFamily: string;
+	projectNeedUnits: number;
+};
+
+export class ResourceInstanceExpiredError extends Error {
+	constructor(resourceInstanceId: string) {
+		super(`Resource instance ${resourceInstanceId} is expired`);
+		this.name = 'ResourceInstanceExpiredError';
+	}
+}
+
+export class ResourceInstanceInactiveBloomError extends Error {
+	constructor(resourceInstanceId: string, bloomId: number, activeBloomId: number) {
+		super(
+			`Resource instance ${resourceInstanceId} belongs to bloom ${bloomId}, not active bloom ${activeBloomId}`
+		);
+		this.name = 'ResourceInstanceInactiveBloomError';
+	}
+}
+
+function assertResourceInstanceDeployable(input: {
+	resourceInstanceId: string;
+	bloomId: number;
+	extinctAt: Date | null;
+	activeBloomId: number;
+	deployedAt: Date;
+}) {
+	if (input.extinctAt && input.extinctAt <= input.deployedAt) {
+		throw new ResourceInstanceExpiredError(input.resourceInstanceId);
+	}
+	if (input.bloomId !== input.activeBloomId) {
+		throw new ResourceInstanceInactiveBloomError(
+			input.resourceInstanceId,
+			input.bloomId,
+			input.activeBloomId
+		);
+	}
+}
+
+export class ResourceInstanceNotFoundError extends Error {
+	constructor(public readonly resourceInstanceId: string) {
+		super(`Resource instance ${resourceInstanceId} not found`);
+		this.name = 'ResourceInstanceNotFoundError';
+	}
+}
+
+export class PilotSampleRequiredError extends Error {
+	constructor(message = 'Deploy requires a persisted sample on this deposit spot') {
+		super(message);
+		this.name = 'PilotSampleRequiredError';
+	}
+}
 
 export type ThumperRunResultPayload = {
 	targetResourceId: string;
@@ -46,6 +124,7 @@ export type ClaimResourceReward = {
 	displayName: string;
 	quantityGranted: number;
 	stackQuantity: number;
+	resourceStackId: string;
 };
 
 export type ClaimThumperRunOutcome =
@@ -97,16 +176,48 @@ export async function deployThumperRunWithEventWindows(
 		resourceInstanceId?: string | null;
 		windows: EventWindowSeed[];
 		allowExhaustedSpot?: boolean;
+		/** Decision 025 — reject deploy unless pilot has a persisted sample row for this spot. */
+		requirePilotSample?: boolean;
+		/** Decision 025 — snapshot project-led context onto the run at deploy time. */
+		projectRunContext?: ProjectLedRunContext;
 	}
 ) {
 	return db.transaction(async (tx: DbExecutor) => {
 		const activeBloomId = await getActiveBloomId(tx);
-		const targetInstance = input.resourceInstanceId
-			? await getResourceInstanceById(tx, input.resourceInstanceId)
-			: await getResourceInstanceByBloomSlug(tx, activeBloomId, input.targetResourceId);
-		const resolvedResourceInstanceId = input.resourceInstanceId ?? targetInstance?.id ?? null;
+		let targetInstance;
+		if (input.resourceInstanceId) {
+			targetInstance = await getResourceInstanceById(tx, input.resourceInstanceId);
+			if (!targetInstance) {
+				throw new ResourceInstanceNotFoundError(input.resourceInstanceId);
+			}
+		} else {
+			targetInstance = await getResourceInstanceByBloomSlug(tx, activeBloomId, input.targetResourceId);
+			if (!targetInstance) {
+				throw new ResourceInstanceNotFoundError(input.targetResourceId);
+			}
+		}
+		const resolvedResourceInstanceId = targetInstance.id;
 
-		if (input.depositSpotId && resolvedResourceInstanceId && targetInstance) {
+		assertResourceInstanceDeployable({
+			resourceInstanceId: resolvedResourceInstanceId,
+			bloomId: targetInstance.bloomId,
+			extinctAt: targetInstance.extinctAt,
+			activeBloomId,
+			deployedAt: input.deployedAt
+		});
+
+		if (input.depositSpotId) {
+			if (input.requirePilotSample) {
+				const sample = await getPilotDepositSample(tx, {
+					pilotId: input.pilotId,
+					resourceInstanceId: resolvedResourceInstanceId,
+					spotId: input.depositSpotId
+				});
+				if (!sample) {
+					throw new PilotSampleRequiredError();
+				}
+			}
+
 			const generationSeed = await bloomGenerationSeedForInstance(tx, targetInstance);
 			await assertDepositSpotDeployable(tx, {
 				spotId: input.depositSpotId,
@@ -130,7 +241,12 @@ export async function deployThumperRunWithEventWindows(
 			depositSpotId: input.depositSpotId ?? null,
 			trueConcentrationPercent: input.trueConcentrationPercent ?? null,
 			extractionTailMinutes: input.extractionTailMinutes ?? 60,
-			resourceInstanceId: resolvedResourceInstanceId
+			resourceInstanceId: resolvedResourceInstanceId,
+			runMode: input.projectRunContext?.runMode ?? null,
+			projectSchematicId: input.projectRunContext?.schematicId ?? null,
+			projectTargetSlotId: input.projectRunContext?.targetSlotId ?? null,
+			projectTargetFamily: input.projectRunContext?.targetFamily ?? null,
+			projectNeedUnits: input.projectRunContext?.projectNeedUnits ?? null
 		});
 
 		// Only persist event windows (quiet: false or undefined). Quiet windows do NOT create DB rows.
@@ -223,22 +339,18 @@ export async function claimOpenThumperRunForPilot(
 				targetResourceId: string;
 				runSeed: string;
 				isPushRun: boolean;
+				deployedAt: Date;
 				trueConcentrationPercent: number | null;
 				extractionTailMinutes: number;
+				durationSeconds?: number;
 			},
-			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>
+			windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>,
+			now?: Date
 		) => ThumperRunResultPayload | Promise<ThumperRunResultPayload>;
 		/** When true, grants recovered quantity to the run's deployed resource instance in the same transaction. */
 		grantResourceReward?: boolean;
-		/** After result row is inserted — e.g. apply part wear to item rows. */
-		afterResultInserted?: (
-			tx: DbExecutor,
-			ctx: {
-				run: typeof thumperRuns.$inferSelect;
-				windows: Awaited<ReturnType<typeof getThumperEventWindowsForRun>>;
-				claimResult: NonNullable<Awaited<ReturnType<typeof insertThumperRunResult>>>;
-			}
-		) => Promise<void>;
+		/** Decision 025 — keep sampled spots redeployable; skip prospecting cycle scatter. */
+		skipProspectingCycleScatter?: boolean;
 	}
 ): Promise<ClaimThumperRunOutcome> {
 	return db.transaction(async (tx: DbExecutor) => {
@@ -255,17 +367,31 @@ export async function claimOpenThumperRunForPilot(
 
 		const windows = await getThumperEventWindowsForRun(tx, run.id);
 
-		if (!input.isClaimable(run, windows)) {
-			return { status: 'not_claimable' };
-		}
-
-		if (!input.isResolvableRun(run)) {
-			return {
-				status: 'not_resolvable',
-				message:
-					input.notResolvableMessage ??
-					'This run type cannot be resolved yet'
-			};
+		if (isProjectLedCommandQueueRun(run.runMode)) {
+			const replay = await assertCommandQueueRunClaimable(tx, {
+				id: run.id,
+				runSeed: run.runSeed
+			});
+			if (replay.status !== 'ended') {
+				return { status: 'not_claimable' };
+			}
+		} else if (isProjectLedDefenseRun(run.runMode)) {
+			const defenseState = await replayDefenseRunForStoredRun(tx, run, input.now);
+			if (!isDefenseRunEnded(defenseState)) {
+				return { status: 'not_claimable' };
+			}
+		} else {
+			if (!input.isClaimable(run, windows)) {
+				return { status: 'not_claimable' };
+			}
+			if (!input.isResolvableRun(run)) {
+				return {
+					status: 'not_resolvable',
+					message:
+						input.notResolvableMessage ??
+						'This run type cannot be resolved yet'
+				};
+			}
 		}
 
 		try {
@@ -293,7 +419,7 @@ export async function claimOpenThumperRunForPilot(
 			return { status: 'no_open_run' };
 		}
 
-		let resultPayload = await input.buildResult(tx, run, windows);
+		let resultPayload = await input.buildResult(tx, run, windows, input.now);
 
 		// Scripted tutorial yields are pedagogical — not capped by shared-world spot drain.
 		if (
@@ -327,7 +453,14 @@ export async function claimOpenThumperRunForPilot(
 			}
 		}
 
-		if (run.depositSpotId && run.resourceInstanceId) {
+		if (
+			!input.skipProspectingCycleScatter &&
+			run.runMode !== PROJECT_LED_DEFENSE_RUN_MODE &&
+			run.runMode !== PROJECT_LED_COMMAND_QUEUE_RUN_MODE &&
+			run.runMode !== PROJECT_LED_WATCHED_RUN_MODE &&
+			run.depositSpotId &&
+			run.resourceInstanceId
+		) {
 			const resourceInstance = await getResourceInstanceById(tx, run.resourceInstanceId);
 			if (resourceInstance) {
 				await incrementResourceInstanceProspectingCycle(tx, run.resourceInstanceId);
@@ -350,6 +483,55 @@ export async function claimOpenThumperRunForPilot(
 			}
 		}
 
+		let partWearDeltas: Record<ThumperPartSlot, ThumperPartWearDelta> | null = null;
+		if (!claimedRun.partWearAppliedAt) {
+			const snapshots = await getThumperRunPartSnapshots(tx, run.id);
+			let wearOutcome;
+			if (isProjectLedDefenseRun(run.runMode)) {
+				const defenseSummary = (
+					resultPayload as {
+						defenseSummary?: {
+							endingCondition: Record<'drill' | 'pump' | 'hull', number>;
+						};
+					}
+				).defenseSummary;
+				if (!defenseSummary) {
+					throw new Error(`Defense summary missing for run ${run.id}`);
+				}
+				wearOutcome = await applyDefenseWearToPartItems(tx, {
+					pilotId: input.pilotId,
+					thumperRunId: run.id,
+					snapshots,
+					endingCondition: defenseSummary.endingCondition
+				});
+			} else {
+				const responses = windows
+					.filter((window) => window.chosenResponse !== null)
+					.map((window) => ({
+						windowIndex: window.windowIndex,
+						complication: window.complication,
+						chosenResponse: window.chosenResponse!
+					}));
+				wearOutcome = await applyRunWearToPartItems(tx, {
+					pilotId: input.pilotId,
+					thumperRunId: run.id,
+					snapshots,
+					responses,
+					isPushRun: run.isPushRun
+				});
+			}
+			partWearDeltas = wearOutcome.wearDeltas;
+			resultPayload = {
+				...resultPayload,
+				appliedWear: wearOutcome.appliedWear
+			};
+
+			await tx
+				.update(thumperRuns)
+				.set({ partWearAppliedAt: input.now })
+				.where(and(eq(thumperRuns.id, run.id), isNull(thumperRuns.partWearAppliedAt)));
+		}
+
 		const claimResult = await insertThumperRunResult(tx, {
 			thumperRunId: run.id,
 			targetResourceId: resultPayload.targetResourceId,
@@ -360,6 +542,7 @@ export async function claimOpenThumperRunForPilot(
 			resolutionType: resultPayload.resolutionType,
 			recallReason: resultPayload.recallReason ?? null,
 			appliedWear: resultPayload.appliedWear,
+			partWearDeltas,
 			explanation: resultPayload.explanation,
 			resolvedAt: input.now
 		});
@@ -377,10 +560,6 @@ export async function claimOpenThumperRunForPilot(
 			},
 			createdAt: input.now
 		});
-
-		if (input.afterResultInserted) {
-			await input.afterResultInserted(tx, { run, windows, claimResult });
-		}
 
 		let reward: ClaimResourceReward | null = null;
 		if (input.grantResourceReward && resultPayload.recoveredQuantity > 0) {
@@ -417,8 +596,50 @@ export async function claimOpenThumperRunForPilot(
 				resourceSlug: resourceInstance.resourceSlug,
 				displayName: resourceInstance.displayName,
 				quantityGranted: resultPayload.recoveredQuantity,
-				stackQuantity: stack.quantity
+				stackQuantity: stack.quantity,
+				resourceStackId: stack.id
 			};
+
+			if (
+				(isProjectLedDefenseRun(run.runMode) ||
+					isProjectLedCommandQueueRun(run.runMode) ||
+					run.runMode === PROJECT_LED_WATCHED_RUN_MODE) &&
+				run.projectSchematicId &&
+				run.projectTargetSlotId &&
+				run.projectTargetFamily
+			) {
+				const projectNeedUnits = run.projectNeedUnits ?? 0;
+				if (projectNeedUnits > 0 && stack.quantity >= projectNeedUnits) {
+					let spotRemainingUnits = 0;
+					if (run.depositSpotId) {
+						const generationSeed = await bloomGenerationSeedForInstance(tx, resourceInstance);
+						const yieldState = await getDepositSpotYieldState(tx, {
+							spotId: run.depositSpotId,
+							resourceInstanceId: resourceInstance.id,
+							generationSeed
+						});
+						spotRemainingUnits = yieldState.remainingUnits;
+					}
+
+					await markPilotProjectMaterialSecured(tx, {
+						pilotId: input.pilotId,
+						now: input.now,
+						runSnapshot: {
+							schematicId: run.projectSchematicId,
+							targetSlotId: run.projectTargetSlotId,
+							targetFamily: run.projectTargetFamily
+						},
+						evidence: {
+							claimResultId: claimResult.id,
+							resourceStackId: stack.id,
+							crossingClaimQuantity: resultPayload.recoveredQuantity,
+							securedStackQuantity: stack.quantity,
+							projectNeedUnits,
+							spotRemainingUnits
+						}
+					});
+				}
+			}
 		}
 
 		return { status: 'claimed', claimResult, reward };

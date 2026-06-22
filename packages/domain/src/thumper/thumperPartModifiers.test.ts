@@ -10,6 +10,7 @@ import {
 	applyWearToRunParts,
 	computeRunPartWearDeltas,
 	computeThumperPartRunModifiers,
+	deriveAppliedWearDeltas,
 	partConditionPerformanceMultiplier
 } from './thumperPartModifiers.js';
 import type { ThumperPartSnapshot } from './thumperPartTypes.js';
@@ -107,15 +108,22 @@ describe('thumper part modifiers', () => {
 			chosenResponse: window.matchingAction
 		}));
 
+		const wornModifiers = computeThumperPartRunModifiers([...neutralDrillHull(), wornPumpSnapshot()]);
+		const efficientModifiers = computeThumperPartRunModifiers([
+			...neutralDrillHull(),
+			craftedEfficientPumpSnapshot()
+		]);
+		const wornProjectedRecovery = Math.round(plan.projectedRecovery * wornModifiers.performanceMultiplier) +
+			wornModifiers.pumpRecoveryBonus;
+		const efficientProjectedRecovery =
+			Math.round(plan.projectedRecovery * efficientModifiers.performanceMultiplier) +
+			efficientModifiers.pumpRecoveryBonus;
+
 		const wornResult = resolveThumperRunResult({
 			runConfig: {
 				targetResourceId: 'veyrith_copper',
-				projectedRecovery: plan.projectedRecovery,
-				runSeed,
-				partModifiers: computeThumperPartRunModifiers([
-					...neutralDrillHull(),
-					wornPumpSnapshot()
-				])
+				projectedRecovery: wornProjectedRecovery,
+				runSeed
 			},
 			eventWindows,
 			responses
@@ -124,12 +132,8 @@ describe('thumper part modifiers', () => {
 		const efficientResult = resolveThumperRunResult({
 			runConfig: {
 				targetResourceId: 'veyrith_copper',
-				projectedRecovery: plan.projectedRecovery,
-				runSeed,
-				partModifiers: computeThumperPartRunModifiers([
-					...neutralDrillHull(),
-					craftedEfficientPumpSnapshot()
-				])
+				projectedRecovery: efficientProjectedRecovery,
+				runSeed
 			},
 			eventWindows,
 			responses
@@ -193,6 +197,44 @@ describe('thumper part modifiers', () => {
 		expect(afterRun.find((part) => part.itemId === 'run-drill')!.condition).toBeLessThan(80);
 		expect(afterRun.find((part) => part.itemId === 'run-pump')!.condition).toBeLessThan(80);
 		expect(sparePump.condition).toBe(100);
+	});
+
+	it('hull_damage hold does not add claim-time hull wear (immediate wear applies during the beat)', () => {
+		const deltas = computeRunPartWearDeltas(
+			[
+				{
+					windowIndex: 1,
+					complication: 'hull_damage',
+					chosenResponse: 'hold',
+					matchingAction: 'field_repair'
+				}
+			],
+			{ isPushRun: false }
+		);
+
+		expect(deltas.hull.conditionLoss).toBe(2);
+		expect(deltas.hull.integrityLoss ?? 0).toBe(0);
+	});
+
+	it('deriveAppliedWearDeltas records actual loss when clamped durability caps wear', () => {
+		const wornPart: ThumperPartSnapshot = {
+			slot: 'pump',
+			itemId: 'worn-pump',
+			schematicId: 'worn_basic_pump',
+			displayName: 'Worn Basic Pump',
+			propertyScores: { recovery_efficiency: 35 },
+			condition: 1,
+			integrity: 5
+		};
+
+		const requested = computeRunPartWearDeltas([], { isPushRun: false });
+		requested.pump.conditionLoss = 10;
+
+		const afterWear = applyWearToRunParts([wornPart], requested);
+		const applied = deriveAppliedWearDeltas([wornPart], afterWear);
+
+		expect(applied.pump.conditionLoss).toBe(1);
+		expect(applied.pump.conditionLoss).toBeLessThan(requested.pump.conditionLoss);
 	});
 
 	it('matching action wear lands on the related part slot only', () => {

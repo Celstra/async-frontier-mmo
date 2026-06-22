@@ -1,0 +1,100 @@
+import {
+	COMMAND_QUEUE_RUN_BEATS,
+	STARTER_QUEUE_LENGTH,
+	finishCommandQueueRun,
+	isProjectLedCommandQueueRun,
+	replayCommandQueueRun,
+	resolveCommandQueueRunResult,
+	type CommandQueueRunState
+} from '@async-frontier-mmo/domain';
+import type { DbExecutor } from '../client.js';
+import {
+	ThumperCommandLogReplayError,
+	getThumperRunCommandsForReplay
+} from './thumperCommandQueueLog.js';
+
+export { isProjectLedCommandQueueRun, PROJECT_LED_COMMAND_QUEUE_RUN_MODE } from '@async-frontier-mmo/domain';
+
+export type CommandQueueRunReplayOutcome =
+	| { status: 'ended'; state: CommandQueueRunState }
+	| { status: 'in_progress'; reason: string };
+
+export async function replayCommandQueueRunForStoredRun(
+	db: DbExecutor,
+	run: {
+		id: string;
+		runSeed: string;
+	}
+): Promise<CommandQueueRunReplayOutcome> {
+	const requiredCommands = STARTER_QUEUE_LENGTH + COMMAND_QUEUE_RUN_BEATS - 1;
+	let commands;
+
+	try {
+		commands = await getThumperRunCommandsForReplay(db, run.id);
+	} catch (error) {
+		if (error instanceof ThumperCommandLogReplayError) {
+			return { status: 'in_progress', reason: error.message };
+		}
+		throw error;
+	}
+
+	if (commands.length < requiredCommands) {
+		return {
+			status: 'in_progress',
+			reason: `Expected ${requiredCommands} queued commands, found ${commands.length}`
+		};
+	}
+
+	const state = replayCommandQueueRun({
+		runSeed: run.runSeed,
+		commands
+	});
+
+	if (!state.ended) {
+		finishCommandQueueRun(state);
+	}
+
+	return { status: 'ended', state };
+}
+
+export function isCommandQueueRunEnded(state: CommandQueueRunState): boolean {
+	return state.ended;
+}
+
+export async function resolveCommandQueueRunPayload(
+	db: DbExecutor,
+	run: {
+		id: string;
+		targetResourceId: string;
+		runSeed: string;
+	}
+) {
+	const replay = await replayCommandQueueRunForStoredRun(db, run);
+	if (replay.status !== 'ended') {
+		throw new Error(replay.reason);
+	}
+
+	const resolved = resolveCommandQueueRunResult(replay.state);
+
+	return {
+		targetResourceId: run.targetResourceId,
+		projectedRecovery: resolved.recoveredQuantity,
+		recoveredQuantity: resolved.recoveredQuantity,
+		wasteQuantity: resolved.wasteQuantity,
+		forfeitedRecovery: resolved.forfeitedLoose,
+		resolutionType: resolved.resolutionType,
+		recallReason: resolved.recallReason ?? undefined,
+		appliedWear: 0,
+		explanation: resolved.explanation
+	};
+}
+
+export async function assertCommandQueueRunClaimable(
+	db: DbExecutor,
+	run: {
+		id: string;
+		runSeed: string;
+	}
+): Promise<CommandQueueRunReplayOutcome> {
+	return replayCommandQueueRunForStoredRun(db, run);
+}
