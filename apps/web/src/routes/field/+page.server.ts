@@ -2,6 +2,7 @@ import { THUMPER_COMMANDS } from '@async-frontier-mmo/domain';
 import { fail } from '@sveltejs/kit';
 import {
 	advanceFieldCommandQueueBeat,
+	claimFieldCommandQueueRun,
 	parseCommandQueueActionForm,
 	recallFieldCommandQueueRun,
 	submitFieldCommandQueueSlot
@@ -52,5 +53,12 @@ export const actions: Actions = {
 		await requirePlayablePilot(db, pilotId);
 
 		return recallFieldCommandQueueRun(db, { pilotId });
+	},
+	claimRun: async (event) => {
+		const db = getGameDb();
+		const pilotId = resolvePilotId(event);
+		await requirePlayablePilot(db, pilotId);
+
+		return claimFieldCommandQueueRun(db, { pilotId });
 	}
 };

@@ -153,6 +153,7 @@ describeDb('thumper command queue beat loop', () => {
 		const view = await loadCommandQueueFieldViewForPilot(db, testPilotId);
 		expect(view).not.toBeNull();
 		expect(view!.queueSlots.map((slot) => slot.command)).toEqual(['drill', 'bank']);
+		expect(view!.queueSlots[1]?.isBackSlot).toBe(true);
 		expect(view!.canAdvanceBeat).toBe(true);
 		expect(view!.state.secured).toBe(0);
 		expect(view!.forecast).toHaveLength(STARTER_QUEUE_LENGTH);

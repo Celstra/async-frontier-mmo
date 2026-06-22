@@ -152,11 +152,18 @@ export function buildCommandQueueFieldView(input: {
 			null;
 		const stored = input.rows.find((row) => row.beatIndex === beatIndex);
 		const locked = stored?.resolvedAt !== null && stored?.resolvedAt !== undefined;
+		const isBackSlot =
+			beatIndex === nextFillBeatIndex ||
+			(nextFillBeatIndex === null &&
+				state.queue.length === state.queueLength &&
+				offset === state.queueLength - 1 &&
+				!locked);
+
 		return {
 			beatIndex,
 			command,
 			locked,
-			isBackSlot: beatIndex === nextFillBeatIndex
+			isBackSlot
 		};
 	});
 

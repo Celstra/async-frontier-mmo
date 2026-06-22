@@ -25,8 +25,16 @@ test.describe('workshop-first browser smoke', () => {
 		await expect(nextLink).toHaveText(/\[W\]ORKSHOP/);
 	});
 
-	test('field, rig, and settlement show in development placeholders', async ({ page }) => {
-		for (const path of ['/field', '/rig', '/settlement']) {
+	test('field shows command queue or in-development placeholder', async ({ page }) => {
+		await page.goto('/field');
+		const inDevelopment = page.getByText('In development', { exact: true });
+		const commandQueue = page.getByTestId('field-command-queue');
+		await expect(inDevelopment.or(commandQueue)).toBeVisible();
+		await expect(page.getByRole('link', { name: 'WORKSHOP' })).toBeVisible();
+	});
+
+	test('rig and settlement show in development placeholders', async ({ page }) => {
+		for (const path of ['/rig', '/settlement']) {
 			await page.goto(path);
 			await expect(page.getByText('In development', { exact: true })).toBeVisible();
 			await expect(page.getByRole('link', { name: 'WORKSHOP' })).toBeVisible();
