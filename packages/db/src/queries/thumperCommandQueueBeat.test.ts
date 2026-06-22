@@ -145,9 +145,9 @@ describeDb('thumper command queue beat loop', () => {
 		expect(view).not.toBeNull();
 		expect(view!.queueSlots.map((slot) => slot.command)).toEqual(['drill', 'bank']);
 		expect(view!.queueSlots[1]?.isBackSlot).toBe(true);
+		expect(view!.timelineRows).toHaveLength(STARTER_QUEUE_LENGTH);
+		expect(view!.timelineRows[0]?.forecast).toBeDefined();
 		expect(view!.canAdvanceBeat).toBe(true);
-		expect(view!.state.secured).toBe(0);
-		expect(view!.forecast).toHaveLength(STARTER_QUEUE_LENGTH);
 	});
 
 	it('cannot update a resolved beat', async () => {
@@ -300,7 +300,54 @@ describeDb('thumper command queue beat loop', () => {
 		expect(view).not.toBeNull();
 		expect(view!.queueLength).toBe(3);
 		expect(view!.queueSlots).toHaveLength(3);
+		expect(view!.timelineRows).toHaveLength(3);
 		expect(view!.forecast).toHaveLength(3);
+	});
+
+	it('shrinks the timeline on the final beat and does not target unresolvable slots', async () => {
+		const now = new Date('2026-06-22T17:00:00.000Z');
+		await submitCommandQueueSlotForPilot(db, {
+			pilotId: testPilotId,
+			command: 'drill',
+			now
+		});
+		await submitCommandQueueSlotForPilot(db, {
+			pilotId: testPilotId,
+			command: 'bank',
+			now: new Date(now.getTime() + 1_000)
+		});
+
+		for (let beat = 0; beat < COMMAND_QUEUE_RUN_BEATS - 1; beat += 1) {
+			const advanced = await advanceCommandQueueBeatForPilot(db, {
+				pilotId: testPilotId,
+				now: new Date(now.getTime() + (beat + 2) * 1_000)
+			});
+			expect(advanced.status).toBe('advanced');
+
+			const nextIndex = beat + STARTER_QUEUE_LENGTH;
+			if (nextIndex < starterCommandScript.length) {
+				const fill = await submitCommandQueueSlotForPilot(db, {
+					pilotId: testPilotId,
+					command: starterCommandScript[nextIndex]!,
+					now: new Date(now.getTime() + (beat + 3) * 1_000)
+				});
+				expect(['recorded', 'updated']).toContain(fill.status);
+			}
+		}
+
+		const view = await loadCommandQueueFieldViewForPilot(db, testPilotId);
+		expect(view).not.toBeNull();
+		expect(view!.state.currentBeat).toBe(COMMAND_QUEUE_RUN_BEATS - 1);
+		expect(view!.timelineRows).toHaveLength(1);
+		expect(view!.nextFillBeatIndex).toBeNull();
+		expect(view!.canAdvanceBeat).toBe(true);
+
+		const blocked = await submitCommandQueueSlotForPilot(db, {
+			pilotId: testPilotId,
+			command: 'vent',
+			now: new Date(now.getTime() + 60_000)
+		});
+		expect(blocked.status).toBe('invalid_slot');
 	});
 
 	it('requires the persisted queue length script count before workflow claim', async () => {
@@ -316,7 +363,8 @@ describeDb('thumper command queue beat loop', () => {
 		);
 
 		const recordedAt = new Date('2026-06-22T16:06:00.000Z');
-		for (const [beatIndex, command] of mediumScript.slice(0, starterLength).entries()) {
+			const partialLength = starterLength - 1;
+			for (const [beatIndex, command] of mediumScript.slice(0, partialLength).entries()) {
 			const outcome = await appendThumperRunCommandLogEntry(db, {
 				runId,
 				command,
@@ -338,7 +386,7 @@ describeDb('thumper command queue beat loop', () => {
 		});
 		expect(blocked.status).toBe('not_claimable');
 
-		const finalBeatIndex = starterLength;
+			const finalBeatIndex = partialLength;
 		const finalOutcome = await appendThumperRunCommandLogEntry(db, {
 			runId,
 			command: mediumScript[finalBeatIndex]!,

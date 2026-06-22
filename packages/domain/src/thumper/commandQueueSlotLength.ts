@@ -21,8 +21,8 @@ export function parseCommandQueueSlotLength(value: number | null | undefined): C
 }
 
 export function requiredCommandQueueScriptLength(
-	queueLength: number,
+	_queueLength: number,
 	totalBeats: number = RUN_BEATS
 ): number {
-	return queueLength + totalBeats - 1;
+	return totalBeats;
 }

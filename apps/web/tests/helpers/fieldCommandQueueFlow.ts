@@ -27,12 +27,7 @@ export async function expectFieldCommandQueuePanel(page: Page): Promise<void> {
 export async function expectFieldCommandQueueLength(page: Page, queueLength: CommandQueueSlotLength): Promise<void> {
 	const panel = page.getByTestId('field-command-queue');
 	await expect(panel).toHaveAttribute('data-queue-length', String(queueLength));
-	await expect(page.getByTestId('field-command-queue-slots').locator('.command-queue__slot')).toHaveCount(
-		queueLength
-	);
-	await expect(page.getByTestId('field-command-queue-forecast').locator('.command-queue__forecast-item')).toHaveCount(
-		queueLength
-	);
+	await expect(page.getByTestId('field-command-queue-timeline-row')).toHaveCount(queueLength);
 }
 
 export async function queueFieldCommand(

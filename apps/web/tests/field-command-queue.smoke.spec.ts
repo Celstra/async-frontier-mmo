@@ -46,9 +46,9 @@ test.describe('field command queue smoke', () => {
 
 			await queueFieldCommand(page, 'DRILL');
 			await queueFieldCommand(page, 'BANK');
-			const queueSlots = page.getByTestId('field-command-queue-slots');
-			await expect(queueSlots.getByText('NEXT', { exact: true })).toBeVisible();
-			await expect(queueSlots.getByText('EDIT', { exact: true })).toBeVisible();
+			const timeline = page.getByTestId('field-command-queue-timeline');
+			await expect(timeline.getByText('NOW', { exact: true })).toBeVisible();
+			await expect(timeline.getByText('NEXT', { exact: true })).toBeVisible();
 
 			await advanceFieldCommandQueueBeat(page);
 			await expectFieldBeatReadout(page);
@@ -109,18 +109,18 @@ test.describe('field command queue smoke', () => {
 			await expectFieldCommandQueuePanel(page);
 			await expectFieldCommandQueueLength(page, 3);
 
-			const queueSlots = page.getByTestId('field-command-queue-slots');
-			await expect(queueSlots.getByText('NEXT', { exact: true })).toBeVisible();
-			await expect(queueSlots.getByText('HOLD', { exact: true })).toBeVisible();
-			await expect(queueSlots.getByText('EDIT', { exact: true })).toBeVisible();
-			await expect(page.getByTestId('field-command-queue-timing')).toContainText('HOLD waits in line');
+			const timeline = page.getByTestId('field-command-queue-timeline');
+			await expect(timeline.getByText('NOW', { exact: true })).toBeVisible();
+			await expect(timeline.getByText('+1', { exact: true })).toBeVisible();
+			await expect(timeline.getByText('+2', { exact: true })).toBeVisible();
+			await expect(page.getByTestId('field-command-queue-timing')).toContainText('+1 waits in line');
 			await expectFieldCommandQueueFitsViewport(page);
 
-			const slots = queueSlots.locator('.command-queue__slot');
+			const rows = timeline.getByTestId('field-command-queue-timeline-row');
 			await queueFieldCommand(page, 'DRILL');
-			await expect(slots.nth(1)).toContainText('Editable');
+			await expect(rows.nth(1)).toContainText('Editable');
 			await queueFieldCommand(page, 'BANK');
-			await expect(slots.nth(2)).toContainText('Editable');
+			await expect(rows.nth(2)).toContainText('Editable');
 			await queueFieldCommand(page, 'VENT');
 
 			await playMediumFieldCommandQueueScript(page, { prefilledCommandCount: 3 });

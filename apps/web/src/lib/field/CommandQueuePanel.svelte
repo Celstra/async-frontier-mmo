@@ -4,7 +4,6 @@
 	import {
 		commandQueueCommandHint,
 		commandQueueCommandLabel,
-		commandQueueSlotLabel,
 		commandQueueTimingHint,
 		forecastTimelineLabel,
 		forecastTokenLabel
@@ -29,8 +28,7 @@
 	);
 	const heatNearLimit = $derived(view.meters.heat >= view.meters.heatLimit - 1);
 
-	const frontSlot = $derived(view.queueSlots[0] ?? null);
-	const editableSlot = $derived(view.queueSlots.find((slot) => slot.isBackSlot) ?? null);
+	const editableSlot = $derived(view.timelineRows.find((row) => row.isBackSlot) ?? null);
 	const canEditQueueSlot = $derived(
 		!view.ended && !view.recalled && editableSlot !== null && !editableSlot.locked
 	);
@@ -108,45 +106,37 @@
 			</div>
 		</dl>
 
-		<div class="command-queue__forecast" data-testid="field-command-queue-forecast">
-			<h2 class="command-queue__section-title">Forecast</h2>
-			<ol class="command-queue__forecast-list">
-				{#each view.forecast as token, offset (offset)}
-					<li class="command-queue__forecast-item">
-						<span class="command-queue__forecast-when">{forecastTimelineLabel(offset, queueLength)}</span>
-						<span class="command-queue__forecast-token">{forecastTokenLabel(token)}</span>
-					</li>
-				{/each}
-			</ol>
-		</div>
-
-		<div class="command-queue__queue" data-testid="field-command-queue-slots">
-			<h2 class="command-queue__section-title">Queue</h2>
+		<div class="command-queue__timeline" data-testid="field-command-queue-timeline">
+			<h2 class="command-queue__section-title">Timeline</h2>
 			<p class="command-queue__timing" data-testid="field-command-queue-timing">
 				{timingHint}
 			</p>
-			<ol class="command-queue__slot-list">
-				{#each view.queueSlots as slot, index (slot.beatIndex)}
+			<ol class="command-queue__timeline-list">
+				{#each view.timelineRows as row (row.beatIndex)}
 					<li
-						class="command-queue__slot"
-						class:command-queue__slot--locked={slot.locked}
-						class:command-queue__slot--editable={!slot.locked && slot === editableSlot && canEditQueueSlot}
-						class:command-queue__slot--hold={queueLength === 3 && index > 0 && index < view.queueSlots.length - 1}
+						class="command-queue__timeline-row"
+						class:command-queue__timeline-row--locked={row.locked}
+						class:command-queue__timeline-row--editable={!row.locked && row === editableSlot && canEditQueueSlot}
+						class:command-queue__timeline-row--hold={queueLength === 3 && row.offset > 0 && row.offset < view.timelineRows.length - 1}
+						data-testid="field-command-queue-timeline-row"
 					>
-						<span class="command-queue__slot-label">
-							{commandQueueSlotLabel(index, queueLength)}
+						<span class="command-queue__timeline-when">
+							{forecastTimelineLabel(row.offset, queueLength)}
 						</span>
-						<span class="command-queue__slot-command">
-							{slot.command ? commandQueueCommandLabel(slot.command) : 'EMPTY'}
+						<span class="command-queue__timeline-command">
+							{row.command ? commandQueueCommandLabel(row.command) : 'EMPTY'}
 						</span>
-						{#if slot.locked}
-							<span class="command-queue__slot-badge">Locked</span>
-						{:else if index === 0 && canAdvance}
-							<span class="command-queue__slot-badge">On advance</span>
-						{:else if slot === editableSlot && canEditQueueSlot}
-							<span class="command-queue__slot-badge command-queue__slot-badge--edit">Editable</span>
-						{:else if queueLength === 3 && index > 0 && index < view.queueSlots.length - 1}
-							<span class="command-queue__slot-badge">Queued</span>
+						<span class="command-queue__timeline-field">
+							{forecastTokenLabel(row.forecast)}
+						</span>
+						{#if row.locked}
+							<span class="command-queue__timeline-badge">Locked</span>
+						{:else if row.offset === 0 && canAdvance}
+							<span class="command-queue__timeline-badge">On advance</span>
+						{:else if row === editableSlot && canEditQueueSlot}
+							<span class="command-queue__timeline-badge command-queue__timeline-badge--edit">Editable</span>
+						{:else if queueLength === 3 && row.offset > 0 && row.offset < view.timelineRows.length - 1}
+							<span class="command-queue__timeline-badge">Queued</span>
 						{/if}
 					</li>
 				{/each}
@@ -344,8 +334,7 @@
 		color: var(--text-secondary);
 	}
 
-	.command-queue__forecast-list,
-	.command-queue__slot-list {
+	.command-queue__timeline-list {
 		display: grid;
 		gap: 0.45rem;
 		margin: 0;
@@ -353,10 +342,9 @@
 		list-style: none;
 	}
 
-	.command-queue__forecast-item,
-	.command-queue__slot {
+	.command-queue__timeline-row {
 		display: grid;
-		grid-template-columns: 4.5rem 1fr auto;
+		grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 0.65rem;
 		padding: 0.55rem 0.65rem;
@@ -364,34 +352,33 @@
 		background: var(--bg-inset);
 	}
 
-	.command-queue__forecast-when,
-	.command-queue__slot-label {
+	.command-queue__timeline-when {
 		color: var(--text-secondary);
 		font-size: var(--font-size-xs);
 		letter-spacing: 0;
 		text-transform: uppercase;
 	}
 
-	.command-queue__forecast-token,
-	.command-queue__slot-command {
+	.command-queue__timeline-command,
+	.command-queue__timeline-field {
 		color: var(--phosphor);
 		font-size: var(--font-size-sm);
 		letter-spacing: 0;
 	}
 
-	.command-queue__slot--locked {
+	.command-queue__timeline-row--locked {
 		opacity: 0.72;
 	}
 
-	.command-queue__slot--editable {
+	.command-queue__timeline-row--editable {
 		border-color: var(--phosphor-dim);
 	}
 
-	.command-queue__slot--hold {
+	.command-queue__timeline-row--hold {
 		opacity: 0.88;
 	}
 
-	.command-queue__slot-badge {
+	.command-queue__timeline-badge {
 		padding: 0.15rem 0.4rem;
 		border: 1px solid var(--border-default);
 		color: var(--text-secondary);
@@ -400,7 +387,7 @@
 		text-transform: uppercase;
 	}
 
-	.command-queue__slot-badge--edit {
+	.command-queue__timeline-badge--edit {
 		border-color: var(--phosphor-dim);
 		color: var(--phosphor);
 	}
@@ -479,12 +466,11 @@
 			grid-template-columns: minmax(0, 1fr);
 		}
 
-		.command-queue__forecast-item,
-		.command-queue__slot {
-			grid-template-columns: 3.5rem minmax(0, 1fr);
+		.command-queue__timeline-row {
+			grid-template-columns: 3.5rem minmax(0, 1fr) minmax(0, 1fr);
 		}
 
-		.command-queue__slot-badge {
+		.command-queue__timeline-badge {
 			grid-column: 1 / -1;
 			justify-self: start;
 		}

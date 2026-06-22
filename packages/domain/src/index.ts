@@ -562,6 +562,8 @@ export {
 	replayCommandQueueRun,
 	replayCommandQueueRunToProgress,
 	nextCommandQueueFillBeatIndex,
+	visibleCommandQueueSlotCount,
+	lastResolvableCommandBeatIndex,
 	scannerForecastQualityFromClarity,
 	resolveCommandQueueRunResult,
 	recallCommandQueueRun,

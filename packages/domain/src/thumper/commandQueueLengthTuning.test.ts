@@ -15,7 +15,7 @@ import {
 	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
 	starterScriptForQueueLength
 } from './starterCommandQueueScript.js';
-import { RUN_BEATS, STARTER_QUEUE_LENGTH } from './thumperCommandQueueRun.js';
+import { RUN_BEATS } from './thumperCommandQueueRun.js';
 
 describe('commandQueueLengthTuning', () => {
 	it('starter scripts match required command counts for queue lengths 2/3/4', () => {
@@ -26,9 +26,9 @@ describe('commandQueueLengthTuning', () => {
 			);
 		}
 
-		expect(requiredCommandQueueScriptLength(2)).toBe(STARTER_QUEUE_LENGTH + RUN_BEATS - 1);
-		expect(requiredCommandQueueScriptLength(3)).toBe(20);
-		expect(requiredCommandQueueScriptLength(4)).toBe(21);
+		expect(requiredCommandQueueScriptLength(2)).toBe(RUN_BEATS);
+		expect(requiredCommandQueueScriptLength(3)).toBe(RUN_BEATS);
+		expect(requiredCommandQueueScriptLength(4)).toBe(RUN_BEATS);
 	});
 
 	it('starter-script recovery stays above zero for all queue lengths', () => {

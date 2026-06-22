@@ -16,6 +16,7 @@ import {
 	replayCommandQueueRun,
 	replayCommandQueueRunToProgress,
 	nextCommandQueueFillBeatIndex,
+	visibleCommandQueueSlotCount,
 	resolveCommandQueueRunResult,
 	recallCommandQueueRun,
 	finishCommandQueueRun,
@@ -406,6 +407,31 @@ describe('thumperCommandQueueRun', () => {
 
 		queueCommand(state, 'bank');
 		expect(nextCommandQueueFillBeatIndex(state)).toBeNull();
+	});
+
+	it('does not offer command beats past the final resolvable beat', () => {
+		const state = createCommandQueueRunState();
+		state.currentBeat = 16;
+		state.queue = ['drill'];
+		expect(nextCommandQueueFillBeatIndex(state)).toBe(17);
+
+		queueCommand(state, 'bank');
+		expect(nextCommandQueueFillBeatIndex(state)).toBeNull();
+
+		state.currentBeat = 17;
+		state.queue = [];
+		expect(visibleCommandQueueSlotCount(state)).toBe(1);
+		expect(nextCommandQueueFillBeatIndex(state)).toBe(17);
+		queueCommand(state, 'vent');
+		expect(nextCommandQueueFillBeatIndex(state)).toBeNull();
+	});
+
+	it('allows the final beat to advance with only one visible queue slot', () => {
+		const state = createCommandQueueRunState();
+		state.currentBeat = 17;
+		state.queue = ['drill'];
+		expect(visibleCommandQueueSlotCount(state)).toBe(1);
+		expect(canResolveNextBeat(state)).toBe(true);
 	});
 
 	it('buildCommandQueueBeatReadout uses compact command, field, and heat lines', () => {

@@ -10,6 +10,7 @@ import {
 	replayCommandQueueRunToProgress,
 	resolveNextBeat,
 	scannerForecastQualityFromClarity,
+	visibleCommandQueueSlotCount,
 	type CommandQueueRunState,
 	type ForecastToken,
 	type ScannerForecastQuality,
@@ -56,6 +57,11 @@ export type CommandQueueSlotView = {
 	isBackSlot: boolean;
 };
 
+export type CommandQueueTimelineRowView = CommandQueueSlotView & {
+	offset: number;
+	forecast: ForecastToken;
+};
+
 export type CommandQueueFieldView = {
 	runId: string;
 	runSeed: string;
@@ -63,6 +69,7 @@ export type CommandQueueFieldView = {
 	state: CommandQueueRunState;
 	forecast: ForecastToken[];
 	queueSlots: CommandQueueSlotView[];
+	timelineRows: CommandQueueTimelineRowView[];
 	nextFillBeatIndex: number | null;
 	canAdvanceBeat: boolean;
 	canClaim: boolean;
@@ -147,8 +154,9 @@ export function buildCommandQueueFieldView(input: {
 	});
 
 	const nextFillBeatIndex = nextCommandQueueFillBeatIndex(state);
+	const visibleCount = visibleCommandQueueSlotCount(state);
 	const visibleBeatIndices = Array.from(
-		{ length: state.queueLength },
+		{ length: visibleCount },
 		(_, offset) => state.currentBeat + offset
 	);
 
@@ -160,11 +168,12 @@ export function buildCommandQueueFieldView(input: {
 		const stored = input.rows.find((row) => row.beatIndex === beatIndex);
 		const locked = stored?.resolvedAt !== null && stored?.resolvedAt !== undefined;
 		const isBackSlot =
-			beatIndex === nextFillBeatIndex ||
-			(nextFillBeatIndex === null &&
-				state.queue.length === state.queueLength &&
-				offset === state.queueLength - 1 &&
-				!locked);
+			visibleCount > 1 &&
+			(beatIndex === nextFillBeatIndex ||
+				(nextFillBeatIndex === null &&
+					state.queue.length === visibleCount &&
+					offset === visibleCount - 1 &&
+					!locked));
 
 		return {
 			beatIndex,
@@ -173,6 +182,12 @@ export function buildCommandQueueFieldView(input: {
 			isBackSlot
 		};
 	});
+
+	const timelineRows: CommandQueueTimelineRowView[] = queueSlots.map((slot, offset) => ({
+		...slot,
+		offset,
+		forecast: forecast[offset] ?? { kind: null, amount: null }
+	}));
 
 	const requiredCommands = requiredCommandsForCommandQueueRun(queueLength);
 	const canClaim =
@@ -187,6 +202,7 @@ export function buildCommandQueueFieldView(input: {
 		state,
 		forecast,
 		queueSlots,
+		timelineRows,
 		nextFillBeatIndex,
 		canAdvanceBeat: canResolveNextBeat(state),
 		canClaim,
@@ -274,16 +290,24 @@ export async function submitCommandQueueSlotForPilot(
 			return { status: 'run_ended' };
 		}
 
+		const visibleCount = visibleCommandQueueSlotCount(viewBefore.state);
 		const targetBeatIndex =
 			viewBefore.nextFillBeatIndex ??
-			(viewBefore.state.queue.length === viewBefore.state.queueLength
-				? viewBefore.state.currentBeat + viewBefore.state.queueLength - 1
+			(visibleCount > 1 && viewBefore.state.queue.length === visibleCount
+				? viewBefore.state.currentBeat + visibleCount - 1
 				: null);
 
 		if (targetBeatIndex === null) {
 			return {
 				status: 'invalid_slot',
 				reason: 'No command slot is available to fill or edit'
+			};
+		}
+
+		if (targetBeatIndex >= viewBefore.totalBeats) {
+			return {
+				status: 'invalid_slot',
+				reason: 'Command beat is past the final resolvable beat'
 			};
 		}
 

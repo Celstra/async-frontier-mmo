@@ -1,8 +1,9 @@
-import type { CommandQueueSlotLength } from '@async-frontier-mmo/domain';
-import type { CommandQueueEventKind, ThumperCommand } from '@async-frontier-mmo/domain';
-import type { FieldCommandQueueView } from '$lib/server/fieldCommandQueueLoad.js';
-
-type ForecastToken = FieldCommandQueueView['forecast'][number];
+import type {
+	CommandQueueEventKind,
+	CommandQueueSlotLength,
+	ForecastToken,
+	ThumperCommand
+} from '@async-frontier-mmo/domain';
 
 const EVENT_KIND_LABELS: Record<CommandQueueEventKind, string> = {
 	cargo: 'CARGO',
@@ -31,20 +32,11 @@ export function forecastTimelineLabel(
 	return `+${offset}`;
 }
 
-export function commandQueueSlotLabel(
-	index: number,
-	queueLength: CommandQueueSlotLength
-): string {
-	if (index === 0) return 'NEXT';
-	if (index === queueLength - 1) return 'EDIT';
-	return 'HOLD';
-}
-
 export function commandQueueTimingHint(queueLength: CommandQueueSlotLength): string {
 	if (queueLength === 3) {
-		return 'NEXT resolves on advance. HOLD waits in line. EDIT back now. After advance, EDIT opens for the new back slot.';
+		return 'Fill empty rows top to bottom. NOW resolves on advance. +1 waits in line. When full, +2 is the editable back slot.';
 	}
-	return 'NEXT resolves on advance. EDIT back now. After advance, EDIT opens for the new back slot.';
+	return 'Fill empty rows top to bottom. NOW resolves on advance. When full, NEXT is the editable back slot.';
 }
 
 export function forecastTokenLabel(token: ForecastToken): string {

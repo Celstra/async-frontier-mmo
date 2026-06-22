@@ -193,7 +193,8 @@ export function queueCommand(
 	if (state.ended) {
 		return { ok: false, reason: 'Run has ended' };
 	}
-	if (state.queue.length >= state.queueLength) {
+	const maxQueueDepth = visibleCommandQueueSlotCount(state);
+	if (state.queue.length >= maxQueueDepth) {
 		return { ok: false, reason: 'Command queue is full' };
 	}
 
@@ -201,11 +202,26 @@ export function queueCommand(
 	return { ok: true };
 }
 
+/** Last beat index that can still resolve a queued command. */
+export function lastResolvableCommandBeatIndex(totalBeats: number): number {
+	return totalBeats - 1;
+}
+
+/** Visible queue rows near run end shrink so beats past the final resolution are not shown. */
+export function visibleCommandQueueSlotCount(state: CommandQueueRunState): number {
+	if (state.ended || state.recalled) {
+		return 0;
+	}
+	return Math.max(0, Math.min(state.queueLength, state.totalBeats - state.currentBeat));
+}
+
 export function canResolveNextBeat(state: CommandQueueRunState): boolean {
+	const requiredQueueDepth = visibleCommandQueueSlotCount(state);
 	return (
 		!state.ended &&
 		!state.recalled &&
-		state.queue.length === state.queueLength &&
+		requiredQueueDepth > 0 &&
+		state.queue.length === requiredQueueDepth &&
 		state.currentBeat < state.totalBeats
 	);
 }
@@ -367,7 +383,7 @@ export function replayCommandQueueRun(input: {
 	const queueLength = input.queueLength ?? STARTER_QUEUE_LENGTH;
 	const events = input.events ?? generateCommandQueueEvents(input.runSeed);
 	const state = createCommandQueueRunState({ queueLength });
-	const requiredCommands = queueLength + state.totalBeats - 1;
+	const requiredCommands = state.totalBeats;
 	let commandIndex = 0;
 
 	const takeCommand = (): ThumperCommand => {
@@ -381,15 +397,17 @@ export function replayCommandQueueRun(input: {
 		return command;
 	};
 
-	for (let slot = 0; slot < queueLength; slot += 1) {
-		queueCommand(state, takeCommand());
-	}
+	const fillVisibleQueue = (): void => {
+		while (nextCommandQueueFillBeatIndex(state) !== null && commandIndex < requiredCommands) {
+			queueCommand(state, takeCommand());
+		}
+	};
+
+	fillVisibleQueue();
 
 	for (let beat = 0; beat < state.totalBeats && !state.ended; beat += 1) {
 		resolveNextBeat(state, events[beat]!);
-		if (!state.ended && beat < state.totalBeats - 1) {
-			queueCommand(state, takeCommand());
-		}
+		fillVisibleQueue();
 	}
 
 	return state;
@@ -437,10 +455,15 @@ export function nextCommandQueueFillBeatIndex(state: CommandQueueRunState): numb
 	if (state.ended || state.recalled) {
 		return null;
 	}
-	if (state.queue.length >= state.queueLength) {
+	const visibleCount = visibleCommandQueueSlotCount(state);
+	if (visibleCount === 0 || state.queue.length >= visibleCount) {
 		return null;
 	}
-	return state.currentBeat + state.queue.length;
+	const fillIndex = state.currentBeat + state.queue.length;
+	if (fillIndex > lastResolvableCommandBeatIndex(state.totalBeats)) {
+		return null;
+	}
+	return fillIndex;
 }
 
 function commandAtBeat(
@@ -469,7 +492,7 @@ export function replayCommandQueueRunToProgress(input: {
 	const state = createCommandQueueRunState({ queueLength });
 
 	const refillQueueFromStoredCommands = () => {
-		while (state.queue.length < state.queueLength && !state.ended) {
+		while (!state.ended) {
 			const fillIndex = nextCommandQueueFillBeatIndex(state);
 			if (fillIndex === null) {
 				break;
