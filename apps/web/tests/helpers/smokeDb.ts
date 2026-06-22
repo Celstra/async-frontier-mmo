@@ -1,5 +1,6 @@
 import {
 	BLOOM_ONE_ID,
+	cleanupCommandQueuePilotForSmoke as cleanupCommandQueuePilot,
 	cleanupScannerCraftPilotForSmoke as cleanupScannerCraftPilot,
 	cleanupWorkshopCraftPilotForSmoke as cleanupWorkshopCraftPilot,
 	countPlaytestEventsByName,
@@ -10,6 +11,7 @@ import {
 	getWorkshopBenchInstanceBySlug,
 	mintWorkshopTimerCrateForSmoke as mintWorkshopTimerCrate,
 	resetKethIronDepositSpotsForSmoke as resetKethIronDepositSpots,
+	seedCommandQueuePilotForSmoke as seedCommandQueuePilot,
 	seedScannerCraftPilotForSmoke as seedScannerCraftPilot,
 	seedWorkshopCraftPilotForSmoke as seedWorkshopCraftPilot
 } from '@async-frontier-mmo/db';
@@ -64,6 +66,14 @@ export async function seedScannerCraftPilotForSmoke(pilotId: string): Promise<vo
 
 export async function cleanupScannerCraftPilotForSmoke(pilotId: string): Promise<void> {
 	await cleanupScannerCraftPilot(smokeDb(), pilotId);
+}
+
+export async function seedCommandQueuePilotForSmoke(pilotId: string): Promise<void> {
+	await seedCommandQueuePilot(smokeDb(), pilotId);
+}
+
+export async function cleanupCommandQueuePilotForSmoke(pilotId: string): Promise<void> {
+	await cleanupCommandQueuePilot(smokeDb(), pilotId);
 }
 
 export async function seedWorkshopCraftPilotForSmoke(pilotId: string): Promise<void> {

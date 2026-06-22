@@ -290,6 +290,39 @@ export function resolveNextBeat(
 	return { ok: true, command };
 }
 
+export type CommandQueueBeatReadout = {
+	commandLine: string;
+	fieldLine: string;
+	heatLine: string;
+};
+
+export function buildCommandQueueBeatReadout(input: {
+	command: ThumperCommand;
+	event: CommandQueueFieldEvent;
+	heat: number;
+	heatLimit?: number;
+}): CommandQueueBeatReadout {
+	const heatLimit = input.heatLimit ?? HEAT_LIMIT;
+	return {
+		commandLine: formatCommandQueueBeatCommandLine(input.command),
+		fieldLine: formatCommandQueueBeatFieldLine(input.event),
+		heatLine: `Heat ${input.heat}/${heatLimit}`
+	};
+}
+
+function formatCommandQueueBeatCommandLine(command: ThumperCommand): string {
+	if (command === 'drill') return 'DRILL +3 loose';
+	if (command === 'bank') return 'BANK secure loose';
+	if (command === 'brace') return 'BRACE guard 2';
+	return 'VENT heat -3';
+}
+
+function formatCommandQueueBeatFieldLine(event: CommandQueueFieldEvent): string {
+	const kind = event.kind.toUpperCase();
+	const sign = event.kind === 'cargo' || event.kind === 'heat' ? '+' : '-';
+	return `FIELD ${kind} ${sign}${event.amount}`;
+}
+
 export function finishCommandQueueRun(state: CommandQueueRunState): void {
 	if (state.ended) {
 		return;

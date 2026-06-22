@@ -15,10 +15,10 @@ export function commandQueueCommandLabel(command: ThumperCommand): string {
 }
 
 export function commandQueueCommandHint(command: ThumperCommand): string {
-	if (command === 'drill') return 'Loose +3 / Heat +2';
-	if (command === 'bank') return 'Bank loose';
-	if (command === 'brace') return 'Guard 2';
-	return 'Heat -3 / Loose -1';
+	if (command === 'drill') return '+3 loose';
+	if (command === 'bank') return 'secure loose';
+	if (command === 'brace') return 'guard 2';
+	return 'heat -3';
 }
 
 export function forecastTimelineLabel(offset: number): string {
@@ -37,6 +37,6 @@ export function forecastTokenLabel(token: ForecastToken): string {
 		return kindLabel;
 	}
 
-	const sign = token.amount > 0 ? '+' : '';
+	const sign = token.kind === 'cargo' || token.kind === 'heat' ? '+' : '-';
 	return `${kindLabel} ${sign}${token.amount}`;
 }

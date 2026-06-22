@@ -75,6 +75,7 @@ export async function advanceFieldCommandQueueBeat(
 				ok: true as const,
 				beatIndex: outcome.beatIndex,
 				command: outcome.command,
+				beatReadout: outcome.beatReadout,
 				commandQueue: serializeView(await loadFieldCommandQueueView(db, input.pilotId))
 			};
 		case 'no_open_run':

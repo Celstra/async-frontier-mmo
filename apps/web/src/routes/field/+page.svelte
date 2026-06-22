@@ -16,6 +16,9 @@
 	const claimNotice = $derived(
 		form && form !== null && 'claimed' in form && form.claimed === true ? form : null
 	);
+	const beatReadout = $derived(
+		form && form !== null && 'beatReadout' in form ? form.beatReadout : null
+	);
 </script>
 
 {#if claimNotice}
@@ -31,7 +34,7 @@
 		</div>
 	</section>
 {:else if commandQueue}
-	<CommandQueuePanel view={commandQueue} commands={data.commands} {errorMessage} />
+	<CommandQueuePanel view={commandQueue} commands={data.commands} {errorMessage} {beatReadout} />
 {:else}
 	<InDevelopmentScreen screenTitle="FIELD: Red Mesa" screenId={data.screenId} />
 {/if}

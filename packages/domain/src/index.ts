@@ -558,6 +558,7 @@ export {
 	queueCommand,
 	canResolveNextBeat,
 	resolveNextBeat,
+	buildCommandQueueBeatReadout,
 	replayCommandQueueRun,
 	replayCommandQueueRunToProgress,
 	nextCommandQueueFillBeatIndex,
@@ -572,7 +573,8 @@ export {
 	type ForecastToken,
 	type QueuedCommand,
 	type CommandQueueRunState,
-	type CommandQueueRunResult
+	type CommandQueueRunResult,
+	type CommandQueueBeatReadout
 } from './thumper/thumperCommandQueueRun.js';
 export {
 	THUMPER_PART_SLOTS,

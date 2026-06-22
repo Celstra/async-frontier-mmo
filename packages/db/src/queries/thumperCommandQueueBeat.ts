@@ -1,6 +1,7 @@
 import {
 	COMMAND_QUEUE_RUN_BEATS,
 	STARTER_QUEUE_LENGTH,
+	buildCommandQueueBeatReadout,
 	canResolveNextBeat,
 	forecastCommandQueueEvents,
 	generateCommandQueueEvents,
@@ -329,7 +330,13 @@ export async function submitCommandQueueSlotForPilot(
 }
 
 export type AdvanceCommandQueueBeatOutcome =
-	| { status: 'advanced'; beatIndex: number; command: ThumperCommand; view: CommandQueueFieldView }
+	| {
+			status: 'advanced';
+			beatIndex: number;
+			command: ThumperCommand;
+			beatReadout: ReturnType<typeof buildCommandQueueBeatReadout>;
+			view: CommandQueueFieldView;
+	  }
 	| { status: 'no_open_run' }
 	| { status: 'run_ended' }
 	| { status: 'not_ready'; reason: string };
@@ -383,7 +390,8 @@ export async function advanceCommandQueueBeatForPilot(
 		}
 
 		const events = generateCommandQueueEvents(run.runSeed);
-		const resolution = resolveNextBeat(viewBefore.state, events[beatIndex]!);
+		const fieldEvent = events[beatIndex]!;
+		const resolution = resolveNextBeat(viewBefore.state, fieldEvent);
 		if (!resolution.ok) {
 			return { status: 'not_ready', reason: resolution.reason };
 		}
@@ -408,6 +416,12 @@ export async function advanceCommandQueueBeatForPilot(
 			status: 'advanced',
 			beatIndex,
 			command: resolution.command,
+			beatReadout: buildCommandQueueBeatReadout({
+				command: resolution.command,
+				event: fieldEvent,
+				heat: view.state.heat,
+				heatLimit: view.heatLimit
+			}),
 			view
 		};
 	});

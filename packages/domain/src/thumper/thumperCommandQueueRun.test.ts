@@ -14,6 +14,8 @@ import {
 	resolveCommandQueueRunResult,
 	recallCommandQueueRun,
 	finishCommandQueueRun,
+	buildCommandQueueBeatReadout,
+	HEAT_LIMIT,
 	type ThumperCommand
 } from './thumperCommandQueueRun.js';
 
@@ -364,5 +366,31 @@ describe('thumperCommandQueueRun', () => {
 
 		queueCommand(state, 'bank');
 		expect(nextCommandQueueFillBeatIndex(state)).toBeNull();
+	});
+
+	it('buildCommandQueueBeatReadout uses compact command, field, and heat lines', () => {
+		expect(
+			buildCommandQueueBeatReadout({
+				command: 'drill',
+				event: { kind: 'cargo', amount: 2 },
+				heat: 5
+			})
+		).toEqual({
+			commandLine: 'DRILL +3 loose',
+			fieldLine: 'FIELD CARGO +2',
+			heatLine: `Heat 5/${HEAT_LIMIT}`
+		});
+
+		expect(
+			buildCommandQueueBeatReadout({
+				command: 'brace',
+				event: { kind: 'hull', amount: 2 },
+				heat: 4
+			})
+		).toEqual({
+			commandLine: 'BRACE guard 2',
+			fieldLine: 'FIELD HULL -2',
+			heatLine: `Heat 4/${HEAT_LIMIT}`
+		});
 	});
 });

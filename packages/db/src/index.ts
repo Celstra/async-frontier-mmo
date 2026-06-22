@@ -108,9 +108,12 @@ export {
 } from './queries/depositSpotYields.js';
 export {
 	cleanupScannerCraftPilotForSmoke,
+	cleanupCommandQueuePilotForSmoke,
 	cleanupWorkshopCraftPilotForSmoke,
 	deleteAllSmokePilotData,
+	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
 	mintWorkshopTimerCrateForSmoke,
+	seedCommandQueuePilotForSmoke,
 	seedScannerCraftPilotForSmoke,
 	seedWorkshopCraftPilotForSmoke
 } from './queries/smokeTestHelpers.js';

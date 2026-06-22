@@ -8,15 +8,16 @@
 		forecastTokenLabel
 	} from '$lib/field/commandQueueLabels.js';
 	import type { FieldCommandQueueView } from '$lib/server/fieldCommandQueueLoad.js';
-	import type { ThumperCommand } from '@async-frontier-mmo/domain';
+	import type { CommandQueueBeatReadout, ThumperCommand } from '@async-frontier-mmo/domain';
 
 	interface Props {
 		view: FieldCommandQueueView;
 		commands: readonly ThumperCommand[];
 		errorMessage?: string | null;
+		beatReadout?: CommandQueueBeatReadout | null;
 	}
 
-	let { view, commands, errorMessage = null }: Props = $props();
+	let { view, commands, errorMessage = null, beatReadout = null }: Props = $props();
 
 	const beatDisplay = $derived(view.currentBeat + 1);
 	const heatPercent = $derived(
@@ -52,6 +53,14 @@
 			<p class="command-queue__status" role="status">Recalled: secured yield kept, loose cargo forfeited.</p>
 		{:else if view.ended && !view.canClaim}
 			<p class="command-queue__status" role="status">Run ended: finish claim requirements before leaving.</p>
+		{/if}
+
+		{#if beatReadout}
+			<div class="command-queue__beat-readout" data-testid="field-command-queue-beat-readout" role="status">
+				<p class="command-queue__beat-readout-line">{beatReadout.commandLine}</p>
+				<p class="command-queue__beat-readout-line">{beatReadout.fieldLine}</p>
+				<p class="command-queue__beat-readout-line">{beatReadout.heatLine}</p>
+			</div>
 		{/if}
 
 		<dl class="command-queue__meters" data-testid="field-command-queue-meters">
@@ -102,7 +111,10 @@
 		</div>
 
 		<div class="command-queue__queue" data-testid="field-command-queue-slots">
-			<h2 class="command-queue__section-title">Command queue</h2>
+			<h2 class="command-queue__section-title">Queue</h2>
+			<p class="command-queue__timing" data-testid="field-command-queue-timing">
+				NEXT resolves on advance. EDIT back now. After advance, EDIT opens for the new back slot.
+			</p>
 			<ol class="command-queue__slot-list">
 				{#each view.queueSlots as slot, index (slot.beatIndex)}
 					<li
@@ -111,13 +123,15 @@
 						class:command-queue__slot--editable={!slot.locked && slot === backSlot && canEditBackSlot}
 					>
 						<span class="command-queue__slot-label">
-							{index === 0 ? 'Front' : 'Back'}
+							{index === 0 ? 'NEXT' : 'EDIT'}
 						</span>
 						<span class="command-queue__slot-command">
 							{slot.command ? commandQueueCommandLabel(slot.command) : 'EMPTY'}
 						</span>
 						{#if slot.locked}
 							<span class="command-queue__slot-badge">Locked</span>
+						{:else if index === 0 && canAdvance}
+							<span class="command-queue__slot-badge">On advance</span>
 						{:else if slot === backSlot && canEditBackSlot}
 							<span class="command-queue__slot-badge command-queue__slot-badge--edit">Editable</span>
 						{/if}
@@ -210,6 +224,29 @@
 		border: 1px solid var(--accent-warning-dim);
 		color: var(--accent-warning);
 		font-size: var(--font-size-sm);
+	}
+
+	.command-queue__beat-readout {
+		display: grid;
+		gap: 0.25rem;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--phosphor-dim);
+		background: var(--bg-inset);
+	}
+
+	.command-queue__beat-readout-line {
+		margin: 0;
+		color: var(--phosphor);
+		font-size: var(--font-size-sm);
+		letter-spacing: 0;
+	}
+
+	.command-queue__timing {
+		margin: 0 0 0.45rem;
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+		line-height: 1.45;
+		letter-spacing: 0;
 	}
 
 	.command-queue__section-title {
@@ -369,5 +406,43 @@
 	.command-queue__action-button--recall {
 		color: var(--accent-warning);
 		border-color: var(--accent-warning-dim);
+	}
+
+	@media (max-width: 520px) {
+		.command-queue__header {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.35rem;
+		}
+
+		.command-queue__meters {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.command-queue__meter--heat {
+			grid-column: span 2;
+		}
+
+		.command-queue__command-grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.command-queue__forecast-item,
+		.command-queue__slot {
+			grid-template-columns: 3.5rem minmax(0, 1fr);
+		}
+
+		.command-queue__slot-badge {
+			grid-column: 1 / -1;
+			justify-self: start;
+		}
+
+		.command-queue__actions {
+			flex-direction: column;
+		}
+
+		.command-queue__action-button {
+			width: 100%;
+		}
 	}
 </style>
