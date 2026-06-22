@@ -6,7 +6,7 @@ import type {
 } from '@async-frontier-mmo/domain';
 
 const EVENT_KIND_LABELS: Record<CommandQueueEventKind, string> = {
-	cargo: 'CARGO',
+	cargo: 'LOOSE',
 	heat: 'HEAT',
 	hull: 'HULL',
 	raid: 'RAID'
@@ -17,10 +17,10 @@ export function commandQueueCommandLabel(command: ThumperCommand): string {
 }
 
 export function commandQueueCommandHint(command: ThumperCommand): string {
-	if (command === 'drill') return '+3 loose';
-	if (command === 'bank') return 'secure loose';
-	if (command === 'brace') return 'guard 2';
-	return 'heat -3';
+	if (command === 'drill') return 'loose +3 / heat +2';
+	if (command === 'bank') return 'loose -> secured';
+	if (command === 'brace') return 'guard =2';
+	return 'heat -3 / loose -1';
 }
 
 export function forecastTimelineLabel(

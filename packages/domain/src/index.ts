@@ -562,6 +562,8 @@ export {
 	replayCommandQueueRun,
 	replayCommandQueueRunToProgress,
 	nextCommandQueueFillBeatIndex,
+	cloneCommandQueueRunState,
+	applyCommandQueueBeatEffects,
 	visibleCommandQueueSlotCount,
 	lastResolvableCommandBeatIndex,
 	scannerForecastQualityFromClarity,
@@ -595,13 +597,31 @@ export {
 } from './thumper/commandQueueSlotLength.js';
 export {
 	buildCommandQueueLengthTuningReport,
+	buildRoteStrategyReport,
 	buildYieldBand,
 	measureForecastUnknownPct,
 	simulateStarterScriptRecovery,
 	assertMediumLargeQueueGate,
+	assertRoteStrategyGate,
+	commandQueueBeatLossEquivalent,
+	commandQueueRepairDebt,
+	scoreCommandQueueRunState,
+	type CommandQueueRoteStrategyBand,
+	type CommandQueueRoteStrategyReport,
 	type CommandQueueYieldBand,
 	type CommandQueueLengthTuningReport
 } from './thumper/commandQueueLengthTuning.js';
+export {
+	assertCommandQueuePolicyGate,
+	buildCommandQueuePolicyReport,
+	simulateCommandQueuePolicyRun,
+	COMMAND_QUEUE_POLICY_NAMES,
+	type CommandQueuePolicyBand,
+	type CommandQueuePolicyName,
+	type CommandQueuePolicyReport,
+	type CommandQueuePolicyRunResult,
+	type HullDamageModelGuidance
+} from './thumper/commandQueuePolicySim.js';
 export {
 	assertAllowedCommandQueueDeployLength,
 	commandQueueLengthForThumperFrameTier,

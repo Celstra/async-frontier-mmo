@@ -135,6 +135,10 @@ function revealEvent(
 	distance: number,
 	rng: SeededRng
 ): ForecastToken {
+	if (distance === 0) {
+		return { kind: event.kind, amount: event.amount };
+	}
+
 	const kindChanceByScanner: Record<ScannerForecastQuality, Record<number, number>> = {
 		poor: { 0: 0.75, 1: 0.45, 2: 0.25, 3: 0.15 },
 		basic: { 0: 0.9, 1: 0.7, 2: 0.45, 3: 0.3 },
@@ -315,28 +319,83 @@ export type CommandQueueBeatReadout = {
 export function buildCommandQueueBeatReadout(input: {
 	command: ThumperCommand;
 	event: CommandQueueFieldEvent;
-	heat: number;
+	before: CommandQueueRunState;
+	after: CommandQueueRunState;
 	heatLimit?: number;
 }): CommandQueueBeatReadout {
 	const heatLimit = input.heatLimit ?? HEAT_LIMIT;
+	const beforeFieldEvent = cloneCommandQueueRunState(input.before);
+	applyCommand(beforeFieldEvent, input.command);
 	return {
 		commandLine: formatCommandQueueBeatCommandLine(input.command),
-		fieldLine: formatCommandQueueBeatFieldLine(input.event),
-		heatLine: `Heat ${input.heat}/${heatLimit}`
+		fieldLine: formatCommandQueueBeatFieldLine(input.event, beforeFieldEvent),
+		heatLine: formatCommandQueueBeatHeatLine(input.before, input.after, heatLimit)
 	};
 }
 
 function formatCommandQueueBeatCommandLine(command: ThumperCommand): string {
-	if (command === 'drill') return 'DRILL +3 loose';
-	if (command === 'bank') return 'BANK secure loose';
-	if (command === 'brace') return 'BRACE guard 2';
-	return 'VENT heat -3';
+	if (command === 'drill') return 'DRILL loose +3 / heat +2';
+	if (command === 'bank') return 'BANK loose -> secured';
+	if (command === 'brace') return 'BRACE guard =2';
+	return 'VENT heat -3 / loose -1';
 }
 
-function formatCommandQueueBeatFieldLine(event: CommandQueueFieldEvent): string {
-	const kind = event.kind.toUpperCase();
-	const sign = event.kind === 'cargo' || event.kind === 'heat' ? '+' : '-';
-	return `FIELD ${kind} ${sign}${event.amount}`;
+function formatCommandQueueBeatFieldLine(
+	event: CommandQueueFieldEvent,
+	beforeFieldEvent: CommandQueueRunState
+): string {
+	if (event.kind === 'cargo') {
+		return `FIELD LOOSE +${event.amount}`;
+	}
+	if (event.kind === 'heat') {
+		return `FIELD HEAT +${event.amount}`;
+	}
+	if (event.kind === 'hull') {
+		if (beforeFieldEvent.guard > 0) {
+			return 'FIELD HULL blocked / guard -1';
+		}
+		return `FIELD HULL hull -${event.amount}`;
+	}
+
+	if (beforeFieldEvent.guard > 0) {
+		return 'FIELD RAID blocked / guard -1';
+	}
+
+	const looseLoss = Math.min(beforeFieldEvent.loose, event.amount);
+	if (looseLoss === event.amount) {
+		return `FIELD RAID loose -${looseLoss}`;
+	}
+	if (looseLoss > 0) {
+		return `FIELD RAID loose -${looseLoss} / hull -1`;
+	}
+	return 'FIELD RAID hull -1';
+}
+
+function formatCommandQueueBeatHeatLine(
+	before: CommandQueueRunState,
+	after: CommandQueueRunState,
+	heatLimit: number
+): string {
+	const surgeFired = after.surgeCount > before.surgeCount;
+	const surgeSuffix = surgeFired ? ' / surge fired' : '';
+	return `Heat ${after.heat}/${heatLimit}${surgeSuffix}`;
+}
+
+export function cloneCommandQueueRunState(state: CommandQueueRunState): CommandQueueRunState {
+	return {
+		...state,
+		queue: [...state.queue]
+	};
+}
+
+/** Applies one command + field event without advancing beat or shifting the queue. */
+export function applyCommandQueueBeatEffects(
+	state: CommandQueueRunState,
+	command: ThumperCommand,
+	event: CommandQueueFieldEvent
+): void {
+	applyCommand(state, command);
+	applyFieldEvent(state, event);
 }
 
 export function finishCommandQueueRun(state: CommandQueueRunState): void {

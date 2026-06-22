@@ -22,6 +22,8 @@ import {
 	finishCommandQueueRun,
 	buildCommandQueueBeatReadout,
 	HEAT_LIMIT,
+	type CommandQueueBeatReadout,
+	type CommandQueueFieldEvent,
 	type ThumperCommand
 } from './thumperCommandQueueRun.js';
 
@@ -247,6 +249,21 @@ describe('thumperCommandQueueRun', () => {
 		expect(uniqueOffsetZero.size).toBeGreaterThan(1);
 	});
 
+	it('reveals the current field event exactly when it reaches NOW', () => {
+		const events = generateCommandQueueEvents(FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED);
+		for (let beat = 0; beat < RUN_BEATS; beat += 1) {
+			const forecast = forecastCommandQueueEvents({
+				runSeed: FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
+				events,
+				beat,
+				queueLength: 3,
+				scannerQuality: 'poor'
+			});
+
+			expect(forecast[0]).toEqual(events[beat]);
+		}
+	});
+
 	it('keeps revealed events stable as they move closer in the forecast window', () => {
 		const runSeed = FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED;
 		const events = generateCommandQueueEvents(runSeed);
@@ -435,28 +452,57 @@ describe('thumperCommandQueueRun', () => {
 	});
 
 	it('buildCommandQueueBeatReadout uses compact command, field, and heat lines', () => {
+		const readoutFor = (
+			command: ThumperCommand,
+			event: CommandQueueFieldEvent,
+			input?: Parameters<typeof createCommandQueueRunState>[0]
+		): CommandQueueBeatReadout => {
+			const state = createCommandQueueRunState({
+				...input,
+				queueLength: 1
+			});
+			state.queue = [command];
+			const before = { ...state, queue: [...state.queue] };
+			const result = resolveNextBeat(state, event);
+			expect(result.ok).toBe(true);
+			return buildCommandQueueBeatReadout({
+				command,
+				event,
+				before,
+				after: state
+			});
+		};
+
 		expect(
-			buildCommandQueueBeatReadout({
-				command: 'drill',
-				event: { kind: 'cargo', amount: 2 },
-				heat: 5
-			})
+			readoutFor('drill', { kind: 'cargo', amount: 2 })
 		).toEqual({
-			commandLine: 'DRILL +3 loose',
-			fieldLine: 'FIELD CARGO +2',
+			commandLine: 'DRILL loose +3 / heat +2',
+			fieldLine: 'FIELD LOOSE +2',
 			heatLine: `Heat 5/${HEAT_LIMIT}`
 		});
 
 		expect(
-			buildCommandQueueBeatReadout({
-				command: 'brace',
-				event: { kind: 'hull', amount: 2 },
-				heat: 4
-			})
+			readoutFor('brace', { kind: 'hull', amount: 2 })
 		).toEqual({
-			commandLine: 'BRACE guard 2',
-			fieldLine: 'FIELD HULL -2',
-			heatLine: `Heat 4/${HEAT_LIMIT}`
+			commandLine: 'BRACE guard =2',
+			fieldLine: 'FIELD HULL blocked / guard -1',
+			heatLine: `Heat 3/${HEAT_LIMIT}`
+		});
+
+		expect(
+			readoutFor('bank', { kind: 'hull', amount: 2 })
+		).toEqual({
+			commandLine: 'BANK loose -> secured',
+			fieldLine: 'FIELD HULL hull -2',
+			heatLine: `Heat 3/${HEAT_LIMIT}`
+		});
+
+		expect(
+			readoutFor('vent', { kind: 'heat', amount: 3 }, { startingHeat: 5, startingLoose: 1 })
+		).toEqual({
+			commandLine: 'VENT heat -3 / loose -1',
+			fieldLine: 'FIELD HEAT +3',
+			heatLine: `Heat 5/${HEAT_LIMIT}`
 		});
 	});
 

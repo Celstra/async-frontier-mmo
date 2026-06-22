@@ -421,6 +421,10 @@ export async function advanceCommandQueueBeatForPilot(
 
 		const events = generateCommandQueueEvents(run.runSeed);
 		const fieldEvent = events[beatIndex]!;
+		const stateBeforeResolve = {
+			...viewBefore.state,
+			queue: [...viewBefore.state.queue]
+		};
 		const resolution = resolveNextBeat(viewBefore.state, fieldEvent);
 		if (!resolution.ok) {
 			return { status: 'not_ready', reason: resolution.reason };
@@ -449,7 +453,8 @@ export async function advanceCommandQueueBeatForPilot(
 			beatReadout: buildCommandQueueBeatReadout({
 				command: resolution.command,
 				event: fieldEvent,
-				heat: view.state.heat,
+				before: stateBeforeResolve,
+				after: view.state,
 				heatLimit: view.heatLimit
 			}),
 			view

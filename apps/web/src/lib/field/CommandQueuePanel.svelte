@@ -63,14 +63,6 @@
 			<p class="command-queue__status" role="status">Run ended: finish claim requirements before leaving.</p>
 		{/if}
 
-		{#if beatReadout}
-			<div class="command-queue__beat-readout" data-testid="field-command-queue-beat-readout" role="status">
-				<p class="command-queue__beat-readout-line">{beatReadout.commandLine}</p>
-				<p class="command-queue__beat-readout-line">{beatReadout.fieldLine}</p>
-				<p class="command-queue__beat-readout-line">{beatReadout.heatLine}</p>
-			</div>
-		{/if}
-
 		<dl class="command-queue__meters" data-testid="field-command-queue-meters">
 			<div class="command-queue__meter">
 				<dt>Secured</dt>
@@ -141,6 +133,13 @@
 					</li>
 				{/each}
 			</ol>
+			{#if beatReadout}
+				<div class="command-queue__beat-readout" data-testid="field-command-queue-beat-readout" role="status">
+					<p class="command-queue__beat-readout-line">{beatReadout.commandLine}</p>
+					<p class="command-queue__beat-readout-line">{beatReadout.fieldLine}</p>
+					<p class="command-queue__beat-readout-line">{beatReadout.heatLine}</p>
+				</div>
+			{/if}
 		</div>
 
 		{#if canEditQueueSlot}
@@ -242,6 +241,7 @@
 	.command-queue__beat-readout {
 		display: grid;
 		gap: 0.25rem;
+		margin-top: 0.65rem;
 		padding: 0.55rem 0.7rem;
 		border: 1px solid var(--phosphor-dim);
 		background: var(--bg-inset);
@@ -344,7 +344,7 @@
 
 	.command-queue__timeline-row {
 		display: grid;
-		grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 1fr) auto;
+		grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 1fr) minmax(6.25rem, auto);
 		align-items: center;
 		gap: 0.65rem;
 		padding: 0.55rem 0.65rem;

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
 	assertMediumLargeQueueGate,
+	assertRoteStrategyGate,
 	buildCommandQueueLengthTuningReport,
+	buildRoteStrategyReport,
 	buildYieldBand,
 	measureForecastUnknownPct,
 	simulateStarterScriptRecovery
@@ -69,6 +71,19 @@ describe('commandQueueLengthTuning', () => {
 		expect(report.yieldBands.every((band) => band.median > 0)).toBe(true);
 	});
 
+	it('medium queue gate scores rote drilling scripts below the starter script', () => {
+		const report = assertRoteStrategyGate({
+			queueLength: 3,
+			sampleSize: 240,
+			baseSeed: 20260622
+		});
+
+		const starter = report.strategies.find((strategy) => strategy.name === 'starter');
+		const drillBank = report.strategies.find((strategy) => strategy.name === 'drill_drill_bank');
+		expect(starter?.medianScore).toBeGreaterThan(drillBank?.medianScore ?? Number.POSITIVE_INFINITY);
+		expect(report.gateFailures).toEqual([]);
+	});
+
 	it('buildYieldBand reports percentile bands', () => {
 		const band = buildYieldBand(2, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 		expect(band.min).toBe(1);
@@ -81,5 +96,16 @@ describe('commandQueueLengthTuning', () => {
 		const report = buildCommandQueueLengthTuningReport({ sampleSize: 24, baseSeed: 99 });
 		expect(report.yieldBands).toHaveLength(3);
 		expect(report.forecastUnknownPct.basic[2]).toBeGreaterThanOrEqual(0);
+	});
+
+	it('reports rote strategy score bands for inspection', () => {
+		const report = buildRoteStrategyReport({
+			queueLength: 3,
+			sampleSize: 24,
+			baseSeed: 99
+		});
+
+		expect(report.strategies.map((strategy) => strategy.name)).toContain('all_drill');
+		expect(report.strategies.every((strategy) => strategy.sampleSize === 24)).toBe(true);
 	});
 });
