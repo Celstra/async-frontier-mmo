@@ -26,6 +26,7 @@ export async function insertThumperRun(
 		projectTargetSlotId?: string | null;
 		projectTargetFamily?: string | null;
 		projectNeedUnits?: number | null;
+		commandQueueLength?: number | null;
 	}
 ) {
 	const [row] = await db
@@ -45,7 +46,8 @@ export async function insertThumperRun(
 			projectSchematicId: input.projectSchematicId ?? null,
 			projectTargetSlotId: input.projectTargetSlotId ?? null,
 			projectTargetFamily: input.projectTargetFamily ?? null,
-			projectNeedUnits: input.projectNeedUnits ?? null
+			projectNeedUnits: input.projectNeedUnits ?? null,
+			commandQueueLength: input.commandQueueLength ?? 2
 		})
 		.returning();
 

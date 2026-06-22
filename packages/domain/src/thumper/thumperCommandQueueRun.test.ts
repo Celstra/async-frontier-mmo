@@ -3,6 +3,7 @@ import {
 	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
 	STARTER_COMMAND_QUEUE_SCRIPT
 } from './starterCommandQueueScript.js';
+import { requiredCommandQueueScriptLength } from './commandQueueSlotLength.js';
 import {
 	STARTER_QUEUE_LENGTH,
 	RUN_BEATS,
@@ -399,7 +400,9 @@ describe('thumperCommandQueueRun', () => {
 	});
 
 	it('smoke run seed with starter script secures yield above zero', () => {
-		expect(STARTER_COMMAND_QUEUE_SCRIPT).toHaveLength(STARTER_QUEUE_LENGTH + RUN_BEATS - 1);
+		expect(STARTER_COMMAND_QUEUE_SCRIPT).toHaveLength(
+			requiredCommandQueueScriptLength(STARTER_QUEUE_LENGTH)
+		);
 
 		const state = replayCommandQueueRun({
 			runSeed: FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,

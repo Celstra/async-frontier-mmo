@@ -3,6 +3,7 @@ import {
 	COMMAND_QUEUE_RUN_BEATS,
 	STARTER_COMMAND_QUEUE_SCRIPT,
 	STARTER_QUEUE_LENGTH,
+	requiredCommandQueueScriptLength,
 	type ThumperCommand
 } from '@async-frontier-mmo/domain';
 
@@ -47,7 +48,7 @@ export async function playFieldCommandQueueStarterScript(
 	page: Page,
 	script: readonly ThumperCommand[] = STARTER_COMMAND_QUEUE_SCRIPT
 ): Promise<void> {
-	const expectedScriptLength = STARTER_QUEUE_LENGTH + COMMAND_QUEUE_RUN_BEATS - 1;
+	const expectedScriptLength = requiredCommandQueueScriptLength(STARTER_QUEUE_LENGTH);
 	if (script.length !== expectedScriptLength) {
 		throw new Error(
 			`Expected starter command queue script to have ${expectedScriptLength} commands, received ${script.length}`

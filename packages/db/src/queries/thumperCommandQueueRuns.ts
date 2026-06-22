@@ -1,16 +1,18 @@
 import {
-	COMMAND_QUEUE_RUN_BEATS,
-	STARTER_QUEUE_LENGTH,
-	finishCommandQueueRun,
-	isProjectLedCommandQueueRun,
-	recallCommandQueueRun,
 	replayCommandQueueRun,
 	replayCommandQueueRunToProgress,
 	resolveCommandQueueRunResult,
+	finishCommandQueueRun,
+	isProjectLedCommandQueueRun,
+	recallCommandQueueRun,
 	type CommandQueueRunState,
 	type ThumperCommand
 } from '@async-frontier-mmo/domain';
 import type { DbExecutor } from '../client.js';
+import {
+	commandQueueLengthForRun,
+	requiredCommandsForCommandQueueRun
+} from './commandQueueRunLength.js';
 import {
 	ThumperCommandLogReplayError,
 	getThumperRunCommandsForReplay,
@@ -50,8 +52,10 @@ async function replayRecalledCommandQueueRun(
 	run: {
 		id: string;
 		runSeed: string;
+		commandQueueLength?: number | null;
 	}
 ): Promise<CommandQueueRunReplayOutcome> {
+	const queueLength = commandQueueLengthForRun(run);
 	const rows = await listThumperRunCommandLogForRun(db, run.id);
 	const commandsByBeatIndex = rows.map((row) => ({
 		beatIndex: row.beatIndex,
@@ -64,7 +68,8 @@ async function replayRecalledCommandQueueRun(
 	const state = replayCommandQueueRunToProgress({
 		runSeed: run.runSeed,
 		commandsByBeatIndex,
-		resolvedBeatCount: countResolvedCommandQueueBeats(rows)
+		resolvedBeatCount: countResolvedCommandQueueBeats(rows),
+		queueLength
 	});
 
 	if (!state.recalled) {
@@ -83,13 +88,15 @@ export async function replayCommandQueueRunForStoredRun(
 		id: string;
 		runSeed: string;
 		defenseActionLog?: unknown;
+		commandQueueLength?: number | null;
 	}
 ): Promise<CommandQueueRunReplayOutcome> {
 	if (parseCommandQueueRecallMarker(run.defenseActionLog)) {
 		return replayRecalledCommandQueueRun(db, run);
 	}
 
-	const requiredCommands = STARTER_QUEUE_LENGTH + COMMAND_QUEUE_RUN_BEATS - 1;
+	const queueLength = commandQueueLengthForRun(run);
+	const requiredCommands = requiredCommandsForCommandQueueRun(queueLength);
 	let commands;
 
 	try {
@@ -110,7 +117,8 @@ export async function replayCommandQueueRunForStoredRun(
 
 	const state = replayCommandQueueRun({
 		runSeed: run.runSeed,
-		commands
+		commands,
+		queueLength
 	});
 
 	if (!state.ended) {
@@ -131,6 +139,7 @@ export async function resolveCommandQueueRunPayload(
 		targetResourceId: string;
 		runSeed: string;
 		defenseActionLog?: unknown;
+		commandQueueLength?: number | null;
 	}
 ) {
 	const replay = await replayCommandQueueRunForStoredRun(db, run);
@@ -159,6 +168,7 @@ export async function assertCommandQueueRunClaimable(
 		id: string;
 		runSeed: string;
 		defenseActionLog?: unknown;
+		commandQueueLength?: number | null;
 	}
 ): Promise<CommandQueueRunReplayOutcome> {
 	return replayCommandQueueRunForStoredRun(db, run);

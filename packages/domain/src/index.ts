@@ -578,8 +578,28 @@ export {
 } from './thumper/thumperCommandQueueRun.js';
 export {
 	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
-	STARTER_COMMAND_QUEUE_SCRIPT
+	STARTER_COMMAND_QUEUE_SCRIPT,
+	starterScriptForQueueLength,
+	assertStarterScriptLength
 } from './thumper/starterCommandQueueScript.js';
+export {
+	COMMAND_QUEUE_SLOT_LENGTHS,
+	MEDIUM_COMMAND_QUEUE_SLOT_LENGTH,
+	LARGE_COMMAND_QUEUE_SLOT_LENGTH,
+	isCommandQueueSlotLength,
+	parseCommandQueueSlotLength,
+	requiredCommandQueueScriptLength,
+	type CommandQueueSlotLength
+} from './thumper/commandQueueSlotLength.js';
+export {
+	buildCommandQueueLengthTuningReport,
+	buildYieldBand,
+	measureForecastUnknownPct,
+	simulateStarterScriptRecovery,
+	assertMediumLargeQueueGate,
+	type CommandQueueYieldBand,
+	type CommandQueueLengthTuningReport
+} from './thumper/commandQueueLengthTuning.js';
 export {
 	THUMPER_PART_SLOTS,
 	type ThumperPartRunModifiers,

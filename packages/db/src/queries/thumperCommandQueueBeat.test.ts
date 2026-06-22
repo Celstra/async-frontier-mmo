@@ -2,8 +2,11 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
 	COMMAND_QUEUE_RUN_BEATS,
+	MEDIUM_COMMAND_QUEUE_SLOT_LENGTH,
 	STARTER_QUEUE_LENGTH,
 	STARTER_COMMAND_QUEUE_SCRIPT,
+	requiredCommandQueueScriptLength,
+	starterScriptForQueueLength,
 	type ThumperCommand
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -19,7 +22,10 @@ import {
 	recallCommandQueueRunForPilot,
 	submitCommandQueueSlotForPilot
 } from './thumperCommandQueueBeat.js';
-import { updateThumperRunCommandLogCommand } from './thumperCommandQueueLog.js';
+import {
+	appendThumperRunCommandLogEntry,
+	updateThumperRunCommandLogCommand
+} from './thumperCommandQueueLog.js';
 import { assertCommandQueueRunClaimable } from './thumperCommandQueueRuns.js';
 import { PROJECT_LED_COMMAND_QUEUE_RUN_MODE } from './thumperRunWorkflow.js';
 import { insertThumperRun } from './thumperRuns.js';
@@ -77,7 +83,11 @@ describeDb('thumper command queue beat loop', () => {
 		await db.delete(thumperRunCommandLog).where(eq(thumperRunCommandLog.runId, runId));
 		await db
 			.update(thumperRuns)
-			.set({ defenseActionLog: [], claimedAt: null })
+			.set({
+				defenseActionLog: [],
+				claimedAt: null,
+				commandQueueLength: STARTER_QUEUE_LENGTH
+			})
 			.where(eq(thumperRuns.id, runId));
 		await db.delete(thumperRunResults).where(eq(thumperRunResults.thumperRunId, runId));
 	});
@@ -278,5 +288,80 @@ describeDb('thumper command queue beat loop', () => {
 			throw new Error('expected claimed');
 		}
 		expect(claim.claimResult?.resolutionType).toBe('command_queue_recalled');
+	});
+
+	it('reads persisted queue length for FIELD view slots and forecast', async () => {
+		await db
+			.update(thumperRuns)
+			.set({ commandQueueLength: MEDIUM_COMMAND_QUEUE_SLOT_LENGTH })
+			.where(eq(thumperRuns.id, runId));
+
+		const view = await loadCommandQueueFieldViewForPilot(db, testPilotId);
+		expect(view).not.toBeNull();
+		expect(view!.queueLength).toBe(3);
+		expect(view!.queueSlots).toHaveLength(3);
+		expect(view!.forecast).toHaveLength(3);
+	});
+
+	it('requires the persisted queue length script count before workflow claim', async () => {
+		await db
+			.update(thumperRuns)
+			.set({ commandQueueLength: MEDIUM_COMMAND_QUEUE_SLOT_LENGTH })
+			.where(eq(thumperRuns.id, runId));
+
+		const starterLength = requiredCommandQueueScriptLength(STARTER_QUEUE_LENGTH);
+		const mediumScript = starterScriptForQueueLength(MEDIUM_COMMAND_QUEUE_SLOT_LENGTH);
+		expect(mediumScript).toHaveLength(
+			requiredCommandQueueScriptLength(MEDIUM_COMMAND_QUEUE_SLOT_LENGTH)
+		);
+
+		const recordedAt = new Date('2026-06-22T16:06:00.000Z');
+		for (const [beatIndex, command] of mediumScript.slice(0, starterLength).entries()) {
+			const outcome = await appendThumperRunCommandLogEntry(db, {
+				runId,
+				command,
+				recordedAt: new Date(recordedAt.getTime() + beatIndex * 1_000),
+				beatIndex
+			});
+			expect(outcome).toEqual({ status: 'recorded', beatIndex });
+		}
+
+		const blocked = await claimOpenThumperRunForPilot(db, {
+			pilotId: testPilotId,
+			now: new Date('2026-06-22T16:07:00.000Z'),
+			isClaimable: () => true,
+			isResolvableRun: () => true,
+			validateWindows: () => undefined,
+			buildResult: (tx, runRow, windows, claimNow) =>
+				resolveThumperRunForStoredWindows(tx, runRow, windows, { now: claimNow }),
+			grantResourceReward: false
+		});
+		expect(blocked.status).toBe('not_claimable');
+
+		const finalBeatIndex = starterLength;
+		const finalOutcome = await appendThumperRunCommandLogEntry(db, {
+			runId,
+			command: mediumScript[finalBeatIndex]!,
+			recordedAt: new Date(recordedAt.getTime() + finalBeatIndex * 1_000),
+			beatIndex: finalBeatIndex
+		});
+		expect(finalOutcome).toEqual({ status: 'recorded', beatIndex: finalBeatIndex });
+
+		const claim = await claimOpenThumperRunForPilot(db, {
+			pilotId: testPilotId,
+			now: new Date('2026-06-22T16:08:00.000Z'),
+			isClaimable: () => true,
+			isResolvableRun: () => true,
+			validateWindows: () => undefined,
+			buildResult: (tx, runRow, windows, claimNow) =>
+				resolveThumperRunForStoredWindows(tx, runRow, windows, { now: claimNow }),
+			grantResourceReward: false
+		});
+		expect(claim.status).toBe('claimed');
+		if (claim.status !== 'claimed') {
+			throw new Error('expected claimed');
+		}
+		expect(claim.claimResult?.resolutionType).toBe('command_queue_completed');
+		expect(claim.claimResult?.recoveredQuantity).toBeGreaterThan(0);
 	});
 });

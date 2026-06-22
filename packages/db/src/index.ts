@@ -173,6 +173,10 @@ export {
 	type SubmitCommandQueueSlotOutcome
 } from './queries/thumperCommandQueueBeat.js';
 export {
+	commandQueueLengthForRun,
+	requiredCommandsForCommandQueueRun
+} from './queries/commandQueueRunLength.js';
+export {
 	mapStoredWindowsToResolutionSnapshots,
 	mapStoredWindowsToResponses,
 	resolveThumperRunForStoredWindows

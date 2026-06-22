@@ -4,6 +4,7 @@ import {
 	COMMAND_QUEUE_RUN_BEATS,
 	STARTER_QUEUE_LENGTH,
 	STARTER_COMMAND_QUEUE_SCRIPT,
+	requiredCommandQueueScriptLength,
 	type ThumperCommand
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -222,7 +223,7 @@ describeDb('thumper_run_command_log persistence', () => {
 		)!.id;
 
 		try {
-			const requiredCommands = STARTER_QUEUE_LENGTH + COMMAND_QUEUE_RUN_BEATS - 1;
+			const requiredCommands = requiredCommandQueueScriptLength(STARTER_QUEUE_LENGTH);
 			expect(starterCommandScript.length).toBe(requiredCommands);
 
 			const recordedAt = new Date('2026-06-22T13:01:00.000Z');

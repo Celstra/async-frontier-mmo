@@ -1,6 +1,5 @@
 import {
 	COMMAND_QUEUE_RUN_BEATS,
-	STARTER_QUEUE_LENGTH,
 	buildCommandQueueBeatReadout,
 	canResolveNextBeat,
 	forecastCommandQueueEvents,
@@ -29,6 +28,10 @@ import {
 	parseThumperCommandLogCommand,
 	ThumperCommandLogReplayError
 } from './thumperCommandQueueLog.js';
+import {
+	commandQueueLengthForRun,
+	requiredCommandsForCommandQueueRun
+} from './commandQueueRunLength.js';
 
 export type CommandQueueRecallMarker = {
 	commandQueueRecalledAt: string;
@@ -77,6 +80,7 @@ type CommandQueueRunRow = {
 	claimedAt: Date | null;
 	defenseActionLog: unknown;
 	pilotId: string;
+	commandQueueLength?: number | null;
 };
 
 function parseStoredCommand(input: {
@@ -111,6 +115,7 @@ export function buildCommandQueueFieldView(input: {
 	rows: Awaited<ReturnType<typeof loadCommandQueueLogRows>>;
 	scannerQuality: ScannerForecastQuality;
 }): CommandQueueFieldView {
+	const queueLength = commandQueueLengthForRun(input.run);
 	const recalled = parseCommandQueueRecallMarker(input.run.defenseActionLog) !== null;
 	const commandsByBeatIndex = input.rows.map((row) => ({
 		beatIndex: row.beatIndex,
@@ -124,7 +129,8 @@ export function buildCommandQueueFieldView(input: {
 	const state = replayCommandQueueRunToProgress({
 		runSeed: input.run.runSeed,
 		commandsByBeatIndex,
-		resolvedBeatCount
+		resolvedBeatCount,
+		queueLength
 	});
 
 	if (recalled && !state.ended) {
@@ -168,7 +174,7 @@ export function buildCommandQueueFieldView(input: {
 		};
 	});
 
-	const requiredCommands = STARTER_QUEUE_LENGTH + COMMAND_QUEUE_RUN_BEATS - 1;
+	const requiredCommands = requiredCommandsForCommandQueueRun(queueLength);
 	const canClaim =
 		state.ended &&
 		!input.run.claimedAt &&
@@ -187,7 +193,7 @@ export function buildCommandQueueFieldView(input: {
 		recalled: state.recalled || recalled,
 		resolvedBeatCount,
 		totalBeats: COMMAND_QUEUE_RUN_BEATS,
-		queueLength: STARTER_QUEUE_LENGTH,
+		queueLength,
 		heatLimit: 10
 	};
 }

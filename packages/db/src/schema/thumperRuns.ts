@@ -1,5 +1,5 @@
-import { isNull } from 'drizzle-orm';
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { isNull, sql } from 'drizzle-orm';
+import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 export const thumperRuns = pgTable(
 	'thumper_runs',
@@ -33,12 +33,18 @@ export const thumperRuns = pgTable(
 		projectTargetFamily: text('project_target_family'),
 		projectNeedUnits: integer('project_need_units'),
 		/** Decision 025 — authoritative defense encounter action log for claim replay. */
-		defenseActionLog: jsonb('defense_action_log').notNull().default([])
+		defenseActionLog: jsonb('defense_action_log').notNull().default([]),
+		/** Visible command slots for project-led command-queue runs (2 starter, 3 medium, 4 large). */
+		commandQueueLength: integer('command_queue_length').notNull().default(2)
 	},
 	(table) => [
 		uniqueIndex('thumper_runs_one_open_per_pilot')
 			.on(table.pilotId)
 			.where(isNull(table.claimedAt)),
-		index('thumper_runs_pilot_id_deployed_at_idx').on(table.pilotId, table.deployedAt)
+		index('thumper_runs_pilot_id_deployed_at_idx').on(table.pilotId, table.deployedAt),
+		check(
+			'thumper_runs_command_queue_length_check',
+			sql`${table.commandQueueLength} in (2, 3, 4)`
+		)
 	]
 );

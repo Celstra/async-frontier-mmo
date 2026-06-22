@@ -281,6 +281,13 @@
       "when": 1781955804120,
       "tag": "0041_thumper_run_command_log_command_check",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784500100000,
+      "tag": "0042_thumper_runs_command_queue_length",
+      "breakpoints": true
     }
   ]
 }
