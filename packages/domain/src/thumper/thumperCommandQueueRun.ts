@@ -59,8 +59,8 @@ export type CommandQueueRunResult = {
 	surgeCount: number;
 };
 
-function forecastRevealRng(runSeed: string, beat: number, offset: number): SeededRng {
-	return new SeededRng(`${runSeed}:forecast:${beat}:${offset}`);
+function forecastRevealRng(runSeed: string, eventBeat: number): SeededRng {
+	return new SeededRng(`${runSeed}:forecast:${eventBeat}`);
 }
 
 export function createCommandQueueRunState(input?: {
@@ -178,7 +178,7 @@ export function forecastCommandQueueEvents(input: {
 				input.events[index]!,
 				input.scannerQuality,
 				offset,
-				forecastRevealRng(input.runSeed, input.beat, offset)
+				forecastRevealRng(input.runSeed, index)
 			)
 		);
 	}

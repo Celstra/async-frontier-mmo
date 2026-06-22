@@ -246,22 +246,57 @@ describe('thumperCommandQueueRun', () => {
 		expect(uniqueOffsetZero.size).toBeGreaterThan(1);
 	});
 
+	it('keeps revealed events stable as they move closer in the forecast window', () => {
+		const runSeed = FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED;
+		const events = generateCommandQueueEvents(runSeed);
+		const queueLength = 3;
+
+		for (let beat = 0; beat < 8; beat += 1) {
+			const current = forecastCommandQueueEvents({
+				runSeed,
+				events,
+				beat,
+				queueLength,
+				scannerQuality: 'poor'
+			});
+			const next = forecastCommandQueueEvents({
+				runSeed,
+				events,
+				beat: beat + 1,
+				queueLength,
+				scannerQuality: 'poor'
+			});
+
+			for (let offset = 1; offset < queueLength; offset += 1) {
+				const visibleToken = current[offset];
+				if (!visibleToken?.kind) {
+					continue;
+				}
+				const shiftedToken = next[offset - 1];
+				expect(shiftedToken?.kind).toBe(visibleToken.kind);
+				if (visibleToken.amount !== null) {
+					expect(shiftedToken?.amount).toBe(visibleToken.amount);
+				}
+			}
+		}
+	});
+
 	it('scanner quality changes forecast reveal, not the true event deck or yield', () => {
-		const events = generateCommandQueueEvents('scanner-seed');
+		const events = generateCommandQueueEvents(FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED);
 		const commands = Array.from({ length: 19 }, () => 'drill' as const);
 
 		const poor = forecastCommandQueueEvents({
-			runSeed: 'scanner-seed',
+			runSeed: FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
 			events,
 			beat: 0,
-			queueLength: 2,
+			queueLength: 3,
 			scannerQuality: 'poor'
 		});
 		const good = forecastCommandQueueEvents({
-			runSeed: 'scanner-seed',
+			runSeed: FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
 			events,
 			beat: 0,
-			queueLength: 2,
+			queueLength: 3,
 			scannerQuality: 'good'
 		});
 
