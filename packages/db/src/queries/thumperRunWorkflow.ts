@@ -5,6 +5,7 @@ import {
 	isProjectLedDefenseRun,
 	isProjectLedCommandQueueRun,
 	isDefenseRunEnded,
+	assertAllowedCommandQueueDeployLength,
 	type ThumperPartSlot,
 	type ThumperPartWearDelta
 } from '@async-frontier-mmo/domain';
@@ -180,6 +181,8 @@ export async function deployThumperRunWithEventWindows(
 		requirePilotSample?: boolean;
 		/** Decision 025 — snapshot project-led context onto the run at deploy time. */
 		projectRunContext?: ProjectLedRunContext;
+		/** Visible command slots for project-led command-queue runs (2 small, 3 medium). */
+		commandQueueLength?: number | null;
 	}
 ) {
 	return db.transaction(async (tx: DbExecutor) => {
@@ -231,6 +234,10 @@ export async function deployThumperRunWithEventWindows(
 			});
 		}
 
+		const commandQueueLength = isProjectLedCommandQueueRun(input.projectRunContext?.runMode)
+			? assertAllowedCommandQueueDeployLength(input.commandQueueLength ?? 2)
+			: (input.commandQueueLength ?? null);
+
 		const run = await insertThumperRun(tx, {
 			pilotId: input.pilotId,
 			targetResourceId: input.targetResourceId,
@@ -246,7 +253,8 @@ export async function deployThumperRunWithEventWindows(
 			projectSchematicId: input.projectRunContext?.schematicId ?? null,
 			projectTargetSlotId: input.projectRunContext?.targetSlotId ?? null,
 			projectTargetFamily: input.projectRunContext?.targetFamily ?? null,
-			projectNeedUnits: input.projectRunContext?.projectNeedUnits ?? null
+			projectNeedUnits: input.projectRunContext?.projectNeedUnits ?? null,
+			commandQueueLength
 		});
 
 		// Only persist event windows (quiet: false or undefined). Quiet windows do NOT create DB rows.

@@ -601,6 +601,15 @@ export {
 	type CommandQueueLengthTuningReport
 } from './thumper/commandQueueLengthTuning.js';
 export {
+	assertAllowedCommandQueueDeployLength,
+	commandQueueLengthForThumperFrameTier,
+	isMediumCommandQueueDeployAllowed,
+	LargeCommandQueueDeployBlockedError,
+	MediumCommandQueueDeployNotAllowedError,
+	thumperFrameTierFromHullSchematic,
+	type ThumperFrameTier
+} from './thumper/commandQueueDeploy.js';
+export {
 	THUMPER_PART_SLOTS,
 	type ThumperPartRunModifiers,
 	type ThumperPartSnapshot,

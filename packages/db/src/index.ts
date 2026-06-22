@@ -177,6 +177,18 @@ export {
 	requiredCommandsForCommandQueueRun
 } from './queries/commandQueueRunLength.js';
 export {
+	buildProjectLedCommandQueueRunContext,
+	deployProjectLedCommandQueueRun,
+	ensureProjectLedFieldDeployRig,
+	grantAndEquipReinforcedHullPlateForPilot,
+	LargeCommandQueueDeployBlockedError,
+	MediumCommandQueueDeployNotAllowedError,
+	resolveThumperFrameTierForPilot,
+	seedCommandQueuePilotViaDeploy,
+	type ProjectLedCommandQueueDeployInput,
+	type ProjectLedFieldDeployRig
+} from './queries/projectLedFieldDeploy.js';
+export {
 	mapStoredWindowsToResolutionSnapshots,
 	mapStoredWindowsToResponses,
 	resolveThumperRunForStoredWindows

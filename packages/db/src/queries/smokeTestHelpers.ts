@@ -6,6 +6,7 @@ import { craftingAttempts } from '../schema/craftingAttempts.js';
 import { economyLedger } from '../schema/economyLedger.js';
 import { items } from '../schema/items.js';
 import { pilotDepositSpotSamples } from '../schema/pilotDepositSpotSamples.js';
+import { pilotProjectTargets } from '../schema/pilotProjectTargets.js';
 import { pilotFamilyScans } from '../schema/pilotFamilyScans.js';
 import { pilotFieldState } from '../schema/pilotFieldState.js';
 import { pilotResourceStatReveals } from '../schema/pilotResourceStatReveals.js';
@@ -30,6 +31,7 @@ import { clearPilotTutorialState, setPilotTutorialStep } from './tutorialState.j
 import { ensureStarterThumperPartsForPilot } from './thumperPartEquipment.js';
 import { PROJECT_LED_COMMAND_QUEUE_RUN_MODE } from './thumperRunWorkflow.js';
 import { insertThumperRun } from './thumperRuns.js';
+import { seedCommandQueuePilotViaDeploy } from './projectLedFieldDeploy.js';
 import { createWorkshopCrateTx } from './workshopCrates.js';
 import {
 	ensurePilotWorkshopStateTx,
@@ -77,8 +79,15 @@ export async function seedScannerCraftPilotForSmoke(db: Db, pilotId: string): Pr
 export async function seedCommandQueuePilotForSmoke(
 	db: Db,
 	pilotId: string,
-	options?: { commandQueueLength?: 2 | 3 }
+	options?: { commandQueueLength?: 2 | 3; viaDeploy?: boolean }
 ): Promise<void> {
+	if (options?.viaDeploy !== false) {
+		await seedCommandQueuePilotViaDeploy(db, pilotId, {
+			commandQueueLength: options?.commandQueueLength ?? 2
+		});
+		return;
+	}
+
 	await ensureSessionPilot(db, pilotId);
 	await ensureBloomOneResourceInstances(db);
 	await ensureStarterThumperPartsForPilot(db, pilotId, { autoEquip: true });
@@ -130,6 +139,7 @@ export async function cleanupCommandQueuePilotForSmoke(db: Db, pilotId: string):
 	await db.delete(economyLedger).where(eq(economyLedger.pilotId, pilotId));
 	await db.delete(resourceStacks).where(eq(resourceStacks.pilotId, pilotId));
 	await db.delete(pilotDepositSpotSamples).where(eq(pilotDepositSpotSamples.pilotId, pilotId));
+	await db.delete(pilotProjectTargets).where(eq(pilotProjectTargets.pilotId, pilotId));
 	await db.delete(pilotResourceStatReveals).where(eq(pilotResourceStatReveals.pilotId, pilotId));
 	await db.delete(pilotFamilyScans).where(eq(pilotFamilyScans.pilotId, pilotId));
 	await db.delete(pilotSurveyEnergy).where(eq(pilotSurveyEnergy.pilotId, pilotId));

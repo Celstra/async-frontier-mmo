@@ -70,7 +70,7 @@ export async function cleanupScannerCraftPilotForSmoke(pilotId: string): Promise
 
 export async function seedCommandQueuePilotForSmoke(
 	pilotId: string,
-	options?: { commandQueueLength?: 2 | 3 }
+	options?: { commandQueueLength?: 2 | 3; viaDeploy?: boolean }
 ): Promise<void> {
 	await seedCommandQueuePilot(smokeDb(), pilotId, options);
 }

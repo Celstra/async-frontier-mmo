@@ -17,42 +17,53 @@ Use this brief with the rollout plan:
 docs/plan/2026-06-21-feat-thumper-command-queue-pivot-plan.md
 ```
 
-The simulation gate has passed for the **starter/small 2-slot queue only**.
-Do not implement medium/large queue UI or persistence yet.
+## Rollout status (2026-06-22)
+
+| Phase | Scope | Status |
+|---|---|---|
+| Phase 1 | Pure domain `thumperCommandQueueRun` + tests | **Done** |
+| Phase 2 | Persistence, claim replay, command log | **Done** |
+| Phase 3 | FIELD 2-slot (q2) UI + smoke play-to-claim | **Done** |
+| Phase 3b | Medium 3-slot (q3) FIELD UI | **Done** (`f9c27aa`) |
+| Phase 3c | Real medium deploy → FIELD → claim → WORKSHOP payoff | **In validation** (this slice) |
+| Phase 4 | 4-slot / large queue | **Blocked** until q3 passes real-session playtest |
+
+Medium q3 is allowed only as a gated playtest path: deploy requires a
+**Reinforced Hull Plate** equipped (workshop payoff). Worn starter hull stays on
+q2. Large/4-slot is not wired in deploy or UI.
 
 ## Source Of Truth
 
 - Simulation: `design-docs/thumper_command_queue_sim.py`
 - Rollout plan: `docs/plan/2026-06-21-feat-thumper-command-queue-pivot-plan.md`
-- Existing domain seam: `packages/domain/src/thumper/thumperDefenseRun.ts`
-- Existing defense tests: `packages/domain/src/thumper/thumperDefenseRun.test.ts`
+- Domain queue: `packages/domain/src/thumper/thumperCommandQueueRun.ts`
+- Deploy path: `packages/db/src/queries/projectLedFieldDeploy.ts`
+- FIELD UI: `apps/web/src/lib/field/CommandQueuePanel.svelte`
 
-## Phase 1 Scope
+## Real deploy path
 
-Implement a pure domain prototype only.
-
-Create:
-
-```text
-packages/domain/src/thumper/thumperCommandQueueRun.ts
-packages/domain/src/thumper/thumperCommandQueueRun.test.ts
-```
-
-Update only if needed:
+Server-authoritative deploy for project-led command-queue runs:
 
 ```text
-packages/domain/src/index.ts
+deployProjectLedCommandQueueRun()
+  → deployThumperRunWithEventWindows()
+  → insertThumperRun({ runMode: project_led_command_queue, commandQueueLength })
 ```
 
-Do not edit:
+Callers must provide the run seed. Smoke helpers can pass a fixed smoke seed,
+but the canonical deploy path must not silently default real runs to shared test
+texture.
 
-```text
-apps/web/src/lib/rig/ActiveRunPanel.svelte
-packages/db/src/queries/thumperDefenseRuns.ts
-packages/db/src/schema/thumperRuns.ts
-```
+Queue length mapping (domain `commandQueueDeploy.ts`):
 
-Those belong to later phases.
+| Equipped hull | Frame tier | `command_queue_length` |
+|---|---|---|
+| Worn / starter parts | small | 2 |
+| `reinforced_hull_plate` | medium (gated) | 3 |
+| large | — | **blocked** |
+
+Smoke and DB tests should prefer `seedCommandQueuePilotViaDeploy()` over direct
+`insertThumperRun()` when proving deploy integration.
 
 ## Domain Constants
 
@@ -60,6 +71,7 @@ Use tuned Phase 0 values:
 
 ```text
 STARTER_QUEUE_LENGTH = 2
+MEDIUM_QUEUE_LENGTH = 3
 RUN_BEATS = 18
 STARTING_HULL = 55
 STARTING_HEAT = 3
@@ -88,7 +100,7 @@ Events:
 Resolution order:
 
 ```text
-queued command -> field event -> heat surge check -> queue shift
+queued command → field event → heat surge check → queue shift
 ```
 
 Critical rule:
@@ -98,118 +110,41 @@ Bank before Cargo +3 secures only current loose cargo.
 The Cargo +3 arrives loose after Bank resolves.
 ```
 
-## Suggested API
-
-Use local naming if the existing domain style points somewhere better, but keep
-these concepts explicit:
-
-```ts
-type ThumperCommand = 'drill' | 'bank' | 'brace' | 'vent';
-type CommandQueueEventKind = 'cargo' | 'heat' | 'hull' | 'raid';
-type ScannerForecastQuality = 'poor' | 'basic' | 'good';
-
-type QueuedCommand = {
-  beat: number;
-  command: ThumperCommand;
-};
-
-type CommandQueueRunState = {
-  currentBeat: number;
-  totalBeats: number;
-  queueLength: number;
-  queue: ThumperCommand[];
-  secured: number;
-  loose: number;
-  hull: number;
-  heat: number;
-  guard: number;
-  lost: number;
-  surgeCount: number;
-  ended: boolean;
-  recalled: boolean;
-};
-```
-
-Suggested functions:
-
-```text
-createCommandQueueRunState
-generateCommandQueueEvents
-forecastCommandQueueEvents
-queueCommand
-canResolveNextBeat
-resolveNextBeat
-replayCommandQueueRun
-resolveCommandQueueRunResult
-```
-
-Design preference:
-
-- Make tests able to pass explicit event decks.
-- Make seed-based event generation deterministic.
-- Keep scanner forecasts deterministic for seed + beat + scanner quality.
-- Keep the module pure: no DB, web, Svelte, or Date dependency unless passed in.
-
-## Required Tests
-
-Write tests first in:
-
-```text
-packages/domain/src/thumper/thumperCommandQueueRun.test.ts
-```
-
-Minimum tests:
-
-1. Same seed and queued commands produce the same result.
-2. Different seeds produce different event texture.
-3. Starter run uses a 2-slot queue.
-4. First beat cannot resolve until initial queue is full.
-5. Later beat cannot resolve until the new back slot is filled.
-6. Player can only fill the newest back slot.
-7. Command resolves before field event.
-8. `bank` before `cargo +3` does not secure incoming cargo.
-9. `brace` blocks hull/raid events and consumes guard charges.
-10. `vent` lowers heat and costs loose cargo when loose cargo exists.
-11. Heat surge applies hull and loose-cargo loss, then resets heat.
-12. `recall` ends immediately and is not queued.
-13. Scanner quality changes forecast reveal, not the true event deck or yield.
-14. 3/4-slot queue configs can exist in the domain, but starter config remains 2.
-
 ## Validation
 
 Run targeted validation:
 
 ```bash
-pnpm --filter @async-frontier-mmo/domain test -- thumperCommandQueueRun
-pnpm --filter @async-frontier-mmo/domain check
+pnpm check
+pnpm --filter @async-frontier-mmo/domain test -- commandQueueDeploy thumperCommandQueueRun commandQueueLengthTuning
+pnpm --filter @async-frontier-mmo/db test -- projectLedFieldDeploy thumperCommandQueue
+DATABASE_URL=... pnpm --filter web test:e2e -- field-command-queue.smoke.spec.ts
 ```
 
-Then run the sim gate again:
+Sim gate (unchanged):
 
 ```bash
 python3 design-docs/thumper_command_queue_sim.py --runs 5000 --seed 20260621
 ```
 
-Do not run full web smokes for Phase 1 unless product code is touched.
-
 ## Stop Conditions
 
-Stop and ask Ryan before moving past Phase 1 if any of these become necessary:
+Stop and ask Ryan before:
 
-- adding DB tables or migrations;
-- changing `ActiveRunPanel.svelte`;
-- replacing existing `thumperDefenseRun.ts` in place;
-- implementing medium/large UI behavior;
-- reintroducing recommendations;
-- adding timed beat pressure.
+- starting 4-slot UI or large deploy wiring;
+- reintroducing recommendations or old defense word-button UI;
+- adding timed beat pressure;
+- tuning command math unless a test exposes a real bug.
 
-## Done
+## Done (this slice)
 
-Phase 1 is done when:
+- `deployProjectLedCommandQueueRun` persists correct `command_queue_length` for small/medium.
+- DB tests prove q2/q3 deploy, q3 claim replay, 4-slot blocked, workshop readiness after claim.
+- FIELD smoke includes at least one medium run seeded via real deploy path.
+- q2 smokes still pass with deploy-based seeding.
 
-- the new pure domain module exists;
-- all required domain tests pass;
-- the existing tuned sim still passes;
-- the rollout plan remains accurate;
-- no UI or DB behavior changes were slipped in.
+## Next For Composer
 
+If medium q3 passes real deploy → FIELD play → claim → WORKSHOP payoff validation,
+the next step is a **human q3 playtest/readability review**. 4-slot remains blocked
+until q3 feels strategically different from q2 in an actual session.

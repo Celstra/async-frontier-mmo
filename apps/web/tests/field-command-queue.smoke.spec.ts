@@ -81,9 +81,27 @@ test.describe('field command queue smoke', () => {
 		}
 	});
 
-	test('medium queue renders three slots and plays to claim', async ({ page, context, baseURL }) => {
+	test('medium queue via real deploy plays to claim with three slots', async ({ page, context, baseURL }) => {
 		const pilotId = newSmokePilotId();
 		await seedCommandQueuePilotForSmoke(pilotId, { commandQueueLength: 3 });
+		await seedPilotCookie(context, pilotId, baseURL);
+
+		try {
+			await page.goto('/field');
+			await expectFieldCommandQueuePanel(page);
+			await expectFieldCommandQueueLength(page, 3);
+			await playMediumFieldCommandQueueScript(page);
+			await expectFieldCommandQueueClaimReady(page);
+			await claimFieldCommandQueue(page);
+			await expectFieldClaimRecoveredAboveZero(page);
+		} finally {
+			await cleanupCommandQueuePilotForSmoke(pilotId);
+		}
+	});
+
+	test('medium queue renders three slots and plays to claim (seeded run)', async ({ page, context, baseURL }) => {
+		const pilotId = newSmokePilotId();
+		await seedCommandQueuePilotForSmoke(pilotId, { commandQueueLength: 3, viaDeploy: false });
 		await seedPilotCookie(context, pilotId, baseURL);
 
 		try {
