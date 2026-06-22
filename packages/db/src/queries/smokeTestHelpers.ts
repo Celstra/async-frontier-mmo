@@ -1,4 +1,5 @@
 import { eq, inArray } from 'drizzle-orm';
+import { FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED } from '@async-frontier-mmo/domain';
 import { BLOOM_ONE_ID } from '../seed/bloomOneSeed.js';
 import type { Db } from '../client.js';
 import { craftingAttempts } from '../schema/craftingAttempts.js';
@@ -73,12 +74,15 @@ export async function seedScannerCraftPilotForSmoke(db: Db, pilotId: string): Pr
 	}
 }
 
-export const FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED = 'field-command-queue-smoke-seed';
-
-/** Open project-led command-queue run for FIELD browser smoke (no workshop dependency). */
 export async function seedCommandQueuePilotForSmoke(db: Db, pilotId: string): Promise<void> {
 	await ensureSessionPilot(db, pilotId);
+	await ensureBloomOneResourceInstances(db);
 	await ensureStarterThumperPartsForPilot(db, pilotId, { autoEquip: true });
+	const keth = await getResourceInstanceByBloomSlug(db, BLOOM_ONE_ID, 'keth_iron');
+	if (!keth) {
+		throw new Error('Keth Iron resource instance missing for command queue smoke seed');
+	}
+
 	await insertThumperRun(db, {
 		pilotId,
 		targetResourceId: 'keth_iron',
@@ -86,6 +90,7 @@ export async function seedCommandQueuePilotForSmoke(db: Db, pilotId: string): Pr
 		isPushRun: false,
 		deployedAt: new Date('2026-06-22T16:00:00.000Z'),
 		durationSeconds: 180,
+		resourceInstanceId: keth.id,
 		runMode: PROJECT_LED_COMMAND_QUEUE_RUN_MODE
 	});
 }

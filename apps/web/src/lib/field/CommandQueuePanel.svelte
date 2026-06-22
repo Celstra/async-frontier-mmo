@@ -159,9 +159,19 @@
 
 		<div class="command-queue__actions">
 			{#if view.canClaim}
+				<div class="command-queue__claim-ready" data-testid="field-command-queue-claim-ready" role="status">
+					<p class="command-queue__claim-ready-line">
+						Run complete. <strong>{view.meters.secured}u</strong> secured.
+					</p>
+					<p class="command-queue__claim-ready-hint">Claim sends secured yield to inventory.</p>
+				</div>
 				<form method="POST" action="?/claimRun" use:enhance class="command-queue__action-form">
-					<button type="submit" class="command-queue__action-button command-queue__action-button--claim">
-						Claim yield
+					<button
+						type="submit"
+						class="command-queue__action-button command-queue__action-button--claim"
+						data-testid="field-command-queue-claim-button"
+					>
+						Claim {view.meters.secured}u
 					</button>
 				</form>
 			{/if}
@@ -247,6 +257,31 @@
 		font-size: var(--font-size-xs);
 		line-height: 1.45;
 		letter-spacing: 0;
+	}
+
+	.command-queue__claim-ready {
+		flex: 1 1 100%;
+		display: grid;
+		gap: 0.25rem;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--phosphor-dim);
+		background: var(--bg-inset);
+	}
+
+	.command-queue__claim-ready-line,
+	.command-queue__claim-ready-hint {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		letter-spacing: 0;
+	}
+
+	.command-queue__claim-ready-line {
+		color: var(--phosphor);
+	}
+
+	.command-queue__claim-ready-hint {
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
 	}
 
 	.command-queue__section-title {

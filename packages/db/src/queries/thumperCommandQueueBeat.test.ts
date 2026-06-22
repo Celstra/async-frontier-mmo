@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
 	COMMAND_QUEUE_RUN_BEATS,
 	STARTER_QUEUE_LENGTH,
+	STARTER_COMMAND_QUEUE_SCRIPT,
 	type ThumperCommand
 } from '@async-frontier-mmo/domain';
 import { createDb } from '../client.js';
@@ -30,27 +31,7 @@ import { thumperRunResults } from '../schema/thumperRunResults.js';
 const databaseUrl = process.env.DATABASE_URL;
 const describeDb = databaseUrl ? describe : describe.skip;
 
-const starterCommandScript: ThumperCommand[] = [
-	'drill',
-	'bank',
-	'vent',
-	'drill',
-	'bank',
-	'brace',
-	'drill',
-	'vent',
-	'bank',
-	'drill',
-	'brace',
-	'vent',
-	'drill',
-	'bank',
-	'drill',
-	'vent',
-	'bank',
-	'drill',
-	'brace'
-];
+const starterCommandScript: ThumperCommand[] = [...STARTER_COMMAND_QUEUE_SCRIPT];
 
 async function deletePilotWithEquippedParts(
 	db: ReturnType<typeof createDb>,

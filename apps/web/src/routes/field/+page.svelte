@@ -26,7 +26,9 @@
 		<header class="screen__header">FIELD: Claim complete</header>
 		<div class="screen__body field-claim-notice__body">
 			<p>
-				Secured <strong>{claimNotice.recoveredQuantity}u</strong> sent to inventory.
+				Secured
+				<strong data-testid="field-claim-recovered-quantity">{claimNotice.recoveredQuantity}u</strong>
+				sent to inventory.
 			</p>
 			<p>
 				Return to <a href="/workshop">WORKSHOP</a> or deploy another run from RIG when it returns.

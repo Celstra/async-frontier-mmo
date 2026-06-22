@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
+	STARTER_COMMAND_QUEUE_SCRIPT
+} from './starterCommandQueueScript.js';
+import {
 	STARTER_QUEUE_LENGTH,
 	RUN_BEATS,
 	createCommandQueueRunState,
@@ -392,5 +396,16 @@ describe('thumperCommandQueueRun', () => {
 			fieldLine: 'FIELD HULL -2',
 			heatLine: `Heat 4/${HEAT_LIMIT}`
 		});
+	});
+
+	it('smoke run seed with starter script secures yield above zero', () => {
+		expect(STARTER_COMMAND_QUEUE_SCRIPT).toHaveLength(STARTER_QUEUE_LENGTH + RUN_BEATS - 1);
+
+		const state = replayCommandQueueRun({
+			runSeed: FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
+			commands: [...STARTER_COMMAND_QUEUE_SCRIPT]
+		});
+		expect(state.ended).toBe(true);
+		expect(resolveCommandQueueRunResult(state).recoveredQuantity).toBeGreaterThan(0);
 	});
 });

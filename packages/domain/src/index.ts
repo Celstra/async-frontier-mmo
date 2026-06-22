@@ -577,6 +577,10 @@ export {
 	type CommandQueueBeatReadout
 } from './thumper/thumperCommandQueueRun.js';
 export {
+	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
+	STARTER_COMMAND_QUEUE_SCRIPT
+} from './thumper/starterCommandQueueScript.js';
+export {
 	THUMPER_PART_SLOTS,
 	type ThumperPartRunModifiers,
 	type ThumperPartSnapshot,

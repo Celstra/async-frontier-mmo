@@ -111,12 +111,12 @@ export {
 	cleanupCommandQueuePilotForSmoke,
 	cleanupWorkshopCraftPilotForSmoke,
 	deleteAllSmokePilotData,
-	FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED,
 	mintWorkshopTimerCrateForSmoke,
 	seedCommandQueuePilotForSmoke,
 	seedScannerCraftPilotForSmoke,
 	seedWorkshopCraftPilotForSmoke
 } from './queries/smokeTestHelpers.js';
+export { FIELD_COMMAND_QUEUE_SMOKE_RUN_SEED } from '@async-frontier-mmo/domain';
 export {
 	claimOpenThumperRunForPilot,
 	deployThumperRunWithEventWindows,

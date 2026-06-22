@@ -1,9 +1,13 @@
 import { expect, test } from '@playwright/test';
 import {
 	advanceFieldCommandQueueBeat,
+	claimFieldCommandQueue,
 	expectFieldBeatReadout,
+	expectFieldClaimRecoveredAboveZero,
+	expectFieldCommandQueueClaimReady,
 	expectFieldCommandQueueFitsViewport,
 	expectFieldCommandQueuePanel,
+	playFieldCommandQueueStarterScript,
 	queueFieldCommand
 } from './helpers/fieldCommandQueueFlow';
 import { newSmokePilotId, seedPilotCookie } from './helpers/pilotContext';
@@ -13,7 +17,7 @@ import {
 } from './helpers/smokeDb';
 
 test.describe('field command queue smoke', () => {
-	test.setTimeout(60_000);
+	test.setTimeout(180_000);
 
 	test.beforeAll(() => {
 		if (!process.env.DATABASE_URL) {
@@ -49,6 +53,27 @@ test.describe('field command queue smoke', () => {
 			await expectFieldCommandQueueFitsViewport(page);
 			await page.setViewportSize({ width: 390, height: 780 });
 			await expectFieldCommandQueueFitsViewport(page);
+		} finally {
+			await cleanupCommandQueuePilotForSmoke(pilotId);
+		}
+	});
+
+	test('plays starter script to claim with secured yield above zero', async ({
+		page,
+		context,
+		baseURL
+	}) => {
+		const pilotId = newSmokePilotId();
+		await seedCommandQueuePilotForSmoke(pilotId);
+		await seedPilotCookie(context, pilotId, baseURL);
+
+		try {
+			await page.goto('/field');
+			await expectFieldCommandQueuePanel(page);
+			await playFieldCommandQueueStarterScript(page);
+			await expectFieldCommandQueueClaimReady(page);
+			await claimFieldCommandQueue(page);
+			await expectFieldClaimRecoveredAboveZero(page);
 		} finally {
 			await cleanupCommandQueuePilotForSmoke(pilotId);
 		}
