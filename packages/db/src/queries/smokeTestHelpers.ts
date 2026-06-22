@@ -74,7 +74,11 @@ export async function seedScannerCraftPilotForSmoke(db: Db, pilotId: string): Pr
 	}
 }
 
-export async function seedCommandQueuePilotForSmoke(db: Db, pilotId: string): Promise<void> {
+export async function seedCommandQueuePilotForSmoke(
+	db: Db,
+	pilotId: string,
+	options?: { commandQueueLength?: 2 | 3 }
+): Promise<void> {
 	await ensureSessionPilot(db, pilotId);
 	await ensureBloomOneResourceInstances(db);
 	await ensureStarterThumperPartsForPilot(db, pilotId, { autoEquip: true });
@@ -91,7 +95,8 @@ export async function seedCommandQueuePilotForSmoke(db: Db, pilotId: string): Pr
 		deployedAt: new Date('2026-06-22T16:00:00.000Z'),
 		durationSeconds: 180,
 		resourceInstanceId: keth.id,
-		runMode: PROJECT_LED_COMMAND_QUEUE_RUN_MODE
+		runMode: PROJECT_LED_COMMAND_QUEUE_RUN_MODE,
+		commandQueueLength: options?.commandQueueLength ?? 2
 	});
 }
 

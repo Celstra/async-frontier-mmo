@@ -6,8 +6,10 @@ import {
 	expectFieldClaimRecoveredAboveZero,
 	expectFieldCommandQueueClaimReady,
 	expectFieldCommandQueueFitsViewport,
+	expectFieldCommandQueueLength,
 	expectFieldCommandQueuePanel,
 	playFieldCommandQueueStarterScript,
+	playMediumFieldCommandQueueScript,
 	queueFieldCommand
 } from './helpers/fieldCommandQueueFlow';
 import { newSmokePilotId, seedPilotCookie } from './helpers/pilotContext';
@@ -71,6 +73,39 @@ test.describe('field command queue smoke', () => {
 			await page.goto('/field');
 			await expectFieldCommandQueuePanel(page);
 			await playFieldCommandQueueStarterScript(page);
+			await expectFieldCommandQueueClaimReady(page);
+			await claimFieldCommandQueue(page);
+			await expectFieldClaimRecoveredAboveZero(page);
+		} finally {
+			await cleanupCommandQueuePilotForSmoke(pilotId);
+		}
+	});
+
+	test('medium queue renders three slots and plays to claim', async ({ page, context, baseURL }) => {
+		const pilotId = newSmokePilotId();
+		await seedCommandQueuePilotForSmoke(pilotId, { commandQueueLength: 3 });
+		await seedPilotCookie(context, pilotId, baseURL);
+
+		try {
+			await page.goto('/field');
+			await expectFieldCommandQueuePanel(page);
+			await expectFieldCommandQueueLength(page, 3);
+
+			const queueSlots = page.getByTestId('field-command-queue-slots');
+			await expect(queueSlots.getByText('NEXT', { exact: true })).toBeVisible();
+			await expect(queueSlots.getByText('HOLD', { exact: true })).toBeVisible();
+			await expect(queueSlots.getByText('EDIT', { exact: true })).toBeVisible();
+			await expect(page.getByTestId('field-command-queue-timing')).toContainText('HOLD waits in line');
+			await expectFieldCommandQueueFitsViewport(page);
+
+			const slots = queueSlots.locator('.command-queue__slot');
+			await queueFieldCommand(page, 'DRILL');
+			await expect(slots.nth(1)).toContainText('Editable');
+			await queueFieldCommand(page, 'BANK');
+			await expect(slots.nth(2)).toContainText('Editable');
+			await queueFieldCommand(page, 'VENT');
+
+			await playMediumFieldCommandQueueScript(page, { prefilledCommandCount: 3 });
 			await expectFieldCommandQueueClaimReady(page);
 			await claimFieldCommandQueue(page);
 			await expectFieldClaimRecoveredAboveZero(page);

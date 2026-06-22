@@ -68,8 +68,11 @@ export async function cleanupScannerCraftPilotForSmoke(pilotId: string): Promise
 	await cleanupScannerCraftPilot(smokeDb(), pilotId);
 }
 
-export async function seedCommandQueuePilotForSmoke(pilotId: string): Promise<void> {
-	await seedCommandQueuePilot(smokeDb(), pilotId);
+export async function seedCommandQueuePilotForSmoke(
+	pilotId: string,
+	options?: { commandQueueLength?: 2 | 3 }
+): Promise<void> {
+	await seedCommandQueuePilot(smokeDb(), pilotId, options);
 }
 
 export async function cleanupCommandQueuePilotForSmoke(pilotId: string): Promise<void> {

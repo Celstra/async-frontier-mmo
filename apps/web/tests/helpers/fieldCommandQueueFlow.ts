@@ -1,9 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 import {
 	COMMAND_QUEUE_RUN_BEATS,
+	MEDIUM_COMMAND_QUEUE_SLOT_LENGTH,
 	STARTER_COMMAND_QUEUE_SCRIPT,
 	STARTER_QUEUE_LENGTH,
 	requiredCommandQueueScriptLength,
+	starterScriptForQueueLength,
+	type CommandQueueSlotLength,
 	type ThumperCommand
 } from '@async-frontier-mmo/domain';
 
@@ -19,6 +22,17 @@ const COMMAND_BUTTON_LABEL: Record<ThumperCommand, FieldCommandButtonLabel> = {
 export async function expectFieldCommandQueuePanel(page: Page): Promise<void> {
 	await expect(page.getByTestId('field-command-queue')).toBeVisible({ timeout: 15_000 });
 	await expect(page.getByTestId('field-command-queue-beat')).toBeVisible();
+}
+
+export async function expectFieldCommandQueueLength(page: Page, queueLength: CommandQueueSlotLength): Promise<void> {
+	const panel = page.getByTestId('field-command-queue');
+	await expect(panel).toHaveAttribute('data-queue-length', String(queueLength));
+	await expect(page.getByTestId('field-command-queue-slots').locator('.command-queue__slot')).toHaveCount(
+		queueLength
+	);
+	await expect(page.getByTestId('field-command-queue-forecast').locator('.command-queue__forecast-item')).toHaveCount(
+		queueLength
+	);
 }
 
 export async function queueFieldCommand(
@@ -44,6 +58,41 @@ export async function advanceFieldCommandQueueBeat(page: Page): Promise<void> {
 	await page.waitForLoadState('networkidle');
 }
 
+export async function playFieldCommandQueueScript(
+	page: Page,
+	input: {
+		queueLength: CommandQueueSlotLength;
+		script?: readonly ThumperCommand[];
+		prefilledCommandCount?: number;
+	}
+): Promise<void> {
+	const script = input.script ?? starterScriptForQueueLength(input.queueLength);
+	const expectedScriptLength = requiredCommandQueueScriptLength(input.queueLength);
+	if (script.length !== expectedScriptLength) {
+		throw new Error(
+			`Expected command queue script to have ${expectedScriptLength} commands, received ${script.length}`
+		);
+	}
+	const prefilledCommandCount = input.prefilledCommandCount ?? 0;
+	if (prefilledCommandCount < 0 || prefilledCommandCount > input.queueLength) {
+		throw new Error(
+			`Expected prefilled command count between 0 and ${input.queueLength}, received ${prefilledCommandCount}`
+		);
+	}
+
+	for (let slot = prefilledCommandCount; slot < input.queueLength; slot += 1) {
+		await queueFieldCommandById(page, script[slot]!);
+	}
+
+	for (let beat = 0; beat < COMMAND_QUEUE_RUN_BEATS; beat += 1) {
+		await advanceFieldCommandQueueBeat(page);
+		const nextIndex = beat + input.queueLength;
+		if (nextIndex < expectedScriptLength) {
+			await queueFieldCommandById(page, script[nextIndex]!);
+		}
+	}
+}
+
 export async function playFieldCommandQueueStarterScript(
 	page: Page,
 	script: readonly ThumperCommand[] = STARTER_COMMAND_QUEUE_SCRIPT
@@ -55,16 +104,20 @@ export async function playFieldCommandQueueStarterScript(
 		);
 	}
 
-	await queueFieldCommandById(page, script[0]!);
-	await queueFieldCommandById(page, script[1]!);
+	await playFieldCommandQueueScript(page, {
+		queueLength: STARTER_QUEUE_LENGTH,
+		script
+	});
+}
 
-	for (let beat = 0; beat < COMMAND_QUEUE_RUN_BEATS; beat += 1) {
-		await advanceFieldCommandQueueBeat(page);
-		const nextIndex = beat + STARTER_QUEUE_LENGTH;
-		if (nextIndex < expectedScriptLength) {
-			await queueFieldCommandById(page, script[nextIndex]!);
-		}
-	}
+export async function playMediumFieldCommandQueueScript(
+	page: Page,
+	options?: { prefilledCommandCount?: number }
+): Promise<void> {
+	await playFieldCommandQueueScript(page, {
+		queueLength: MEDIUM_COMMAND_QUEUE_SLOT_LENGTH,
+		prefilledCommandCount: options?.prefilledCommandCount
+	});
 }
 
 export async function expectFieldCommandQueueClaimReady(page: Page): Promise<void> {

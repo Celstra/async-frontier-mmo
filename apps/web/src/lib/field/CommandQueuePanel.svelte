@@ -4,11 +4,13 @@
 	import {
 		commandQueueCommandHint,
 		commandQueueCommandLabel,
+		commandQueueSlotLabel,
+		commandQueueTimingHint,
 		forecastTimelineLabel,
 		forecastTokenLabel
 	} from '$lib/field/commandQueueLabels.js';
 	import type { FieldCommandQueueView } from '$lib/server/fieldCommandQueueLoad.js';
-	import type { CommandQueueBeatReadout, ThumperCommand } from '@async-frontier-mmo/domain';
+	import type { CommandQueueBeatReadout, CommandQueueSlotLength, ThumperCommand } from '@async-frontier-mmo/domain';
 
 	interface Props {
 		view: FieldCommandQueueView;
@@ -28,15 +30,23 @@
 	const heatNearLimit = $derived(view.meters.heat >= view.meters.heatLimit - 1);
 
 	const frontSlot = $derived(view.queueSlots[0] ?? null);
-	const backSlot = $derived(view.queueSlots[view.queueSlots.length - 1] ?? null);
-	const canEditBackSlot = $derived(
-		!view.ended && !view.recalled && backSlot !== null && !backSlot.locked
+	const editableSlot = $derived(view.queueSlots.find((slot) => slot.isBackSlot) ?? null);
+	const canEditQueueSlot = $derived(
+		!view.ended && !view.recalled && editableSlot !== null && !editableSlot.locked
 	);
 	const canAdvance = $derived(view.canAdvanceBeat && !view.ended && !view.recalled);
 	const canRecall = $derived(!view.ended && !view.recalled);
+	const queueLength = $derived(view.queueLength as CommandQueueSlotLength);
+	const timingHint = $derived(commandQueueTimingHint(queueLength));
 </script>
 
-<section class="screen command-queue" data-testid="field-command-queue" aria-label="FIELD: Red Mesa command queue">
+<section
+	class="screen command-queue"
+	class:command-queue--medium={queueLength === 3}
+	data-testid="field-command-queue"
+	data-queue-length={queueLength}
+	aria-label="FIELD: Red Mesa command queue"
+>
 	<header class="screen__header command-queue__header">
 		<h1 class="command-queue__title">FIELD: Red Mesa</h1>
 		<p class="command-queue__beat" data-testid="field-command-queue-beat">
@@ -103,7 +113,7 @@
 			<ol class="command-queue__forecast-list">
 				{#each view.forecast as token, offset (offset)}
 					<li class="command-queue__forecast-item">
-						<span class="command-queue__forecast-when">{forecastTimelineLabel(offset)}</span>
+						<span class="command-queue__forecast-when">{forecastTimelineLabel(offset, queueLength)}</span>
 						<span class="command-queue__forecast-token">{forecastTokenLabel(token)}</span>
 					</li>
 				{/each}
@@ -113,17 +123,18 @@
 		<div class="command-queue__queue" data-testid="field-command-queue-slots">
 			<h2 class="command-queue__section-title">Queue</h2>
 			<p class="command-queue__timing" data-testid="field-command-queue-timing">
-				NEXT resolves on advance. EDIT back now. After advance, EDIT opens for the new back slot.
+				{timingHint}
 			</p>
 			<ol class="command-queue__slot-list">
 				{#each view.queueSlots as slot, index (slot.beatIndex)}
 					<li
 						class="command-queue__slot"
 						class:command-queue__slot--locked={slot.locked}
-						class:command-queue__slot--editable={!slot.locked && slot === backSlot && canEditBackSlot}
+						class:command-queue__slot--editable={!slot.locked && slot === editableSlot && canEditQueueSlot}
+						class:command-queue__slot--hold={queueLength === 3 && index > 0 && index < view.queueSlots.length - 1}
 					>
 						<span class="command-queue__slot-label">
-							{index === 0 ? 'NEXT' : 'EDIT'}
+							{commandQueueSlotLabel(index, queueLength)}
 						</span>
 						<span class="command-queue__slot-command">
 							{slot.command ? commandQueueCommandLabel(slot.command) : 'EMPTY'}
@@ -132,15 +143,17 @@
 							<span class="command-queue__slot-badge">Locked</span>
 						{:else if index === 0 && canAdvance}
 							<span class="command-queue__slot-badge">On advance</span>
-						{:else if slot === backSlot && canEditBackSlot}
+						{:else if slot === editableSlot && canEditQueueSlot}
 							<span class="command-queue__slot-badge command-queue__slot-badge--edit">Editable</span>
+						{:else if queueLength === 3 && index > 0 && index < view.queueSlots.length - 1}
+							<span class="command-queue__slot-badge">Queued</span>
 						{/if}
 					</li>
 				{/each}
 			</ol>
 		</div>
 
-		{#if canEditBackSlot}
+		{#if canEditQueueSlot}
 			<div class="command-queue__commands" data-testid="field-command-queue-commands">
 				<h2 class="command-queue__section-title">Queue command</h2>
 				<div class="command-queue__command-grid">
@@ -372,6 +385,10 @@
 
 	.command-queue__slot--editable {
 		border-color: var(--phosphor-dim);
+	}
+
+	.command-queue__slot--hold {
+		opacity: 0.88;
 	}
 
 	.command-queue__slot-badge {

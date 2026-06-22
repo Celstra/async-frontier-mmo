@@ -1,3 +1,4 @@
+import type { CommandQueueSlotLength } from '@async-frontier-mmo/domain';
 import type { CommandQueueEventKind, ThumperCommand } from '@async-frontier-mmo/domain';
 import type { FieldCommandQueueView } from '$lib/server/fieldCommandQueueLoad.js';
 
@@ -21,10 +22,29 @@ export function commandQueueCommandHint(command: ThumperCommand): string {
 	return 'heat -3';
 }
 
-export function forecastTimelineLabel(offset: number): string {
+export function forecastTimelineLabel(
+	offset: number,
+	queueLength: CommandQueueSlotLength = 2
+): string {
 	if (offset === 0) return 'NOW';
-	if (offset === 1) return 'NEXT';
+	if (queueLength === 2 && offset === 1) return 'NEXT';
 	return `+${offset}`;
+}
+
+export function commandQueueSlotLabel(
+	index: number,
+	queueLength: CommandQueueSlotLength
+): string {
+	if (index === 0) return 'NEXT';
+	if (index === queueLength - 1) return 'EDIT';
+	return 'HOLD';
+}
+
+export function commandQueueTimingHint(queueLength: CommandQueueSlotLength): string {
+	if (queueLength === 3) {
+		return 'NEXT resolves on advance. HOLD waits in line. EDIT back now. After advance, EDIT opens for the new back slot.';
+	}
+	return 'NEXT resolves on advance. EDIT back now. After advance, EDIT opens for the new back slot.';
 }
 
 export function forecastTokenLabel(token: ForecastToken): string {
