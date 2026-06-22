@@ -5,6 +5,7 @@ loadSmokeEnvFiles();
 
 const devPort = process.env.PLAYWRIGHT_DEV_PORT ?? '5173';
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${devPort}`;
+const webServerReadyURL = process.env.PLAYWRIGHT_READY_URL ?? new URL('/field', baseURL).toString();
 
 export default defineConfig({
 	testDir: 'tests',
@@ -22,7 +23,7 @@ export default defineConfig({
 		? undefined
 		: {
 				command: `pnpm dev --host 127.0.0.1 --port ${devPort}`,
-				url: baseURL,
+				url: webServerReadyURL,
 				reuseExistingServer:
 					!process.env.CI && !process.env.PLAYWRIGHT_FORCE_NEW_SERVER,
 				timeout: 120_000,
